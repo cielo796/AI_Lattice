@@ -1,0 +1,19 @@
+# AIローコード・プラットフォーム MVP 基本設計書
+
+## 1. プロダクトコンセプト
+「AIが業務アプリを作り、AIが業務を動かし、人が最終判断する」
+
+## 2. 主要機能（MVP）
+- **Prompt to App**: 自然言語からテーブル、フォーム、ワークフローを一括生成。
+- **AI Record Assistant**: レコード要約、次アクション提案、文書解析。
+- **Enterprise Governance**: 細粒度な権限管理、監査ログ、Human-in-the-Loop。
+
+## 3. 画面構成
+- **Builder**: AIアプリ生成、テーブル設計、フォームエディタ、ワークフロー設定。
+- **Runtime**: レコード一覧・詳細、承認画面、AIサイドパネル、ダッシュボード。
+- **Admin**: ユーザー・テナント管理、監査ログ、AIモデル制御。
+
+## 4. 技術スタック（推奨）
+- **Frontend**: Next.js, React Flow
+- **Backend**: FastAPI / NestJS, PostgreSQL (pgvector)
+- **AI**: Model Gateway によるマルチモデル制御

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Audit Logs | Cognitive Architecture</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "background": "#f8f9ff",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "secondary-fixed": "#dae2fd",
+                        "outline-variant": "#c6c6cd",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-high": "#dce9ff",
+                        "on-tertiary-fixed": "#002113",
+                        "inverse-surface": "#213145",
+                        "surface-container-low": "#eff4ff",
+                        "on-tertiary-container": "#009668",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface-container": "#e5eeff",
+                        "surface": "#f8f9ff",
+                        "on-background": "#0b1c30",
+                        "tertiary": "#000000",
+                        "surface-variant": "#d3e4fe",
+                        "on-surface-variant": "#45464d",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "secondary": "#565e74",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "primary-fixed": "#dbe1ff",
+                        "primary-container": "#00174b",
+                        "on-error-container": "#93000a",
+                        "secondary-container": "#dae2fd",
+                        "tertiary-fixed": "#6ffbbe",
+                        "surface-bright": "#f8f9ff",
+                        "inverse-primary": "#b4c5ff",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "surface-tint": "#0053db",
+                        "surface-container-highest": "#d3e4fe",
+                        "surface-dim": "#cbdbf5",
+                        "on-primary-container": "#497cff",
+                        "on-surface": "#0b1c30",
+                        "on-primary-fixed": "#00174b",
+                        "on-primary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#131b2e",
+                        "on-secondary-container": "#5c647a",
+                        "tertiary-container": "#002113",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "primary": "#000000",
+                        "on-error": "#ffffff",
+                        "outline": "#76777d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b1c30; /* Dark mode override for Admin panel as requested */
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-50 antialiased overflow-hidden">
+<!-- Sidebar (SideNavBar) -->
+<aside class="h-screen w-64 fixed left-0 top-0 border-r border-slate-800 bg-slate-950 flex flex-col p-4 space-y-6 z-50">
+<div class="flex items-center gap-3 px-2">
+<div class="w-8 h-8 bg-primary-fixed-dim rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-900" style="font-variation-settings: 'FILL' 1;">schema</span>
+</div>
+<span class="font-manrope text-lg font-extrabold tracking-tighter">Admin Panel</span>
+</div>
+<div class="space-y-1 flex-1">
+<div class="flex items-center gap-3 px-3 py-2 text-slate-500 font-inter text-sm font-medium hover:bg-slate-900 rounded-lg transition-all cursor-pointer">
+<span class="material-symbols-outlined" data-icon="dashboard_customize">dashboard_customize</span>
+<span>Admin</span>
+</div>
+<!-- Active Navigation: Logs -->
+<div class="flex items-center gap-3 px-3 py-2 bg-slate-800 text-slate-50 font-inter text-sm font-medium rounded-lg transition-all cursor-pointer">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span>Logs</span>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-slate-500 font-inter text-sm font-medium hover:bg-slate-900 rounded-lg transition-all cursor-pointer">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+<span>Security</span>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-slate-500 font-inter text-sm font-medium hover:bg-slate-900 rounded-lg transition-all cursor-pointer">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span>Users</span>
+</div>
+</div>
+<div class="pt-4 border-t border-slate-800 space-y-1">
+<div class="flex items-center gap-3 px-3 py-2 text-slate-500 font-inter text-sm font-medium hover:bg-slate-900 rounded-lg transition-all cursor-pointer">
+<span class="material-symbols-outlined" data-icon="contact_support">contact_support</span>
+<span>Support</span>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-slate-500 font-inter text-sm font-medium hover:bg-slate-900 rounded-lg transition-all cursor-pointer">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Logout</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 h-screen flex flex-col bg-slate-900">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center px-8 py-3 w-full border-b border-slate-800 bg-slate-900/50 backdrop-blur-xl sticky top-0 z-40">
+<div class="flex items-center gap-6">
+<h1 class="font-manrope headline-sm font-semibold tracking-tight text-slate-50">Audit Logs</h1>
+<div class="relative group">
+<span class="absolute inset-y-0 left-3 flex items-center text-slate-500">
+<span class="material-symbols-outlined text-sm">search</span>
+</span>
+<input class="bg-slate-800 border-none rounded-lg pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-1 focus:ring-primary-fixed-dim transition-all text-slate-200" placeholder="Search system events..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">System Health</button>
+<button class="bg-primary-fixed-dim text-slate-950 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors">Deploy</button>
+<div class="flex items-center gap-2 ml-4">
+<span class="material-symbols-outlined p-2 text-slate-400 hover:text-slate-50 cursor-pointer transition-colors" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined p-2 text-slate-400 hover:text-slate-50 cursor-pointer transition-colors" data-icon="settings">settings</span>
+<div class="w-8 h-8 rounded-full bg-slate-700 ml-2 overflow-hidden border border-slate-700">
+<img alt="User profile" data-alt="close-up portrait of professional system administrator with focused expression against dark minimalist office background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2AuzogmeUUS3ve0BuHyXJkNd0DDk9ng8l1VIP9BCCbafoQAX5mUB5se_UMCUtfqJCLLR7V5hjxtVtvVZBXekZ2qbZVnKWcFW7tB1FP7zNgkKnBdzS82Wj-qfTH5yy9Uez655eRK0AclArxiBRMexUeoHZjN9sK_7TyVaRtFGLcegsnBvHglo9ygUb_bktnso13yLQzq6zxA8K-FZwVAfOE3R4HHAx3P08wbsZ-pUTu7DXCJ6voEgFUSFjrSI4FBtXsdm4yYV0whg"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Dynamic Content Canvas -->
+<div class="flex flex-1 overflow-hidden">
+<!-- Audit Log Workspace -->
+<div class="flex-1 flex flex-col p-6 space-y-6 overflow-y-auto bg-slate-900">
+<!-- Filters Section -->
+<div class="grid grid-cols-4 gap-4">
+<div class="bg-slate-800/50 p-4 rounded-xl space-y-2">
+<label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Range</label>
+<div class="flex items-center justify-between text-slate-200 text-sm bg-slate-800 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
+<span>Last 24 Hours</span>
+<span class="material-symbols-outlined text-sm">calendar_today</span>
+</div>
+</div>
+<div class="bg-slate-800/50 p-4 rounded-xl space-y-2">
+<label class="text-xs font-bold text-slate-500 uppercase tracking-wider">User Account</label>
+<div class="flex items-center justify-between text-slate-200 text-sm bg-slate-800 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
+<span>All Users</span>
+<span class="material-symbols-outlined text-sm">expand_more</span>
+</div>
+</div>
+<div class="bg-slate-800/50 p-4 rounded-xl space-y-2">
+<label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Action Type</label>
+<div class="flex items-center justify-between text-slate-200 text-sm bg-slate-800 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
+<span>Any Action</span>
+<span class="material-symbols-outlined text-sm">filter_list</span>
+</div>
+</div>
+<div class="bg-slate-800/50 p-4 rounded-xl space-y-2">
+<label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Involvement</label>
+<div class="flex items-center justify-between text-slate-200 text-sm bg-slate-800 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
+<span>AI Managed</span>
+<span class="material-symbols-outlined text-sm text-tertiary-fixed">smart_toy</span>
+</div>
+</div>
+</div>
+<!-- Table Container -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-800/50 text-slate-400 text-xs font-bold uppercase tracking-widest border-b border-slate-800">
+<th class="px-6 py-4">Timestamp</th>
+<th class="px-6 py-4">User</th>
+<th class="px-6 py-4">Action</th>
+<th class="px-6 py-4">Resource</th>
+<th class="px-6 py-4">Result</th>
+<th class="px-6 py-4">AI Involvement</th>
+</tr>
+</thead>
+<tbody class="text-sm divide-y divide-slate-800/50">
+<!-- Row 1: Clicked/Active -->
+<tr class="bg-slate-800 hover:bg-slate-800 transition-colors cursor-pointer group">
+<td class="px-6 py-4 text-slate-400 font-mono text-xs">2023-11-24 14:22:01</td>
+<td class="px-6 py-4 font-medium text-slate-200">admin_m_chen</td>
+<td class="px-6 py-4"><span class="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">SCHEMA_UPDATE</span></td>
+<td class="px-6 py-4 text-slate-300">vector_db_main</td>
+<td class="px-6 py-4"><span class="text-emerald-400 flex items-center gap-1.5"><span class="material-symbols-outlined text-xs">check_circle</span> SUCCESS</span></td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2 text-tertiary-fixed">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="text-xs font-semibold">Autonomous</span>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-slate-800/50 transition-colors cursor-pointer group">
+<td class="px-6 py-4 text-slate-400 font-mono text-xs">2023-11-24 14:18:55</td>
+<td class="px-6 py-4 font-medium text-slate-200">system_ai</td>
+<td class="px-6 py-4"><span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">NODE_SCALING</span></td>
+<td class="px-6 py-4 text-slate-300">cluster_us_east</td>
+<td class="px-6 py-4"><span class="text-emerald-400 flex items-center gap-1.5"><span class="material-symbols-outlined text-xs">check_circle</span> SUCCESS</span></td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2 text-tertiary-fixed">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="text-xs font-semibold">Predictive</span>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-slate-800/50 transition-colors cursor-pointer group">
+<td class="px-6 py-4 text-slate-400 font-mono text-xs">2023-11-24 14:15:20</td>
+<td class="px-6 py-4 font-medium text-slate-200">guest_editor_4</td>
+<td class="px-6 py-4"><span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">ACCESS_DENIED</span></td>
+<td class="px-6 py-4 text-slate-300">security_policies</td>
+<td class="px-6 py-4"><span class="text-red-400 flex items-center gap-1.5"><span class="material-symbols-outlined text-xs">cancel</span> REJECTED</span></td>
+<td class="px-6 py-4 text-slate-500 text-xs">—</td>
+</tr>
+<tr class="hover:bg-slate-800/50 transition-colors cursor-pointer group">
+<td class="px-6 py-4 text-slate-400 font-mono text-xs">2023-11-24 13:58:12</td>
+<td class="px-6 py-4 font-medium text-slate-200">s_rodriguez</td>
+<td class="px-6 py-4"><span class="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">AUTH_LOGIN</span></td>
+<td class="px-6 py-4 text-slate-300">iam_service</td>
+<td class="px-6 py-4"><span class="text-emerald-400 flex items-center gap-1.5"><span class="material-symbols-outlined text-xs">check_circle</span> SUCCESS</span></td>
+<td class="px-6 py-4 text-slate-500 text-xs">Assisted</td>
+</tr>
+<tr class="hover:bg-slate-800/50 transition-colors cursor-pointer group">
+<td class="px-6 py-4 text-slate-400 font-mono text-xs">2023-11-24 13:42:01</td>
+<td class="px-6 py-4 font-medium text-slate-200">admin_m_chen</td>
+<td class="px-6 py-4"><span class="px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20">API_KEY_ROT</span></td>
+<td class="px-6 py-4 text-slate-300">openai_endpoint</td>
+<td class="px-6 py-4"><span class="text-emerald-400 flex items-center gap-1.5"><span class="material-symbols-outlined text-xs">check_circle</span> SUCCESS</span></td>
+<td class="px-6 py-4 text-slate-500 text-xs">—</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="flex items-center justify-between text-sm text-slate-500 px-2 pb-6">
+<p>Showing 1 to 25 of 1,422 entries</p>
+<div class="flex gap-2">
+<button class="px-3 py-1 bg-slate-800 border border-slate-700 rounded-md hover:bg-slate-700 transition-colors">Previous</button>
+<button class="px-3 py-1 bg-slate-800 border border-slate-700 rounded-md hover:bg-slate-700 transition-colors">Next</button>
+</div>
+</div>
+</div>
+<!-- Detail Side Panel -->
+<div class="w-96 border-l border-slate-800 bg-slate-950 p-6 flex flex-col space-y-8 overflow-y-auto">
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<h2 class="font-manrope text-xl font-bold text-slate-50">Event Detail</h2>
+<span class="text-xs font-mono text-slate-500">ID: ev_88291xLL</span>
+</div>
+<div class="p-4 bg-slate-900 rounded-xl border border-slate-800">
+<div class="flex items-center gap-3 mb-3">
+<div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-blue-400" style="font-variation-settings: 'FILL' 1;">database</span>
+</div>
+<div>
+<p class="text-xs text-slate-500 font-bold uppercase tracking-widest">Operation</p>
+<p class="text-slate-200 font-semibold">SCHEMA_UPDATE</p>
+</div>
+</div>
+<p class="text-sm text-slate-400 leading-relaxed">
+                            A major update was performed on the <span class="text-slate-200">vector_db_main</span> core schema. The update added 4 new embedding dimensions and optimized indexing for semantic search.
+                        </p>
+</div>
+</div>
+<div class="space-y-4">
+<h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">AI Insights</h3>
+<div class="p-4 bg-tertiary-container/30 rounded-xl border border-tertiary-fixed-dim/20 relative overflow-hidden">
+<div class="absolute top-0 right-0 p-2 opacity-10">
+<span class="material-symbols-outlined text-6xl text-tertiary-fixed">smart_toy</span>
+</div>
+<div class="relative z-10 space-y-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary-fixed text-sm">bolt</span>
+<span class="text-tertiary-fixed text-xs font-bold uppercase">Automated Action</span>
+</div>
+<p class="text-sm text-slate-300">
+                                This action was <span class="font-bold text-tertiary-fixed">pre-validated</span> by the Core Auditor AI. Risk score: <span class="text-emerald-400">0.02 (Low)</span>. 
+                            </p>
+<div class="pt-2">
+<button class="text-xs font-semibold text-tertiary-fixed flex items-center gap-1 hover:underline">
+                                    View Validation Log <span class="material-symbols-outlined text-xs">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Raw Payload</h3>
+<div class="p-4 bg-slate-900 rounded-xl border border-slate-800">
+<pre class="text-[10px] text-slate-500 font-mono overflow-x-auto">{
+  "event": "SCHEMA_UPDATE",
+  "actor": {
+    "uid": "m_chen_88",
+    "role": "admin",
+    "ip": "192.168.1.14"
+  },
+  "resource": "vector_db_main",
+  "changes": {
+    "dimensions": [1536, 3072],
+    "indexing": "hnsw_optimized"
+  },
+  "ai_check": true,
+  "validation_token": "valid_99827"
+}
+                        </pre>
+</div>
+</div>
+<div class="mt-auto pt-6">
+<button class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">download</span>
+                        Export Event as JSON
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual FAB Suppression: Hiding as per rule for focused Admin Screen -->
+</body></html>

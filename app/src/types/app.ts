@@ -1,0 +1,74 @@
+export interface App {
+  id: string;
+  tenantId: string;
+  name: string;
+  code: string;
+  description?: string;
+  status: "draft" | "published" | "archived";
+  icon: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppTable {
+  id: string;
+  tenantId: string;
+  appId: string;
+  name: string;
+  code: string;
+  isSystem: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export type FieldType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "date"
+  | "datetime"
+  | "boolean"
+  | "select"
+  | "user_ref"
+  | "master_ref"
+  | "file"
+  | "ai_generated"
+  | "calculated";
+
+export interface AppField {
+  id: string;
+  tenantId: string;
+  appId: string;
+  tableId: string;
+  name: string;
+  code: string;
+  fieldType: FieldType;
+  required: boolean;
+  uniqueFlag: boolean;
+  defaultValue?: unknown;
+  settingsJson?: Record<string, unknown>;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface AppView {
+  id: string;
+  tenantId: string;
+  appId: string;
+  tableId: string;
+  name: string;
+  viewType: "list" | "kanban" | "calendar" | "chart" | "kpi";
+  settingsJson?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AppForm {
+  id: string;
+  tenantId: string;
+  appId: string;
+  tableId: string;
+  name: string;
+  layoutJson: Record<string, unknown>;
+  createdAt: string;
+}

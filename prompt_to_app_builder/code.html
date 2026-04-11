@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Intelligent Layer | AI App Generator</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#00174b",
+                        "on-surface": "#0b1c30",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#131b2e",
+                        "on-secondary-container": "#5c647a",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#497cff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error": "#ffffff",
+                        "primary": "#000000",
+                        "secondary-fixed": "#dae2fd",
+                        "inverse-primary": "#b4c5ff",
+                        "surface-bright": "#f8f9ff",
+                        "surface-container-low": "#eff4ff",
+                        "surface-container-high": "#dce9ff",
+                        "surface-dim": "#cbdbf5",
+                        "secondary": "#565e74",
+                        "surface-variant": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "error-container": "#ffdad6",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "surface-container-highest": "#d3e4fe",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "tertiary": "#000000",
+                        "on-surface-variant": "#45464d",
+                        "on-primary-fixed": "#00174b",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-tertiary-container": "#009668",
+                        "surface-tint": "#0053db",
+                        "surface-container": "#e5eeff",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#c6c6cd",
+                        "outline": "#76777d",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "tertiary-container": "#002113",
+                        "surface": "#f8f9ff",
+                        "on-background": "#0b1c30",
+                        "inverse-on-surface": "#eaf1ff",
+                        "primary-fixed": "#dbe1ff",
+                        "inverse-surface": "#213145",
+                        "on-tertiary-fixed": "#002113",
+                        "background": "#f8f9ff",
+                        "secondary-container": "#dae2fd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- Sidebar Navigation Shell -->
+<aside class="fixed left-0 top-0 h-screen w-64 flex flex-col border-r-0 bg-slate-100 dark:bg-slate-900 z-40">
+<div class="p-6 flex flex-col h-full">
+<div class="mb-8 flex items-center gap-3">
+<div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-sm" data-icon="apps">apps</span>
+</div>
+<div class="flex flex-col">
+<span class="font-['Manrope'] font-bold text-lg text-slate-900 dark:text-white leading-none">Intelligent Layer</span>
+<span class="text-[10px] text-slate-500 font-medium uppercase tracking-wider">v2.4.0</span>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-900 dark:text-white font-bold bg-white dark:bg-slate-800 rounded-lg shadow-sm transition-all duration-200 translate-x-1" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="apps">apps</span>
+<span class="font-['Inter'] text-sm font-medium">Apps</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="table_chart">table_chart</span>
+<span class="font-['Inter'] text-sm font-medium">Tables</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="account_tree">account_tree</span>
+<span class="font-['Inter'] text-sm font-medium">Workflows</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="psychology">psychology</span>
+<span class="font-['Inter'] text-sm font-medium">AI Settings</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="admin_panel_settings">admin_panel_settings</span>
+<span class="font-['Inter'] text-sm font-medium">Admin</span>
+</a>
+</nav>
+<div class="mt-auto space-y-1 border-t border-slate-200 pt-4">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 hover:bg-slate-200 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="help">help</span>
+<span class="font-['Inter'] text-sm font-medium">Help</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 hover:bg-slate-200 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-['Inter'] text-sm font-medium">Feedback</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Top Navbar -->
+<header class="fixed top-0 right-0 left-64 h-16 bg-slate-50/80 backdrop-blur-md border-b border-slate-200/50 flex items-center justify-between px-8 z-30">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-['Manrope'] font-extrabold text-slate-900 tracking-tight">The Intelligent Layer</h1>
+<div class="hidden md:flex gap-6">
+<a class="text-slate-900 border-b-2 border-slate-900 pb-1 font-['Manrope'] font-semibold tracking-tight" href="#">AI Agent</a>
+<a class="text-slate-500 hover:text-slate-900 font-['Manrope'] font-semibold tracking-tight" href="#">Dev/Prod</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-highest">
+<img alt="User avatar" data-alt="close-up portrait of a professional man in a clean office setting with soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuArEhEIbwcMLIRRcvIDAHo87drKhJzam-JToQKhdI2qyBu2Pi5EaOwp0r93DKU62-AJP9ijdL8YoXBtpyfARrozFdufR_cSdavsoE7CBRVJq_OQAPPS6Fzm7A2NqubBE5jfB9JvIL84IU0-s0al5ObSPvfUvQ7I7mhf4ffEdsHE21Vf8awmjKmJsGN5wsdzbaqVqG3e21gKWdOV6cbFHzY2y61DQEh3Rsr63K3RAvaEmmJ5y6nGfGrCR8JIJPLBaQpdFsqhkpDqJco"/>
+</div>
+</div>
+</header>
+<main class="ml-64 pt-16 min-h-screen">
+<!-- AI Input Section -->
+<section class="max-w-4xl mx-auto pt-20 pb-12 px-6">
+<div class="text-center mb-12">
+<h2 class="font-headline text-4xl font-extrabold text-on-surface mb-4 tracking-tight">What kind of app do you want to build today?</h2>
+<p class="text-secondary font-medium">Describe your vision. AI will architect the tables, workflows, and interfaces.</p>
+</div>
+<div class="relative group">
+<div class="absolute -inset-1 bg-gradient-to-r from-surface-tint to-tertiary-fixed opacity-10 rounded-2xl blur group-hover:opacity-20 transition duration-500"></div>
+<div class="relative bg-surface-container-lowest border-none rounded-xl p-6 shadow-sm">
+<div class="flex items-center gap-4 mb-4">
+<span class="material-symbols-outlined text-surface-tint" data-icon="psychology">psychology</span>
+<input class="w-full bg-transparent border-none focus:ring-0 text-lg font-body placeholder:text-outline-variant text-on-surface" placeholder="e.g. A ticketing system for customer support with escalation workflows..." type="text"/>
+</div>
+<div class="flex flex-wrap gap-2 pt-4 border-t border-surface-container-low">
+<span class="text-xs font-label font-semibold text-secondary uppercase tracking-widest mr-2 py-1.5">Examples:</span>
+<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded-full text-xs font-medium text-on-secondary-fixed transition-colors">Customer support desk</button>
+<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded-full text-xs font-medium text-on-secondary-fixed transition-colors">Expense approval flow</button>
+<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded-full text-xs font-medium text-on-secondary-fixed transition-colors">Inventory manager</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Preview State (Shown after Generation) -->
+<section class="px-8 pb-32">
+<div class="bg-surface-container-low rounded-xl overflow-hidden min-h-[600px] flex flex-col md:flex-row">
+<!-- Left Panel: Assets -->
+<aside class="w-full md:w-80 bg-surface-container-lowest border-r-0 p-6">
+<div class="mb-8">
+<h3 class="font-headline font-bold text-sm text-secondary uppercase tracking-widest mb-6">Generated Assets</h3>
+<div class="space-y-6">
+<!-- Tables Group -->
+<div>
+<div class="flex items-center gap-2 mb-3 px-2">
+<span class="material-symbols-outlined text-sm" data-icon="table_chart">table_chart</span>
+<span class="text-sm font-bold">Tables</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container text-primary font-semibold">
+<span class="text-sm">Tickets</span>
+<span class="material-symbols-outlined text-xs" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<div class="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-low text-secondary text-sm">
+<span>Customers</span>
+</div>
+</div>
+</div>
+<!-- Views Group -->
+<div>
+<div class="flex items-center gap-2 mb-3 px-2">
+<span class="material-symbols-outlined text-sm" data-icon="grid_view">grid_view</span>
+<span class="text-sm font-bold">Views</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-low text-secondary text-sm">
+<span>All Tickets</span>
+</div>
+<div class="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-low text-secondary text-sm">
+<span>My Pending</span>
+</div>
+</div>
+</div>
+<!-- Workflows Group -->
+<div>
+<div class="flex items-center gap-2 mb-3 px-2">
+<span class="material-symbols-outlined text-sm" data-icon="account_tree">account_tree</span>
+<span class="text-sm font-bold">Workflows</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-low text-secondary text-sm">
+<span>Approval Chain</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- Center/Right Panel: Visual Preview -->
+<div class="flex-1 p-8 flex flex-col items-center justify-start">
+<div class="w-full max-w-3xl">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h3 class="font-headline text-2xl font-bold">Ticket Detail Preview</h3>
+<p class="text-sm text-secondary">Mock interface based on generated schema.</p>
+</div>
+<div class="px-4 py-1.5 bg-tertiary-container text-tertiary-fixed rounded-full text-xs font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                                AI Suggested Fields
+                            </div>
+</div>
+<!-- Ticket Detail Form Mockup -->
+<div class="bg-surface-container-lowest rounded-xl p-8 shadow-sm border border-outline-variant/10">
+<div class="grid grid-cols-2 gap-6">
+<div class="col-span-2">
+<label class="block text-xs font-bold text-secondary mb-2 uppercase tracking-wider">Subject</label>
+<div class="w-full p-3 bg-surface-container-low rounded-lg text-on-surface font-medium">Unable to access enterprise dashboard</div>
+</div>
+<div>
+<label class="block text-xs font-bold text-secondary mb-2 uppercase tracking-wider">Priority</label>
+<div class="w-full p-3 bg-surface-container-low rounded-lg text-error font-bold flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+                                        Critical
+                                    </div>
+</div>
+<div>
+<label class="block text-xs font-bold text-secondary mb-2 uppercase tracking-wider">Customer</label>
+<div class="w-full p-3 bg-surface-container-low rounded-lg text-on-surface font-medium">Acme Corp</div>
+</div>
+<div class="col-span-2">
+<label class="block text-xs font-bold text-secondary mb-2 uppercase tracking-wider">AI Insight: Recommended Action</label>
+<div class="w-full p-4 bg-tertiary-container rounded-lg border border-tertiary-fixed/20">
+<p class="text-tertiary-fixed text-sm">"This customer has a renewal in 14 days. Escalating to Premier Support is recommended."</p>
+</div>
+</div>
+<div class="col-span-2 pt-4">
+<div class="flex justify-end gap-3">
+<button class="px-6 py-2 rounded-lg text-sm font-bold text-secondary hover:bg-surface-container transition-colors">Discard</button>
+<button class="px-6 py-2 bg-primary text-on-primary rounded-lg text-sm font-bold">Update Ticket</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Bar: Controls -->
+<footer class="fixed bottom-0 right-0 left-64 h-24 glass-effect border-t border-slate-200/50 flex items-center px-12 z-50">
+<div class="flex-1 max-w-4xl mx-auto flex items-center gap-6">
+<div class="flex-1 relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-lg" data-icon="edit_note">edit_note</span>
+<input class="w-full bg-surface-container-high border-none rounded-full py-3 pl-12 pr-6 text-sm font-body focus:ring-2 focus:ring-surface-tint/20" placeholder="Refine with AI (e.g. 'Add a status field called SLA State')" type="text"/>
+</div>
+<div class="flex gap-4">
+<button class="px-8 py-3 bg-primary text-on-primary rounded-lg font-headline font-bold text-sm flex items-center gap-2 hover:scale-[0.98] transition-transform duration-100">
+                    Approve and Build
+                    <span class="material-symbols-outlined text-[18px]" data-icon="rocket_launch">rocket_launch</span>
+</button>
+</div>
+</div>
+</footer>
+</body></html>

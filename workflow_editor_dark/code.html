@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Intelligent Layer | Workflow Editor</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed": "#002113",
+                        "on-surface-variant": "#45464d",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#dbe1ff",
+                        "on-secondary-container": "#5c647a",
+                        "on-primary-fixed": "#00174b",
+                        "primary": "#000000",
+                        "surface-container-highest": "#d3e4fe",
+                        "surface": "#f8f9ff",
+                        "on-tertiary-container": "#009668",
+                        "inverse-primary": "#b4c5ff",
+                        "tertiary-fixed": "#6ffbbe",
+                        "tertiary-container": "#002113",
+                        "secondary": "#565e74",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "on-secondary-fixed": "#131b2e",
+                        "on-tertiary": "#ffffff",
+                        "secondary-container": "#dae2fd",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#eff4ff",
+                        "surface-dim": "#cbdbf5",
+                        "primary-container": "#00174b",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "surface-variant": "#d3e4fe",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#0053db",
+                        "on-surface": "#0b1c30",
+                        "outline-variant": "#c6c6cd",
+                        "tertiary": "#000000",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "on-primary": "#ffffff",
+                        "surface-container-high": "#dce9ff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#497cff",
+                        "on-background": "#0b1c30",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "surface-container": "#e5eeff",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "inverse-surface": "#213145",
+                        "outline": "#76777d",
+                        "on-error": "#ffffff",
+                        "background": "#f8f9ff",
+                        "secondary-fixed": "#dae2fd",
+                        "error-container": "#ffdad6",
+                        "surface-bright": "#f8f9ff",
+                        "tertiary-fixed-dim": "#4edea3"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { background-color: #020617; color: #f8f9ff; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .node-connector { stroke: #b4c5ff; stroke-width: 2; fill: none; stroke-dasharray: 4; }
+        .grid-pattern { background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 24px 24px; }
+        .glass-panel { backdrop-filter: blur(24px); background-color: rgba(15, 23, 42, 0.75); }
+    </style>
+</head>
+<body class="font-body overflow-hidden">
+<!-- TopNavBar -->
+<nav class="w-full h-16 sticky top-0 z-50 flex justify-between items-center px-6 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/30 shadow-[0_12px_40px_rgba(0,0,0,0.3)]">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-950 text-xl" style="font-variation-settings: 'FILL' 1;">account_tree</span>
+</div>
+<span class="font-headline font-extrabold tracking-tighter text-xl text-white">The Intelligent Layer</span>
+</div>
+<div class="flex items-center gap-4 text-sm font-medium">
+<span class="text-slate-400">Dashboard</span>
+<span class="text-slate-600">/</span>
+<span class="text-white font-semibold">Workflow Automation Editor</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 bg-slate-900/40 px-3 py-1.5 rounded-lg border border-slate-800/50">
+<span class="material-symbols-outlined text-slate-400 text-sm">history</span>
+<span class="material-symbols-outlined text-slate-400 text-sm">settings</span>
+<span class="material-symbols-outlined text-slate-400 text-sm">notifications</span>
+</div>
+<button class="px-4 py-2 bg-slate-800 text-slate-100 rounded-lg text-sm font-medium hover:text-emerald-400 transition-all">Preview</button>
+<button class="px-4 py-2 bg-white text-black rounded-lg text-sm font-bold hover:scale-[0.99] transition-transform">Deploy</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-slate-700">
+<img alt="User Avatar" data-alt="Portrait of a professional software architect in soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCy88sjnPOcLKdOaWyEqlYwPiIrBaEPe1QyPB2JzOsbqhy2RIk4EWE03hrxjMB2Ksp3uyOJK1GdshGp9XvQOTxtXU1BU3o0t2WfwZfadeCOi9J7d6_UEeMsGKuHyLFQCqwifO5aomdx8gEUGXEONxHV7h0sP1qP5KLLL9IIItxRkurWem7nLBge8Y08UnFL4aD9PCSS1XGFRjx5ZVFjRA8-ROdWy0DShS8FX_OXWyLKboG9XZSYbt2ziZhGahLV3tYqSJIbW-5DoMo"/>
+</div>
+</div>
+</nav>
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+<!-- SideNavBar (Left) -->
+<aside class="h-screen w-64 border-r border-slate-800/50 bg-slate-950 flex flex-col py-6 font-['Manrope'] antialiased tracking-tight">
+<div class="px-6 mb-8">
+<button class="w-full py-3 bg-emerald-500/10 border-r-2 border-emerald-400 text-emerald-400 flex items-center justify-center gap-2 rounded-lg font-bold">
+<span class="material-symbols-outlined">add</span>
+                    New Project
+                </button>
+</div>
+<div class="flex-1 space-y-2">
+<div class="px-4 py-2 mx-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 transition-colors duration-200 flex items-center gap-3 rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">apps</span>
+<span class="text-sm font-medium">Apps</span>
+</div>
+<div class="px-4 py-2 mx-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 transition-colors duration-200 flex items-center gap-3 rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">table_chart</span>
+<span class="text-sm font-medium">Tables</span>
+</div>
+<div class="px-4 py-2 mx-2 text-emerald-400 bg-emerald-500/10 border-r-2 border-emerald-400 transition-all duration-200 flex items-center gap-3 cursor-pointer">
+<span class="material-symbols-outlined">account_tree</span>
+<span class="text-sm font-semibold">Workflows</span>
+</div>
+<div class="px-4 py-2 mx-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 transition-colors duration-200 flex items-center gap-3 rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">psychology</span>
+<span class="text-sm font-medium">AI Settings</span>
+</div>
+<div class="px-4 py-2 mx-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 transition-colors duration-200 flex items-center gap-3 rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">admin_panel_settings</span>
+<span class="text-sm font-medium">Admin</span>
+</div>
+</div>
+<div class="px-6 mt-auto">
+<div class="flex items-center gap-3 p-3 bg-slate-900 rounded-xl">
+<div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
+<span class="material-symbols-outlined text-xs text-slate-400">info</span>
+</div>
+<div>
+<p class="text-xs font-bold text-white leading-none">v2.4.0-beta</p>
+<p class="text-[10px] text-slate-500">Stability Stable</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="flex-1 relative bg-slate-950 grid-pattern overflow-hidden">
+<!-- Node Canvas Area -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none">
+<!-- Connectors -->
+<path class="node-connector" d="M 280 200 L 400 200"></path>
+<path class="node-connector" d="M 640 200 L 760 200"></path>
+<path class="node-connector" d="M 640 220 L 700 220 L 700 350 L 760 350" style="stroke: #6ffbbe; stroke-dasharray: 0; stroke-width: 3;"></path>
+<path class="node-connector" d="M 1000 350 L 1100 350" style="stroke: #6ffbbe; stroke-dasharray: 0; stroke-width: 3;"></path>
+</svg>
+<!-- Nodes -->
+<div class="absolute top-40 left-20">
+<div class="w-60 bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-2xl">
+<div class="flex items-center gap-2 mb-3">
+<div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-blue-400 text-lg">bolt</span>
+</div>
+<span class="text-xs font-bold uppercase tracking-widest text-slate-400">Trigger</span>
+</div>
+<h3 class="text-sm font-bold text-white mb-1">Record Created</h3>
+<p class="text-[11px] text-slate-500">Source: Salesforce Opportunities</p>
+</div>
+</div>
+<div class="absolute top-40 left-[420px]">
+<div class="w-60 bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-2xl">
+<div class="flex items-center gap-2 mb-3">
+<div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-purple-400 text-lg">alt_route</span>
+</div>
+<span class="text-xs font-bold uppercase tracking-widest text-slate-400">Condition</span>
+</div>
+<h3 class="text-sm font-bold text-white mb-1">If Amount &gt; 30k</h3>
+<div class="mt-3 flex gap-2">
+<span class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">True</span>
+<span class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">False</span>
+</div>
+</div>
+</div>
+<!-- AI Proposed Nodes (Highlighted) -->
+<div class="absolute top-300 left-[780px] top-[280px]">
+<div class="w-60 bg-emerald-500/10 border-2 border-emerald-400 rounded-xl p-4 shadow-[0_0_40px_rgba(111,251,190,0.1)] relative overflow-hidden">
+<div class="absolute top-0 right-0 p-1">
+<span class="material-symbols-outlined text-emerald-400 text-xs" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div class="flex items-center gap-2 mb-3">
+<div class="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-emerald-400 text-lg">verified_user</span>
+</div>
+<span class="text-xs font-bold uppercase tracking-widest text-emerald-300">Action (AI)</span>
+</div>
+<h3 class="text-sm font-bold text-white mb-1">Manager Approval</h3>
+<p class="text-[11px] text-emerald-300/70 font-medium">Auto-assigned: Senior VP</p>
+</div>
+</div>
+<div class="absolute top-300 left-[1120px] top-[310px]">
+<div class="w-60 bg-slate-900 border-2 border-emerald-400/50 rounded-xl p-4 shadow-2xl">
+<div class="flex items-center gap-2 mb-3">
+<div class="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-orange-400 text-lg">chat_bubble</span>
+</div>
+<span class="text-xs font-bold uppercase tracking-widest text-slate-400">Notification</span>
+</div>
+<h3 class="text-sm font-bold text-white mb-1">Slack Alert</h3>
+<p class="text-[11px] text-slate-500">Channel: #urgent-approvals</p>
+</div>
+</div>
+<!-- Floating AI Command Bar -->
+<div class="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6">
+<div class="glass-panel p-2 rounded-2xl border border-slate-800 shadow-2xl flex items-center gap-3">
+<div class="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<input class="bg-transparent border-none focus:ring-0 flex-1 text-slate-100 placeholder:text-slate-500 text-sm" placeholder="Describe a workflow step..." type="text" value="Add a manager approval step if priority is critical"/>
+<button class="px-4 py-2 bg-emerald-400 text-slate-950 rounded-xl text-sm font-bold hover:scale-95 transition-all">Generate</button>
+</div>
+</div>
+<!-- Tool Panel Left -->
+<div class="absolute left-6 top-6 flex flex-col gap-2">
+<div class="p-2 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-2 shadow-xl">
+<button class="w-10 h-10 flex items-center justify-center rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition-all">
+<span class="material-symbols-outlined">near_me</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400">
+<span class="material-symbols-outlined">add_box</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition-all">
+<span class="material-symbols-outlined">pan_tool</span>
+</button>
+<div class="h-px bg-slate-800 mx-2"></div>
+<button class="w-10 h-10 flex items-center justify-center rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition-all">
+<span class="material-symbols-outlined">zoom_in</span>
+</button>
+</div>
+</div>
+</main>
+<!-- AI Assistant (Right SideNavBar) -->
+<aside class="fixed right-0 top-16 h-[calc(100vh-64px)] w-80 border-l border-slate-800/50 bg-slate-900/50 backdrop-blur-2xl shadow-2xl shadow-black/50 flex flex-col p-4 space-y-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-emerald-400">auto_awesome</span>
+<h2 class="text-xs font-headline font-bold uppercase tracking-widest text-emerald-400">AI Assistant</h2>
+</div>
+<span class="text-[10px] bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/20">Active</span>
+</div>
+<p class="text-[11px] text-slate-400 font-medium">Contextual Intelligence</p>
+<div class="flex-1 overflow-y-auto space-y-4">
+<!-- AI Insight Card -->
+<div class="bg-slate-800/50 p-4 rounded-xl border border-emerald-500/10 space-y-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-emerald-400 text-sm">bolt</span>
+<span class="text-[11px] font-bold text-white">Suggested Improvement</span>
+</div>
+<p class="text-xs text-slate-300 leading-relaxed">
+                        I've drafted a manager approval node connected to your primary trigger. This ensures high-value records are reviewed before Slack notifications.
+                    </p>
+<div class="flex gap-2">
+<button class="flex-1 py-2 bg-emerald-500/20 text-emerald-300 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500/30 transition-all">Apply Changes</button>
+<button class="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg transition-all hover:bg-slate-600">
+<span class="material-symbols-outlined text-xs">close</span>
+</button>
+</div>
+</div>
+<!-- Chat History -->
+<div class="space-y-4">
+<div class="flex flex-col gap-1 items-end">
+<div class="bg-slate-700/50 px-3 py-2 rounded-2xl rounded-tr-none text-xs text-slate-200 max-w-[80%]">
+                            Add a manager approval step if priority is critical
+                        </div>
+</div>
+<div class="flex flex-col gap-1 items-start">
+<div class="bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-2xl rounded-tl-none text-xs text-emerald-100 max-w-[80%]">
+                            Analyzing workflow context... I have identified the optimal insertion point between "Condition" and "Notification". Generating nodes now.
+                        </div>
+</div>
+</div>
+</div>
+<!-- AI Interaction Tabs -->
+<div class="flex justify-between p-1 bg-slate-950/50 rounded-lg border border-slate-800">
+<button class="flex-1 flex flex-col items-center py-2 bg-emerald-500/20 text-emerald-300 rounded-lg">
+<span class="material-symbols-outlined text-lg">auto_awesome</span>
+<span class="text-[8px] mt-1 font-bold">SUMMARY</span>
+</button>
+<button class="flex-1 flex flex-col items-center py-2 text-slate-500 hover:bg-slate-800 transition-all">
+<span class="material-symbols-outlined text-lg">bolt</span>
+<span class="text-[8px] mt-1 font-bold">ACTIONS</span>
+</button>
+<button class="flex-1 flex flex-col items-center py-2 text-slate-500 hover:bg-slate-800 transition-all">
+<span class="material-symbols-outlined text-lg">database</span>
+<span class="text-[8px] mt-1 font-bold">CONTEXT</span>
+</button>
+</div>
+</aside>
+</div>
+<!-- Background Decoration Image (Editorial Feel) -->
+<div class="fixed bottom-0 right-0 w-1/3 h-1/3 opacity-5 pointer-events-none -z-10">
+<img class="w-full h-full object-cover" data-alt="Abstract 3D crystalline structures with emerald and deep blue refracted light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBBzf_RQmrOHctw1Un7v7hPEyAoby87DFcUE99TEyk7PWymIkOYoMaPbhOacuq5EnfxrmmrZEwusLrNPfpW1Pcya6FDx6k1b8g9Yw7EGhXQYcrpHVbPq_RA8fAM0YCg0M-87FwLdgN3IvlKv5dYnznShaNsPIP0rGIoiYyHUYjiUH5piJ0vTT36K7xomJ3094j9nF3Jrpv9NysWB4PnPBgeuFLQI8Krob9VaWdv8lR1pnpucFRTovtcDZUUOeAzLFP7wuqZ1KM1X6g"/>
+</div>
+</body></html>

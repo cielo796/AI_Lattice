@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* ── Surface Hierarchy ── */
+  --color-surface: #0f172a;
+  --color-surface-dim: #0f172a;
+  --color-surface-bright: #1e293b;
+  --color-surface-container: #1e293b;
+  --color-surface-container-low: #0f172a;
+  --color-surface-container-high: #1e293b;
+  --color-surface-container-highest: #334155;
+  --color-surface-container-lowest: #0f172a;
+
+  /* ── Primary (Emerald) ── */
+  --color-primary: #10b981;
+  --color-primary-container: #064e3b;
+  --color-primary-fixed: #10b981;
+  --color-primary-fixed-dim: #10b981;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #10b981;
+  --color-on-primary-fixed: #064e3b;
+  --color-on-primary-fixed-variant: #10b981;
+  --color-inverse-primary: #10b981;
+
+  /* ── Secondary ── */
+  --color-secondary: #94a3b8;
+  --color-secondary-container: #1e293b;
+  --color-secondary-fixed: #1e293b;
+  --color-secondary-fixed-dim: #334155;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #94a3b8;
+  --color-on-secondary-fixed: #e2e8f0;
+  --color-on-secondary-fixed-variant: #cbd5e1;
+
+  /* ── Tertiary (AI Signal - Emerald) ── */
+  --color-tertiary: #10b981;
+  --color-tertiary-container: #064e3b;
+  --color-tertiary-fixed: #10b981;
+  --color-tertiary-fixed-dim: #10b981;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #10b981;
+  --color-on-tertiary-fixed: #064e3b;
+  --color-on-tertiary-fixed-variant: #064e3b;
+
+  /* ── Error ── */
+  --color-error: #f87171;
+  --color-error-container: #450a0a;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #f87171;
+
+  /* ── Text / On-Surface ── */
+  --color-on-surface: #e2e8f0;
+  --color-on-surface-variant: #94a3b8;
+  --color-on-background: #e2e8f0;
+  --color-background: #0f172a;
+  --color-inverse-surface: #e2e8f0;
+  --color-inverse-on-surface: #0f172a;
+
+  /* ── Outlines ── */
+  --color-outline: #475569;
+  --color-outline-variant: #334155;
+  --color-surface-tint: #10b981;
+
+  /* ── Additional palette ── */
+  --color-amber: #f59e0b;
+  --color-warning: #f59e0b;
+
+  /* ── Border Radius ── */
+  --radius-DEFAULT: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+
+  /* ── Font Family ── */
+  --font-headline: "Manrope", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-label: "Inter", system-ui, sans-serif;
+}
+
+/* ── Base ── */
+body {
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  font-family: var(--font-body);
+}
+
+/* ── Material Symbols ── */
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Glassmorphism ── */
+.glass-effect {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.glass-panel {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ── Grid Pattern (Workflow Canvas) ── */
+.grid-pattern {
+  background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ── React Flow Overrides ── */
+.react-flow__node {
+  border: none !important;
+  box-shadow: none !important;
+}
+.react-flow__edge-path {
+  stroke: #475569;
+  stroke-width: 2;
+}
+.react-flow__controls {
+  display: none;
+}
+.react-flow__background {
+  background-color: #0f172a !important;
+}
