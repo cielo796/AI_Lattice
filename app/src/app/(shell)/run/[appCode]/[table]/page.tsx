@@ -17,16 +17,16 @@ export default function RuntimeViewPage() {
   return (
     <>
       <TopBar
-        breadcrumbs={[{ label: "Dashboard" }, { label: "Tickets" }]}
+        breadcrumbs={[{ label: "ダッシュボード" }, { label: "チケット" }]}
         actions={
           <>
             <Button variant="ghost" size="md">
               <Icon name="visibility" size="sm" />
-              Preview
+              プレビュー
             </Button>
             <Button variant="primary" size="md">
               <Icon name="rocket_launch" size="sm" />
-              Deploy
+              デプロイ
             </Button>
           </>
         }
@@ -44,7 +44,7 @@ export default function RuntimeViewPage() {
         <AISidebar>
           <div>
             <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-2">
-              Issue Summary
+              課題サマリー
             </div>
             <p className="text-xs text-on-surface leading-relaxed">
               {mockRecordSummary.summary}
@@ -53,7 +53,7 @@ export default function RuntimeViewPage() {
 
           <div>
             <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-3">
-              Recommended Actions
+              推奨アクション
             </div>
             <div className="space-y-2">
               {mockRecordSummary.recommendedActions.map((action) => (
@@ -79,7 +79,7 @@ export default function RuntimeViewPage() {
 
           <div>
             <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-3">
-              Similar Incidents
+              類似インシデント
             </div>
             <div className="space-y-2">
               {mockRecordSummary.similarIncidents.map((inc) => (
@@ -89,7 +89,7 @@ export default function RuntimeViewPage() {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[9px] font-bold text-primary uppercase">
-                      {inc.matchPercentage}% MATCH
+                      一致率 {inc.matchPercentage}%
                     </span>
                     <span className="text-[9px] text-on-surface-variant">
                       {inc.date}

@@ -12,19 +12,19 @@ interface RecordListProps {
 }
 
 const priorityVariant: { [key: string]: "error" | "warning" | "info" | "default" } = {
-  Critical: "error",
-  High: "warning",
-  Medium: "info",
-  Low: "default",
+  クリティカル: "error",
+  高: "warning",
+  中: "info",
+  低: "default",
 };
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins} mins ago`;
+  if (mins < 60) return `${mins}分前`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hours ago`;
-  return `${Math.floor(hrs / 24)} days ago`;
+  if (hrs < 24) return `${hrs}時間前`;
+  return `${Math.floor(hrs / 24)}日前`;
 }
 
 export function RecordList({ records, selectedId, onSelect }: RecordListProps) {
@@ -38,14 +38,14 @@ export function RecordList({ records, selectedId, onSelect }: RecordListProps) {
             className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
           />
           <input
-            placeholder="Search records..."
+            placeholder="レコードを検索..."
             className="w-full pl-9 pr-4 py-2 bg-surface-container rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
       </div>
       <div className="px-4 pb-2">
         <div className="text-xs font-bold text-on-surface-variant tracking-widest uppercase">
-          Tickets ({records.length})
+          チケット（{records.length}件）
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-3 space-y-1 pb-6">

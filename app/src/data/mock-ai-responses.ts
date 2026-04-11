@@ -6,12 +6,12 @@ import type {
 } from "@/types/ai";
 
 export const mockGeneratedApp: AIGeneratedApp = {
-  name: "Customer Support Desk",
+  name: "カスタマーサポートデスク",
   code: "support-desk",
-  description: "A ticketing system for customer support with escalation workflows",
+  description: "エスカレーションフロー付きのカスタマーサポート問い合わせ管理システム",
   tables: [
     {
-      name: "Tickets",
+      name: "チケット",
       code: "tickets",
       fields: [
         { name: "ticket_id", code: "ticket_id", fieldType: "text", required: true },
@@ -32,7 +32,7 @@ export const mockGeneratedApp: AIGeneratedApp = {
       ],
     },
     {
-      name: "Customers",
+      name: "顧客",
       code: "customers",
       fields: [
         { name: "company_name", code: "company_name", fieldType: "text", required: true },
@@ -43,31 +43,31 @@ export const mockGeneratedApp: AIGeneratedApp = {
     },
   ],
   views: [
-    { name: "All Tickets", viewType: "list" },
-    { name: "My Pending", viewType: "list" },
-    { name: "By Priority", viewType: "kanban" },
+    { name: "全チケット", viewType: "list" },
+    { name: "自分の未対応", viewType: "list" },
+    { name: "優先度別", viewType: "kanban" },
   ],
   workflows: [
-    { name: "Approval Chain", triggerType: "create" },
-    { name: "Escalation Flow", triggerType: "update" },
+    { name: "承認フロー", triggerType: "create" },
+    { name: "エスカレーションフロー", triggerType: "update" },
   ],
   aiInsight:
-    '"This customer has a renewal in 14 days. Escalating to Premier Support is recommended."',
+    "「この顧客は14日後に契約更新があります。プレミアサポートへのエスカレーションを推奨します。」",
 };
 
 export const mockRecordSummary: AISummary = {
   summary:
-    "Critical database connection pool exhaustion detected in production. Likely caused by unoptimized query patterns in the v2.4.0-beta release. System logs show 100% saturation on cluster eu-west-01.",
+    "本番環境でクリティカルなデータベース接続プール枯渇を検出しました。v2.4.0-betaリリースでの未最適化なクエリパターンが原因の可能性が高いです。クラスター eu-west-01 で100%の飽和が確認されています。",
   recommendedActions: [
     {
-      label: "Escalate to L2",
-      description: "Infrastructure & DB Team",
+      label: "L2へエスカレート",
+      description: "インフラ＆DBチーム",
       icon: "arrow_upward",
       type: "escalate",
     },
     {
-      label: "Send Template",
-      description: "Service Outage Response",
+      label: "テンプレート送信",
+      description: "サービス停止お知らせ",
       icon: "mail",
       type: "template",
     },
@@ -75,68 +75,68 @@ export const mockRecordSummary: AISummary = {
   similarIncidents: [
     {
       id: "rec-prev-001",
-      title: "DB Connection Leaks in Node.js Cluster",
+      title: "Node.jsクラスターのDB接続リーク",
       matchPercentage: 89,
-      resolution: "Resolved by increasing max connections and adding a fix for the connection pool leak.",
-      date: "Jul 2025",
+      resolution: "最大接続数の引き上げと接続プールリークの修正で解決しました。",
+      date: "2025年7月",
     },
     {
       id: "rec-prev-002",
-      title: "Intermittent 504s during heavy writes",
+      title: "高負荷書き込み時の断続的な504エラー",
       matchPercentage: 76,
-      resolution: "Root cause was a N+1 query issue in the authorization middleware.",
-      date: "Dec 2024",
+      resolution: "認可ミドルウェア内のN+1クエリ問題が根本原因でした。",
+      date: "2024年12月",
     },
   ],
 };
 
 export const mockFieldSuggestions: AIFieldSuggestion[] = [
   {
-    fieldName: "Incident Priority",
+    fieldName: "インシデント優先度",
     fieldType: "select",
-    reason: "AI suggests adding an Incident Priority field based on your app description.",
+    reason: "アプリ説明に基づき、AIがインシデント優先度フィールドの追加を提案しています。",
   },
   {
-    fieldName: "Resolution Time",
+    fieldName: "解決時間",
     fieldType: "number",
-    reason: "Track time-to-resolution for SLA compliance.",
+    reason: "SLA遵守のため解決までの時間を計測します。",
   },
   {
-    fieldName: "Customer Sentiment",
+    fieldName: "顧客感情",
     fieldType: "ai_generated",
-    reason: "AI-generated sentiment analysis from ticket text.",
+    reason: "チケット本文からAIが感情分析を自動生成します。",
   },
 ];
 
 export const mockAIFlowHistory: AIFlowHistoryItem[] = [
   {
     id: "afh-001",
-    action: "Ticket Created",
-    detail: "System",
+    action: "チケット作成",
+    detail: "システム",
     timestamp: "08:42 UTC",
     type: "system",
     status: "completed",
   },
   {
     id: "afh-002",
-    action: 'Auto-Tagged: "Database"',
-    detail: "AI Classifier",
+    action: "自動タグ付け：「データベース」",
+    detail: "AI 分類器",
     timestamp: "08:42 UTC",
     type: "ai",
     status: "completed",
   },
   {
     id: "afh-003",
-    action: "Proposed: Priority \u2192 Critical",
-    detail: "Sentiment Analysis",
+    action: "提案：優先度 → クリティカル",
+    detail: "感情分析",
     timestamp: "10:15 UTC",
     type: "ai",
     status: "proposed",
   },
   {
     id: "afh-004",
-    action: "Awaiting Approval",
-    detail: "Manager review required",
+    action: "承認待ち",
+    detail: "マネージャーの確認が必要",
     timestamp: "",
     type: "user",
     status: "pending",

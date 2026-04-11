@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Icon } from "@/components/shared/Icon";
 
 export function AICommandBar() {
-  const [value, setValue] = useState("Add a manager approval step if priority is critical");
+  const [value, setValue] = useState("優先度がクリティカルの場合、マネージャー承認ステップを追加");
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl z-20">
       <div className="glass-effect rounded-full flex items-center gap-3 px-5 py-3 shadow-2xl">

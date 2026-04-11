@@ -19,7 +19,7 @@ export function FormPreview({ title, subtitle, aiInsight }: FormPreviewProps) {
         </div>
         <div className="px-4 py-1.5 bg-primary-container text-primary rounded-full text-xs font-bold flex items-center gap-2">
           <Icon name="auto_awesome" size="sm" filled />
-          AI Suggested Fields
+          AI提案フィールド
         </div>
       </div>
 
@@ -28,33 +28,33 @@ export function FormPreview({ title, subtitle, aiInsight }: FormPreviewProps) {
         <div className="grid grid-cols-2 gap-6">
           <div className="col-span-2">
             <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
-              Subject
+              件名
             </label>
             <div className="w-full p-3 bg-surface-container-high rounded-lg text-on-surface font-medium">
-              Unable to access enterprise dashboard
+              エンタープライズダッシュボードにアクセスできない
             </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
-              Priority
+              優先度
             </label>
             <div className="w-full p-3 bg-surface-container-high rounded-lg text-error font-bold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-error" />
-              Critical
+              クリティカル
             </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
-              Customer
+              顧客
             </label>
             <div className="w-full p-3 bg-surface-container-high rounded-lg text-on-surface font-medium">
-              Acme Corp
+              Acme 株式会社
             </div>
           </div>
           {aiInsight && (
             <div className="col-span-2">
               <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
-                AI Insight: Recommended Action
+                AIインサイト：推奨アクション
               </label>
               <div className="w-full p-4 bg-emerald-950/30 rounded-lg border border-primary/20">
                 <p className="text-primary text-sm">{aiInsight}</p>
@@ -64,10 +64,10 @@ export function FormPreview({ title, subtitle, aiInsight }: FormPreviewProps) {
           <div className="col-span-2 pt-4">
             <div className="flex justify-end gap-3">
               <Button variant="ghost" size="md">
-                Discard
+                破棄
               </Button>
               <Button variant="primary" size="md">
-                Update Ticket
+                チケットを更新
               </Button>
             </div>
           </div>

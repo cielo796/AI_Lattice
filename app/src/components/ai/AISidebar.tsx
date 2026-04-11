@@ -11,12 +11,12 @@ interface AISidebarProps {
 }
 
 const tabs = [
-  { id: "summary", label: "SUMMARY", icon: "auto_awesome" },
-  { id: "actions", label: "ACTIONS", icon: "bolt" },
-  { id: "context", label: "CONTEXT", icon: "view_in_ar" },
+  { id: "summary", label: "サマリー", icon: "auto_awesome" },
+  { id: "actions", label: "アクション", icon: "bolt" },
+  { id: "context", label: "コンテキスト", icon: "view_in_ar" },
 ];
 
-export function AISidebar({ children, title = "AI ASSISTANT", className }: AISidebarProps) {
+export function AISidebar({ children, title = "AIアシスタント", className }: AISidebarProps) {
   const [activeTab, setActiveTab] = useState("summary");
 
   return (
@@ -33,7 +33,7 @@ export function AISidebar({ children, title = "AI ASSISTANT", className }: AISid
             {title}
           </span>
           <span className="ml-auto text-[10px] text-on-surface-variant uppercase tracking-wider">
-            Contextual Intelligence
+            コンテキスト分析
           </span>
         </div>
       </div>

@@ -12,7 +12,7 @@ export function TriggerNode({ data }: NodeProps<WorkflowNodeData>) {
           <Icon name="send" size="sm" className="text-blue-400" />
         </div>
         <span className="text-[10px] font-bold text-blue-400 tracking-widest uppercase">
-          Trigger
+          トリガー
         </span>
       </div>
       <div className="text-sm font-bold text-white">{data.label}</div>

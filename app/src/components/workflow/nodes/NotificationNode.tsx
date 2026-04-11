@@ -12,7 +12,7 @@ export function NotificationNode({ data }: NodeProps<WorkflowNodeData>) {
           <Icon name="notifications_active" size="sm" className="text-amber-400" />
         </div>
         <span className="text-[10px] font-bold text-amber-400 tracking-widest uppercase">
-          Notification
+          通知
         </span>
       </div>
       <div className="text-sm font-bold text-white">{data.label}</div>

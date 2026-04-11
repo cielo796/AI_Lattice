@@ -15,9 +15,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Stitch - The Intelligent Layer",
+  title: "AI Lattice - インテリジェント・レイヤー",
   description:
-    "AI-driven enterprise low-code platform. Build business apps with AI.",
+    "AI駆動型 エンタープライズ・ローコード基盤。AIで業務アプリを構築。",
 };
 
 export default function RootLayout({
@@ -26,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${manrope.variable} ${inter.variable}`}>
+    <html lang="ja" className={`${manrope.variable} ${inter.variable}`}>
       <head>
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"

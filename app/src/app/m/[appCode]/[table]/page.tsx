@@ -7,16 +7,16 @@ import { Badge } from "@/components/shared/Badge";
 import { mockRecords } from "@/data/mock-records";
 
 const tabs = [
-  { id: "all", label: "ALL ACTIVE" },
-  { id: "high", label: "HIGH PRIORITY" },
-  { id: "ai", label: "AI SUGGEST" },
+  { id: "all", label: "対応中" },
+  { id: "high", label: "優先度：高" },
+  { id: "ai", label: "AI提案" },
 ];
 
 const priorityVariant: { [k: string]: "error" | "warning" | "info" | "default" } = {
-  Critical: "error",
-  High: "warning",
-  Medium: "info",
-  Low: "default",
+  クリティカル: "error",
+  高: "warning",
+  中: "info",
+  低: "default",
 };
 
 export default function MobileRuntimePage() {
@@ -28,7 +28,7 @@ export default function MobileRuntimePage() {
       <header className="glass-effect sticky top-0 z-20 px-4 pt-6 pb-4">
         <div className="flex items-center justify-between mb-4">
           <h1 className="font-headline font-extrabold text-white text-base tracking-tight">
-            The Intelligent Layer
+            AI Lattice
           </h1>
           <button className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
             <Icon name="notifications" size="md" />
@@ -41,7 +41,7 @@ export default function MobileRuntimePage() {
             className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
           />
           <input
-            placeholder="Search tickets or insights..."
+            placeholder="チケットやインサイトを検索..."
             className="w-full pl-9 pr-4 py-2.5 bg-surface-container rounded-full text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
@@ -71,7 +71,7 @@ export default function MobileRuntimePage() {
       <main className="flex-1 overflow-y-auto px-4 py-4 space-y-3 pb-24">
         {mockRecords.slice(0, 5).map((rec) => {
           const data = rec.data as { [key: string]: string };
-          const isAI = data.priority === "Critical";
+          const isAI = data.priority === "クリティカル";
           return (
             <div
               key={rec.id}
@@ -85,7 +85,7 @@ export default function MobileRuntimePage() {
                   {data.ticket_id}
                 </span>
                 <div className="flex items-center gap-2">
-                  {isAI && <Badge variant="ai">AI SUGGEST</Badge>}
+                  {isAI && <Badge variant="ai">AI提案</Badge>}
                   <Badge variant={priorityVariant[data.priority] ?? "default"}>
                     {data.priority}
                   </Badge>
@@ -100,7 +100,7 @@ export default function MobileRuntimePage() {
               {isAI && (
                 <button className="text-[10px] font-bold text-primary flex items-center gap-1">
                   <Icon name="auto_awesome" size="sm" filled />
-                  VIEW AI RESOLUTION PATH
+                  AI解決パスを表示
                 </button>
               )}
             </div>
@@ -111,10 +111,10 @@ export default function MobileRuntimePage() {
       {/* Bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 glass-effect flex items-center justify-around py-3 z-20">
         {[
-          { icon: "home", label: "HOME" },
-          { icon: "apps", label: "APPS" },
-          { icon: "task", label: "TASKS", active: true },
-          { icon: "search", label: "SEARCH" },
+          { icon: "home", label: "ホーム" },
+          { icon: "apps", label: "アプリ" },
+          { icon: "task", label: "タスク", active: true },
+          { icon: "search", label: "検索" },
         ].map((item) => (
           <button
             key={item.label}

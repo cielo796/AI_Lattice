@@ -12,16 +12,16 @@ export default function WorkflowEditorPage() {
   return (
     <>
       <TopBar
-        breadcrumbs={[{ label: "Dashboard" }, { label: "Workflow Automation Editor" }]}
+        breadcrumbs={[{ label: "ダッシュボード" }, { label: "ワークフロー自動化エディタ" }]}
         actions={
           <>
             <Button variant="ghost" size="md">
               <Icon name="visibility" size="sm" />
-              Preview
+              プレビュー
             </Button>
             <Button variant="primary" size="md">
               <Icon name="rocket_launch" size="sm" />
-              Deploy
+              デプロイ
             </Button>
           </>
         }
@@ -41,17 +41,16 @@ export default function WorkflowEditorPage() {
             <div className="flex items-center gap-2 mb-2">
               <Icon name="auto_awesome" size="sm" className="text-primary" filled />
               <span className="text-xs font-bold text-primary uppercase tracking-wider">
-                Suggested Improvement
+                改善提案
               </span>
             </div>
             <p className="text-xs text-on-surface leading-relaxed mb-3">
-              I&apos;ve drafted a manager approval node connected to your primary
-              trigger. This ensures high-value records are reviewed before Slack
-              notifications.
+              プライマリトリガーに接続するマネージャー承認ノードの下書きを作成しました。
+              これにより、Slack通知の前に高額レコードが必ず確認されます。
             </p>
             <div className="flex gap-2">
               <Button size="sm" variant="secondary">
-                APPLY CHANGES
+                変更を適用
               </Button>
               <button className="w-8 h-8 rounded-lg bg-surface-container-high text-on-surface-variant hover:text-white flex items-center justify-center">
                 <Icon name="close" size="sm" />
@@ -61,11 +60,11 @@ export default function WorkflowEditorPage() {
 
           <div className="space-y-3">
             <div className="bg-surface-container-high rounded-xl p-3 text-xs text-on-surface ml-6">
-              Add a manager approval step if priority is critical
+              優先度がクリティカルの場合、マネージャー承認ステップを追加
             </div>
             <div className="bg-surface-container rounded-xl p-3 text-xs text-on-surface-variant">
-              Analyzing workflow context... I have identified the optimal insertion
-              point between &quot;Condition&quot; and &quot;Notification&quot;. Generating nodes now.
+              ワークフローのコンテキストを分析中... 「条件分岐」と「通知」の間が
+              最適な挿入ポイントであることを特定しました。ノードを生成しています。
             </div>
           </div>
         </AISidebar>

@@ -16,7 +16,7 @@ export function RefineBar() {
           </span>
           <input
             className="w-full bg-surface-container-high border-none rounded-full py-3 pl-12 pr-6 text-sm text-white placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
-            placeholder="Refine with AI (e.g. 'Add a status field called SLA State')"
+            placeholder="AIで調整（例：SLA状態というステータス項目を追加）"
           />
         </div>
         <div className="flex gap-4">
@@ -25,7 +25,7 @@ export function RefineBar() {
             size="lg"
             onClick={() => router.push("/apps/app-001/tables")}
           >
-            Approve and Build
+            承認してビルド
             <Icon name="rocket_launch" size="sm" />
           </Button>
         </div>

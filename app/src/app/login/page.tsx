@@ -29,10 +29,10 @@ export default function LoginPage() {
             <Icon name="apps" className="text-white" size="lg" />
           </div>
           <h1 className="font-headline text-3xl font-extrabold text-white tracking-tight">
-            Intelligent Layer
+            AI Lattice
           </h1>
           <p className="text-on-surface-variant text-sm mt-2">
-            AI-driven enterprise low-code platform
+            AI駆動型 エンタープライズ・ローコード基盤
           </p>
         </div>
 
@@ -43,7 +43,7 @@ export default function LoginPage() {
         >
           <div>
             <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
-              Email
+              メールアドレス
             </label>
             <Input
               type="email"
@@ -55,14 +55,14 @@ export default function LoginPage() {
           </div>
           <div>
             <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
-              Password
+              パスワード
             </label>
             <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               icon="lock"
-              placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+              placeholder="••••••••"
             />
           </div>
 
@@ -71,12 +71,12 @@ export default function LoginPage() {
             size="lg"
             className="w-full justify-center mt-6"
           >
-            Sign in
+            サインイン
             <Icon name="arrow_forward" size="sm" />
           </Button>
 
           <div className="pt-4 text-center text-xs text-on-surface-variant">
-            Demo mode \u00b7 Any credentials will work
+            デモモード ・ 任意の認証情報でログインできます
           </div>
         </form>
       </div>

@@ -8,23 +8,29 @@ import { Button } from "@/components/shared/Button";
 import { mockApps } from "@/data/mock-apps";
 
 const statCards = [
-  { label: "Active Apps", value: "4", icon: "apps", accent: "text-primary" },
-  { label: "Pending Approvals", value: "12", icon: "pending_actions", accent: "text-amber-400" },
-  { label: "AI Actions Today", value: "284", icon: "auto_awesome", accent: "text-primary" },
-  { label: "Open Tickets", value: "8", icon: "confirmation_number", accent: "text-blue-400" },
+  { label: "アクティブなアプリ", value: "4", icon: "apps", accent: "text-primary" },
+  { label: "承認待ち", value: "12", icon: "pending_actions", accent: "text-amber-400" },
+  { label: "本日のAI実行数", value: "284", icon: "auto_awesome", accent: "text-primary" },
+  { label: "未対応チケット", value: "8", icon: "confirmation_number", accent: "text-blue-400" },
 ];
+
+const statusLabel: { [key: string]: string } = {
+  published: "公開中",
+  draft: "下書き",
+  archived: "アーカイブ",
+};
 
 export default function HomePage() {
   return (
     <>
       <TopBar
-        title="The Intelligent Layer"
-        breadcrumbs={[{ label: "Dashboard" }, { label: "Home" }]}
+        title="AI Lattice"
+        breadcrumbs={[{ label: "ダッシュボード" }, { label: "ホーム" }]}
         actions={
           <Link href="/apps/new/ai">
             <Button variant="primary" size="md">
               <Icon name="auto_awesome" size="sm" filled />
-              New AI App
+              AIでアプリ作成
             </Button>
           </Link>
         }
@@ -34,10 +40,10 @@ export default function HomePage() {
         {/* Hero */}
         <div className="mb-10">
           <h2 className="font-headline text-4xl font-extrabold text-white mb-2 tracking-tight">
-            Welcome back, Marcus
+            おかえりなさい、Marcus さん
           </h2>
           <p className="text-on-surface-variant">
-            Build business apps with AI, run operations with AI, govern with confidence.
+            AIで業務アプリを構築し、AIで業務を実行し、人が最終判断する。
           </p>
         </div>
 
@@ -63,13 +69,13 @@ export default function HomePage() {
 
         {/* Apps grid */}
         <div className="mb-6 flex items-center justify-between">
-          <h3 className="font-headline text-2xl font-bold text-white">Your Apps</h3>
+          <h3 className="font-headline text-2xl font-bold text-white">マイアプリ</h3>
           <Link
             href="/apps/new/ai"
             className="text-primary text-sm font-bold flex items-center gap-1 hover:text-emerald-400"
           >
             <Icon name="add" size="sm" />
-            Create with AI
+            AIで新規作成
           </Link>
         </div>
 
@@ -85,7 +91,7 @@ export default function HomePage() {
                   <Icon name={app.icon} className="text-primary" size="lg" />
                 </div>
                 <Badge variant={app.status === "published" ? "success" : "warning"}>
-                  {app.status}
+                  {statusLabel[app.status] ?? app.status}
                 </Badge>
               </div>
               <h4 className="font-headline font-bold text-white text-lg mb-1 group-hover:text-primary transition-colors">
@@ -101,7 +107,7 @@ export default function HomePage() {
         {/* AI Suggestions */}
         <div className="mt-12">
           <h3 className="font-headline text-2xl font-bold text-white mb-6">
-            AI Suggestions
+            AIからの提案
           </h3>
           <div className="bg-emerald-950/30 rounded-xl p-6 border border-primary/20">
             <div className="flex items-start gap-4">
@@ -110,18 +116,18 @@ export default function HomePage() {
               </div>
               <div className="flex-1">
                 <div className="text-xs font-bold text-primary tracking-wider uppercase mb-1">
-                  AI Recommendation
+                  AI レコメンド
                 </div>
                 <p className="text-on-surface text-sm">
-                  Your Customer Support Desk has 3 unresolved critical tickets. Consider
-                  reviewing the escalation flow to auto-route similar issues in the future.
+                  カスタマーサポートデスクに未解決のクリティカルチケットが3件あります。
+                  将来類似の問題を自動振り分けできるよう、エスカレーションフローの見直しを検討してください。
                 </p>
                 <div className="mt-3 flex gap-2">
                   <Button size="sm" variant="secondary">
-                    Review now
+                    今すぐ確認
                   </Button>
                   <Button size="sm" variant="ghost">
-                    Dismiss
+                    閉じる
                   </Button>
                 </div>
               </div>

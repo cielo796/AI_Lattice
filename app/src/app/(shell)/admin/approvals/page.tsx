@@ -12,14 +12,14 @@ export default function ApprovalsPage() {
     <>
       <TopBar
         breadcrumbs={[
-          { label: "Dashboard" },
-          { label: "Admin" },
-          { label: "Approvals" },
+          { label: "ダッシュボード" },
+          { label: "管理" },
+          { label: "承認" },
         ]}
         actions={
           <Button variant="primary" size="md">
             <Icon name="share" size="sm" />
-            Share
+            共有
           </Button>
         }
       />
@@ -27,9 +27,9 @@ export default function ApprovalsPage() {
       <main className="pt-16 px-10 py-10 max-w-7xl mx-auto">
         {/* Title */}
         <div className="mb-6">
-          <div className="text-xs text-on-surface-variant mb-2">Tickets / OPS-4291</div>
+          <div className="text-xs text-on-surface-variant mb-2">チケット / OPS-4291</div>
           <h1 className="font-headline text-4xl font-extrabold text-white">
-            Database latency spikes in US-EAST-1
+            US-EAST-1 でデータベース遅延のスパイク
           </h1>
         </div>
 
@@ -41,21 +41,21 @@ export default function ApprovalsPage() {
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm font-bold text-white">
-                Proposed Change: Escalation to Critical
+                提案された変更：優先度をクリティカルに引き上げ
               </span>
-              <Badge variant="ai">AI SUGGESTION</Badge>
+              <Badge variant="ai">AI提案</Badge>
             </div>
             <p className="text-xs text-on-surface-variant">
-              AI Insight: User sentiment analysis indicates high frustration and database
-              timeout issues. Automated pattern matching suggests a cascading failure risk.
+              AIインサイト：ユーザーの感情分析から強い不満とDBタイムアウトが検出されました。
+              自動パターンマッチングにより、カスケード障害のリスクが示唆されています。
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
             <Button variant="primary" size="md">
-              Accept Update
+              更新を承認
             </Button>
             <Button variant="ghost" size="md">
-              Reject
+              却下
             </Button>
           </div>
         </div>
@@ -66,32 +66,32 @@ export default function ApprovalsPage() {
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-surface-container rounded-xl p-6">
               <div className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-                Description
+                説明
               </div>
               <p className="text-sm text-on-surface leading-relaxed">
-                Multiple reports from core enterprise customers regarding timeout errors
-                on the primary reporting dashboard. Initial logs show a steady increase in
-                query execution time starting at 08:42 UTC.
+                主要なエンタープライズ顧客から、基幹レポートダッシュボードで
+                タイムアウトエラーが発生しているとの報告が複数件寄せられています。
+                初期ログによると、クエリ実行時間は08:42 UTCから着実に増加しています。
               </p>
 
               <div className="grid grid-cols-3 gap-4 mt-6">
                 <div>
                   <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-                    Priority
+                    優先度
                   </div>
-                  <Badge variant="warning">High</Badge>
+                  <Badge variant="warning">高</Badge>
                 </div>
                 <div>
                   <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-                    Status
+                    ステータス
                   </div>
-                  <Badge variant="info">Investigating</Badge>
+                  <Badge variant="info">調査中</Badge>
                 </div>
                 <div>
                   <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-                    Category
+                    カテゴリ
                   </div>
-                  <Badge variant="default">Database</Badge>
+                  <Badge variant="default">データベース</Badge>
                 </div>
               </div>
             </div>
@@ -100,14 +100,14 @@ export default function ApprovalsPage() {
             <div className="bg-surface-container rounded-xl p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-                  Sentiment & Latency Correlation
+                  感情と遅延の相関
                 </div>
                 <div className="flex gap-3 text-[10px]">
                   <span className="flex items-center gap-1 text-blue-400">
-                    <span className="w-2 h-2 bg-blue-400 rounded-full" /> Latency
+                    <span className="w-2 h-2 bg-blue-400 rounded-full" /> 遅延
                   </span>
                   <span className="flex items-center gap-1 text-primary">
-                    <span className="w-2 h-2 bg-primary rounded-full" /> Sentiment
+                    <span className="w-2 h-2 bg-primary rounded-full" /> 感情
                   </span>
                 </div>
               </div>
@@ -136,19 +136,19 @@ export default function ApprovalsPage() {
           <div className="space-y-6">
             <div className="bg-surface-container rounded-xl p-6">
               <div className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">
-                Metadata
+                メタデータ
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-xs text-on-surface-variant">Created</span>
-                  <span className="text-xs text-on-surface font-bold">2 hours ago</span>
+                  <span className="text-xs text-on-surface-variant">作成</span>
+                  <span className="text-xs text-on-surface font-bold">2時間前</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-xs text-on-surface-variant">Reporter</span>
+                  <span className="text-xs text-on-surface-variant">報告者</span>
                   <span className="text-xs text-on-surface font-bold">Sarah Jenkins</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-xs text-on-surface-variant">Node ID</span>
+                  <span className="text-xs text-on-surface-variant">ノードID</span>
                   <span className="text-xs text-on-surface font-mono">NODE_XENL_A</span>
                 </div>
               </div>
@@ -156,7 +156,7 @@ export default function ApprovalsPage() {
 
             <div className="bg-surface-container rounded-xl p-6">
               <div className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">
-                AI Flow History
+                AIフロー履歴
               </div>
               <div className="space-y-4 relative">
                 {mockAIFlowHistory.map((item, i) => (
@@ -177,7 +177,7 @@ export default function ApprovalsPage() {
                         {item.action}
                       </div>
                       <div className="text-[10px] text-on-surface-variant">
-                        {item.detail} {item.timestamp && `\u00b7 ${item.timestamp}`}
+                        {item.detail} {item.timestamp && `・ ${item.timestamp}`}
                       </div>
                     </div>
                   </div>
@@ -188,12 +188,12 @@ export default function ApprovalsPage() {
             <div className="bg-surface-container rounded-xl p-6">
               <div className="flex items-center gap-3 mb-2">
                 <Icon name="monitoring" className="text-primary" />
-                <span className="text-sm font-bold text-white">System Health</span>
+                <span className="text-sm font-bold text-white">システム状態</span>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-[10px] text-on-surface-variant uppercase">
-                    CPU Load
+                    CPU使用率
                   </div>
                   <div className="text-2xl font-headline font-bold text-blue-400">
                     82%
@@ -201,7 +201,7 @@ export default function ApprovalsPage() {
                 </div>
                 <div>
                   <div className="text-[10px] text-on-surface-variant uppercase">
-                    Error Rate
+                    エラー率
                   </div>
                   <div className="text-2xl font-headline font-bold text-error">1.4%</div>
                 </div>
@@ -213,10 +213,10 @@ export default function ApprovalsPage() {
         {/* Human-in-the-Loop flow */}
         <div className="mt-10">
           <h2 className="font-headline text-xl font-bold text-white mb-4">
-            Human-in-the-Loop Workflow
+            Human-in-the-Loop ワークフロー
           </h2>
           <div className="bg-surface-container rounded-xl p-6 flex items-center justify-between gap-4">
-            {["Proposal", "Review", "Approval", "Execution"].map((step, i) => (
+            {["提案", "レビュー", "承認", "実行"].map((step, i) => (
               <div key={step} className="flex items-center flex-1">
                 <div
                   className={cn(
@@ -239,7 +239,7 @@ export default function ApprovalsPage() {
                   <span className="text-xs font-bold">{step}</span>
                   {i === 2 && (
                     <span className="text-[9px] text-amber-400 uppercase tracking-wider">
-                      Awaiting
+                      対応待ち
                     </span>
                   )}
                 </div>

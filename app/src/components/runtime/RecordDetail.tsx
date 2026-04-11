@@ -27,9 +27,9 @@ export function RecordDetail({ record }: RecordDetailProps) {
       {/* Header */}
       <div className="px-8 py-6">
         <div className="flex items-center gap-3 mb-4">
-          <Badge variant="success">ACTIVE TICKET</Badge>
+          <Badge variant="success">対応中</Badge>
           <span className="text-xs text-on-surface-variant">
-            Created Jan 12, 2024 at 14:02 UTC
+            作成日時：2026年4月12日 14:02 UTC
           </span>
         </div>
         <h1 className="font-headline text-3xl font-extrabold text-white leading-tight">
@@ -45,15 +45,14 @@ export function RecordDetail({ record }: RecordDetailProps) {
           <div className="flex-1">
             <div className="flex items-baseline gap-2 mb-2">
               <span className="font-bold text-white text-sm">
-                {String(data.customer).split("(")[0].trim()}
+                {String(data.customer).split("（")[0].trim()}
               </span>
-              <span className="text-xs text-on-surface-variant">(Customer)</span>
+              <span className="text-xs text-on-surface-variant">（顧客）</span>
             </div>
             <div className="text-sm text-on-surface leading-relaxed">
-              Hi Support Team, we are seeing a massive spike across all our instances
-              in the EU-West region after the latest cluster update. Can you investigate
-              whether this is a connection pool exhaustion issue or a networking
-              misconfiguration?
+              サポートチームご担当者様、最新のクラスタ更新以降、EU-Westリージョンの
+              すべてのインスタンスでエラーが急増しています。接続プールの枯渇が原因なのか、
+              ネットワーク設定のミスなのかを調査いただけますでしょうか。
             </div>
             {/* Attachment */}
             {attachments.length > 0 && (
@@ -66,7 +65,7 @@ export function RecordDetail({ record }: RecordDetailProps) {
                     {attachments[0].fileName}
                   </div>
                   <div className="text-[10px] text-on-surface-variant">
-                    {(attachments[0].fileSize / 1024).toFixed(1)} KB \u00b7 Plain Text
+                    {(attachments[0].fileSize / 1024).toFixed(1)} KB ・ プレーンテキスト
                   </div>
                 </div>
               </div>
@@ -77,11 +76,11 @@ export function RecordDetail({ record }: RecordDetailProps) {
         {/* System log */}
         <div className="py-2">
           <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-            System Info
+            システム情報
           </div>
           <pre className="bg-surface-container rounded-lg p-3 text-[11px] font-mono text-on-surface-variant leading-relaxed overflow-x-auto">
-            {`[SYSTEM_INFO] Cluster: prod-eu-west-01
-[LOG_WARN] Found 3,422 occurrences of connection timeout in the last hour.`}
+            {`[SYSTEM_INFO] クラスタ: prod-eu-west-01
+[LOG_WARN] 過去1時間で接続タイムアウトが3,422件発生。`}
           </pre>
         </div>
 
@@ -98,7 +97,7 @@ export function RecordDetail({ record }: RecordDetailProps) {
         <div className="bg-surface-container rounded-xl p-3">
           <textarea
             rows={2}
-            placeholder="Type your response or '/' for commands..."
+            placeholder="返信を入力、または '/' でコマンドを呼び出し..."
             className="w-full bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none resize-none"
           />
           <div className="flex items-center justify-between mt-2">
