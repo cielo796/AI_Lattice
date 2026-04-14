@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Inter } from "next/font/google";
+import { AuthBootstrap } from "@/components/shared/AuthBootstrap";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -34,6 +35,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-surface text-on-surface font-body antialiased">
+        <AuthBootstrap />
         {children}
       </body>
     </html>

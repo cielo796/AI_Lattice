@@ -1007,6 +1007,245 @@ stitch/
 
 - TypeScript strict mode
 - ESLint + Prettier
+
+## Implementation Plan
+
+### Current State
+
+現行リポジトリでは、`app/` 配下の Next.js フロントエンドが先行実装されている。
+主に以下の画面は動作する:
+
+- `/login`
+- `/home`
+- `/apps/new/ai`
+- `/apps/:id/tables`
+- `/apps/:id/workflows`
+- `/run/:appCode/:table`
+- `/m/:appCode/:table`
+- `/admin/approvals`
+- `/admin/audit-logs`
+
+Current implementation snapshot:
+
+- Working API routes: auth login/logout/me and apps/tables/fields CRUD Route Handlers
+- DB-backed today: auth, session, apps, tables, fields
+- Still pending: records, comments, attachments, workflow execution, approvals persistence, AI runtime persistence, publish/versioning, audit persistence
+
+ただし、現状の多くは **UIモック + mockデータ** であり、以下は未実装または限定実装である:
+
+- バックエンド API
+- DB 永続化
+- 認証・認可の本実装
+- Model Gateway 経由の AI 実行
+- Publish / Versioning
+- 監査ログの実記録
+
+### Implementation Strategy
+
+実装順は以下の依存関係に従う:
+
+1. 基盤: 認証、API、DB、共通データ取得層
+2. Builder コア: App / Table / Field を保存可能にする
+3. Runtime コア: Record CRUD を成立させる
+4. Workflow / Approval: 業務フローと承認を実データ化する
+5. AI MVP: Prompt to App、要約、次アクション、返信案を実接続する
+6. Governance: RBAC、監査ログ、Publish を導入する
+
+### Sprint Plan
+
+#### Sprint 1: 基盤整備
+
+目的: フロントの mock 依存を外し、実データ実装の土台を作る。
+
+実装内容:
+
+- API サービス雛形作成
+- DB schema / migration 導入
+- 認証 API 実装
+- フロントの API client 実装
+- `authStore` の mock 認証排除
+- 共通ローディング / エラーハンドリング導入
+
+完了条件:
+
+- `/login` が実認証で動作する
+- 保護ルートでセッションが維持される
+- フロントが API 経由でデータ取得できる
+
+#### Sprint 2: Builder コア
+
+目的: アプリ定義を保存できる状態にする。
+
+実装内容:
+
+- `/apps` 実装
+- `/apps/new` 実装
+- `/apps/:id/tables` 保存処理
+- `/apps/:id/tables/:tid/fields` 実装
+- apps / tables / fields CRUD API
+
+完了条件:
+
+- アプリ作成ができる
+- テーブル追加・編集ができる
+- フィールド追加・編集ができる
+- 再読込後も内容が保持される
+
+#### Sprint 3: Runtime コア
+
+目的: 実際の業務データを登録・更新・閲覧できるようにする。
+
+実装内容:
+
+- `/run/:appCode` 実装
+- `/run/:appCode/:table` API 接続
+- `/run/:appCode/:table/new` 実装
+- record CRUD API
+- コメント API
+- 添付 API
+
+完了条件:
+
+- レコード一覧・詳細が実データで動く
+- 新規作成・更新・削除が可能
+- コメント投稿と添付登録が可能
+
+#### Sprint 4: Workflow / Approval
+
+目的: 業務フローと承認を mock ではなく業務処理に接続する。
+
+実装内容:
+
+- `/apps/:id/workflows` 保存 / 読込
+- ノード追加・削除・接続変更
+- workflow schema / API
+- approvals API
+- `/run/:appCode/approvals` 実装
+- `/admin/approvals` 実データ化
+
+完了条件:
+
+- ワークフローを定義・保存できる
+- レコード操作から承認待ちが発生する
+- 承認 / 却下の状態更新が行える
+
+#### Sprint 5: AI MVP
+
+目的: AI 関連画面を固定表示から実行系へ移行する。
+
+実装内容:
+
+- Model Gateway 最小実装
+- `/apps/new/ai` を `generate-app` API に接続
+- AI フィールド提案
+- レコード要約
+- 次アクション提案
+- 返信案生成
+- Human-in-the-Loop の反映導線
+
+完了条件:
+
+- Prompt to App が実レスポンスを返す
+- Runtime の AI 要約 / 次アクション / 返信案が実行される
+- AI 提案を承認して保存できる
+
+#### Sprint 6: Governance / Publish
+
+目的: MVP を安全に運用・公開できる状態にする。
+
+実装内容:
+
+- App / Table レベル RBAC
+- 監査ログ実記録
+- `/admin/audit-logs` 実接続
+- Publish / Versioning
+- `/apps/:id/settings` 実装
+
+完了条件:
+
+- ロールごとに操作制御できる
+- 主要操作が監査ログに残る
+- 公開バージョンを切り替えられる
+
+#### Sprint 7: 仕上げ
+
+目的: MVP の未実装画面と品質保証を補完する。
+
+実装内容:
+
+- `/tenants`
+- `/notifications`
+- `/admin/users`
+- `/admin/roles`
+- `/admin/tenant`
+- `/admin/ai-logs`
+- モバイル調整
+- E2E テスト
+- 性能 / 監視 / 文言整理
+
+完了条件:
+
+- MVP 一式が通しでデモ可能
+- 主要ユースケースの E2E が通る
+- UI モック依存が主要導線から排除される
+
+### Immediate Next Steps
+
+直近は以下の順で着手する:
+
+1. API client と共通 fetch 層を作る
+2. 認証を本実装に置き換える
+3. apps / tables / fields の CRUD を実装する
+4. records / comments / attachments の CRUD を実装する
+5. workflow 保存と approvals を実装する
+6. AI app builder と runtime AI を実接続する
+
+### Updated Immediate Next Steps
+
+1. records / comments / attachments を Prisma に移行する
+2. workflow / approvals を DB-backed にする
+3. AI app builder と runtime AI を Model Gateway 前提で実装する
+4. publish / versioning / audit persistence を追加する
+5. E2E テストを追加して主要ユースケースを固定する
+
+## Implementation Update (2026-04-14)
+
+### Completed in this branch
+
+- Added Next.js Route Handlers for auth and builder metadata APIs.
+- Added API client modules under `app/src/lib/api/` and switched auth state to async API-backed flow.
+- Added PostgreSQL + Prisma 7 setup with Docker Compose, Prisma config, schema, migration files, and `db:*` npm scripts.
+- Replaced mock auth with DB-backed auth using PostgreSQL users, `scrypt` password hashes, and session records stored in the `sessions` table.
+- Replaced in-memory `apps / tables / fields` CRUD with Prisma-backed services.
+- Added bootstrap logic for demo auth data and demo builder metadata so the current UI works after DB startup and migration.
+
+### Current login flow
+
+- Create `app/.env.local` with `DATABASE_URL`
+- Run `npm run db:start`
+- Run `npm run dev`
+- Demo accounts:
+  `marcus.chen@acme.com`, `alex.rivera@acme.com`, `sarah.jenkins@acme.com`, `admin@acme.com`
+- Demo password:
+  `demo`
+
+### Current implementation status
+
+- DB-backed and working:
+  auth, session, apps, tables, fields
+- Not DB-backed yet or not implemented:
+  records, comments, attachments, workflow execution, approvals, publish/versioning, audit persistence, AI runtime persistence
+
+### Definition of Done
+
+各機能は以下を満たして完了とする:
+
+- 画面遷移だけでなく保存・再取得まで動作する
+- mock データではなく API / DB を使用する
+- 失敗時の UI がある
+- 主要操作が監査ログに残る
+- 権限制御が必要な操作に適用される
+- 型定義と lint / build が通る
 - Tailwind CSS（デザイントークンは `DESIGN.md` のトークン体系に準拠）
 - コンポーネントは Atomic Design を参考にしつつ、画面単位で整理
 

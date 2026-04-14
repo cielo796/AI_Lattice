@@ -2,6 +2,7 @@
 
 import { Icon } from "./Icon";
 import { Avatar } from "./Avatar";
+import { useAuthStore } from "@/stores/authStore";
 
 interface TopBarProps {
   title?: string;
@@ -10,6 +11,8 @@ interface TopBarProps {
 }
 
 export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
+  const avatarName = useAuthStore((s) => s.user?.name ?? "Marcus Chen");
+
   return (
     <header className="fixed top-0 right-0 left-64 h-16 bg-[#0c1322]/80 backdrop-blur-md flex items-center justify-between px-8 z-30">
       <div className="flex items-center gap-8">
@@ -46,7 +49,7 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
         <button className="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container hover:text-white transition-colors">
           <Icon name="settings" />
         </button>
-        <Avatar name="Marcus Chen" size="md" />
+        <Avatar name={avatarName} size="md" />
       </div>
     </header>
   );
