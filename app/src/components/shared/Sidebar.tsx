@@ -6,16 +6,16 @@ import { cn } from "@/lib/cn";
 import { Icon } from "./Icon";
 
 const navItems = [
-  { href: "/home", icon: "apps", label: "Apps" },
-  { href: "/apps/app-001/tables", icon: "table_chart", label: "Tables" },
-  { href: "/apps/app-001/workflows", icon: "account_tree", label: "Workflows" },
-  { href: "/admin/ai-settings", icon: "psychology", label: "AI Settings" },
-  { href: "/admin/audit-logs", icon: "admin_panel_settings", label: "Admin" },
+  { href: "/home", icon: "apps", label: "アプリ" },
+  { href: "/apps/app-001/tables", icon: "table_chart", label: "テーブル" },
+  { href: "/apps/app-001/workflows", icon: "account_tree", label: "ワークフロー" },
+  { href: "/admin/ai-settings", icon: "psychology", label: "AI設定" },
+  { href: "/admin/audit-logs", icon: "admin_panel_settings", label: "管理" },
 ];
 
 const bottomItems = [
-  { href: "#", icon: "help", label: "Help" },
-  { href: "#", icon: "chat_bubble", label: "Feedback" },
+  { href: "#", icon: "help", label: "ヘルプ" },
+  { href: "#", icon: "chat_bubble", label: "フィードバック" },
 ];
 
 export function Sidebar() {
@@ -31,7 +31,7 @@ export function Sidebar() {
           </div>
           <div className="flex flex-col">
             <span className="font-headline font-bold text-lg text-white leading-none">
-              Intelligent Layer
+              AI Lattice
             </span>
             <span className="text-[10px] text-on-surface-variant font-medium uppercase tracking-wider">
               v2.4.0

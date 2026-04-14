@@ -19,7 +19,7 @@ export function ApprovalNode({ data }: NodeProps<WorkflowNodeData>) {
       {isAI && (
         <div className="absolute -top-3 -right-3 px-2 py-0.5 bg-primary text-white text-[9px] font-bold rounded-full flex items-center gap-1">
           <Icon name="auto_awesome" size="sm" filled />
-          AI PROPOSED
+          AI提案
         </div>
       )}
       <div className="flex items-center gap-2 mb-3">
@@ -27,7 +27,7 @@ export function ApprovalNode({ data }: NodeProps<WorkflowNodeData>) {
           <Icon name="how_to_reg" size="sm" className="text-primary" />
         </div>
         <span className="text-[10px] font-bold text-primary tracking-widest uppercase">
-          Approval
+          承認
         </span>
       </div>
       <div className="text-sm font-bold text-white">{data.label}</div>

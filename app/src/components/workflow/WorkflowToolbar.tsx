@@ -3,10 +3,10 @@
 import { Icon } from "@/components/shared/Icon";
 
 const tools = [
-  { icon: "near_me", label: "Select" },
-  { icon: "add_box", label: "Add Node" },
-  { icon: "pan_tool", label: "Pan" },
-  { icon: "zoom_in", label: "Zoom" },
+  { icon: "near_me", label: "選択" },
+  { icon: "add_box", label: "ノード追加" },
+  { icon: "pan_tool", label: "パン" },
+  { icon: "zoom_in", label: "ズーム" },
 ];
 
 export function WorkflowToolbar() {

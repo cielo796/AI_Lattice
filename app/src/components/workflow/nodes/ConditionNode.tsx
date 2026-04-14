@@ -12,16 +12,16 @@ export function ConditionNode({ data }: NodeProps<WorkflowNodeData>) {
           <Icon name="rule" size="sm" className="text-purple-400" />
         </div>
         <span className="text-[10px] font-bold text-purple-400 tracking-widest uppercase">
-          Condition
+          条件分岐
         </span>
       </div>
       <div className="text-sm font-bold text-white">{data.label}</div>
       <div className="flex gap-2 mt-3">
         <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-          True
+          Yes
         </span>
         <span className="text-[10px] text-on-surface-variant bg-surface-container-highest/40 px-2 py-0.5 rounded-full">
-          False
+          No
         </span>
       </div>
       <Handle type="target" position={Position.Left} className="!bg-outline !w-2 !h-2" />

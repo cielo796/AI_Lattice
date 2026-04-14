@@ -17,29 +17,22 @@ const actionTypeVariant: { [key: string]: "info" | "ai" | "warning" | "default" 
   API_KEY_ROT: "warning",
 };
 
-const aiInvolvementVariant: { [key: string]: "ai" | "info" | "warning" | "default" } = {
-  autonomous: "ai",
-  predictive: "info",
-  assisted: "warning",
-  none: "default",
-};
-
 export default function AuditLogsPage() {
   const [selected, setSelected] = useState<AuditLog>(mockAuditLogs[0]);
 
   return (
     <>
       <TopBar
-        breadcrumbs={[{ label: "Admin Panel" }, { label: "Audit Logs" }]}
+        breadcrumbs={[{ label: "管理パネル" }, { label: "監査ログ" }]}
         actions={
           <>
             <Button variant="ghost" size="md">
               <Icon name="monitoring" size="sm" />
-              System Health
+              システム状態
             </Button>
             <Button variant="primary" size="md">
               <Icon name="rocket_launch" size="sm" />
-              Deploy
+              デプロイ
             </Button>
           </>
         }
@@ -49,12 +42,12 @@ export default function AuditLogsPage() {
         {/* Filters */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
-            { label: "Date Range", value: "Last 24 Hours", icon: "calendar_today" },
-            { label: "User Account", value: "All Users", icon: "person" },
-            { label: "Action Type", value: "Any Action", icon: "filter_alt" },
+            { label: "期間", value: "直近24時間", icon: "calendar_today" },
+            { label: "ユーザー", value: "すべて", icon: "person" },
+            { label: "アクション種別", value: "すべて", icon: "filter_alt" },
             {
-              label: "Involvement",
-              value: "AI Managed",
+              label: "関与",
+              value: "AI自動実行",
               icon: "auto_awesome",
               highlight: true,
             },
@@ -88,10 +81,10 @@ export default function AuditLogsPage() {
           {/* Table */}
           <div className="bg-surface-container rounded-xl overflow-hidden">
             <div className="grid grid-cols-[140px_120px_140px_1fr] gap-4 px-6 py-4 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
-              <div>Timestamp</div>
-              <div>User</div>
-              <div>Action</div>
-              <div>Resource</div>
+              <div>タイムスタンプ</div>
+              <div>ユーザー</div>
+              <div>アクション</div>
+              <div>対象リソース</div>
             </div>
             <div>
               {mockAuditLogs.map((log) => (
@@ -127,14 +120,14 @@ export default function AuditLogsPage() {
             </div>
             <div className="px-6 py-4 flex items-center justify-between">
               <span className="text-xs text-on-surface-variant">
-                Showing 1 to 25 of 1,422 entries
+                1～25件 / 全1,422件
               </span>
               <div className="flex gap-2">
                 <button className="px-3 py-1 text-xs bg-surface-container-high rounded text-on-surface-variant">
-                  Previous
+                  前へ
                 </button>
                 <button className="px-3 py-1 text-xs bg-surface-container-high rounded text-on-surface-variant">
-                  Next
+                  次へ
                 </button>
               </div>
             </div>
@@ -143,7 +136,7 @@ export default function AuditLogsPage() {
           {/* Detail panel */}
           <aside className="bg-surface-container rounded-xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <div className="font-headline font-bold text-white">Event Detail</div>
+              <div className="font-headline font-bold text-white">イベント詳細</div>
               <span className="text-[10px] font-mono text-on-surface-variant">
                 ID: {selected.id}
               </span>
@@ -153,14 +146,14 @@ export default function AuditLogsPage() {
               <div className="flex items-center gap-2 mb-2">
                 <Icon name="edit_note" size="sm" className="text-blue-400" />
                 <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
-                  Operation
+                  操作
                 </span>
               </div>
               <div className="text-lg font-headline font-bold text-white">
                 {selected.actionType}
               </div>
               <p className="text-xs text-on-surface-variant mt-2 leading-relaxed">
-                {String(selected.detailJson?.changes ?? selected.detailJson?.reason ?? "A major update was performed on the system.")}
+                {String(selected.detailJson?.changes ?? selected.detailJson?.reason ?? "システムに対して主要な更新が実行されました。")}
               </p>
             </div>
 
@@ -169,16 +162,16 @@ export default function AuditLogsPage() {
                 <div className="flex items-center gap-2 mb-2">
                   <Icon name="auto_awesome" size="sm" className="text-primary" filled />
                   <span className="text-[10px] font-bold text-primary uppercase tracking-widest">
-                    AI Insights
+                    AIインサイト
                   </span>
                 </div>
                 <p className="text-xs text-on-surface">
-                  <span className="text-primary font-bold">AUTOMATED ACTION</span> \u00b7
-                  This action was pre-validated by the Core Auditor AI. Risk score:{" "}
-                  <span className="text-primary font-bold">0.02 (Low)</span>.
+                  <span className="text-primary font-bold">自動実行</span> ・
+                  このアクションは Core Auditor AI により事前検証済みです。リスクスコア：
+                  <span className="text-primary font-bold"> 0.02（低）</span>
                 </p>
                 <button className="text-[11px] text-primary font-bold mt-2 flex items-center gap-1">
-                  View Validation Log <Icon name="arrow_forward" size="sm" />
+                  検証ログを表示 <Icon name="arrow_forward" size="sm" />
                 </button>
               </div>
             )}
@@ -211,7 +204,7 @@ export default function AuditLogsPage() {
 
             <Button variant="primary" size="md" className="w-full justify-center">
               <Icon name="download" size="sm" />
-              Export Event as JSON
+              イベントをJSONでエクスポート
             </Button>
           </aside>
         </div>

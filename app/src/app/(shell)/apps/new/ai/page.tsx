@@ -9,9 +9,9 @@ import { RefineBar } from "@/components/builder/RefineBar";
 import { mockGeneratedApp } from "@/data/mock-ai-responses";
 
 const examples = [
-  "Customer support desk",
-  "Expense approval flow",
-  "Inventory manager",
+  "カスタマーサポートデスク",
+  "経費精算フロー",
+  "在庫管理",
 ];
 
 export default function NewAIAppPage() {
@@ -26,8 +26,8 @@ export default function NewAIAppPage() {
   return (
     <>
       <TopBar
-        title="The Intelligent Layer"
-        breadcrumbs={[{ label: "AI Agent" }, { label: "Dev/Prod" }]}
+        title="AI Lattice"
+        breadcrumbs={[{ label: "AIエージェント" }, { label: "開発/本番" }]}
       />
 
       <main className="pt-16 pb-32">
@@ -35,11 +35,10 @@ export default function NewAIAppPage() {
         <section className="max-w-4xl mx-auto pt-20 pb-12 px-6">
           <div className="text-center mb-12">
             <h2 className="font-headline text-4xl font-extrabold text-white mb-4 tracking-tight">
-              What kind of app do you want to build today?
+              今日はどんなアプリを作りますか？
             </h2>
             <p className="text-on-surface-variant font-medium">
-              Describe your vision. AI will architect the tables, workflows, and
-              interfaces.
+              業務の内容を自然言語で記述してください。AIがテーブル・ワークフロー・画面を自動設計します。
             </p>
           </div>
           <PromptInput
@@ -67,8 +66,8 @@ export default function NewAIAppPage() {
               </aside>
               <div className="flex-1 p-8 flex flex-col items-center justify-start bg-surface/20">
                 <FormPreview
-                  title="Ticket Detail Preview"
-                  subtitle="Mock interface based on generated schema."
+                  title="チケット詳細プレビュー"
+                  subtitle="生成されたスキーマに基づくモックインターフェース"
                   aiInsight={mockGeneratedApp.aiInsight}
                 />
               </div>
@@ -78,7 +77,7 @@ export default function NewAIAppPage() {
 
         {!generated && (
           <section className="px-8 text-center text-on-surface-variant text-sm">
-            Try typing a prompt or clicking an example to preview the generated app.
+            プロンプトを入力するか、例示チップをクリックして生成結果を確認してください。
           </section>
         )}
       </main>

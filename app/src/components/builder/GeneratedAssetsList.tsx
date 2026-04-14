@@ -18,14 +18,14 @@ export function GeneratedAssetsList({
   return (
     <div>
       <h3 className="font-headline font-bold text-sm text-on-surface-variant uppercase tracking-widest mb-6">
-        Generated Assets
+        生成されたアセット
       </h3>
       <div className="space-y-6">
         {/* Tables */}
         <div>
           <div className="flex items-center gap-2 mb-3 px-2">
             <Icon name="table_chart" size="sm" className="text-on-surface-variant" />
-            <span className="text-sm font-bold text-on-surface">Tables</span>
+            <span className="text-sm font-bold text-on-surface">テーブル</span>
           </div>
           <div className="space-y-1">
             {app.tables.map((t) => (
@@ -52,7 +52,7 @@ export function GeneratedAssetsList({
         <div>
           <div className="flex items-center gap-2 mb-3 px-2">
             <Icon name="grid_view" size="sm" className="text-on-surface-variant" />
-            <span className="text-sm font-bold text-on-surface">Views</span>
+            <span className="text-sm font-bold text-on-surface">ビュー</span>
           </div>
           <div className="space-y-1">
             {app.views.map((v) => (
@@ -70,7 +70,7 @@ export function GeneratedAssetsList({
         <div>
           <div className="flex items-center gap-2 mb-3 px-2">
             <Icon name="account_tree" size="sm" className="text-on-surface-variant" />
-            <span className="text-sm font-bold text-on-surface">Workflows</span>
+            <span className="text-sm font-bold text-on-surface">ワークフロー</span>
           </div>
           <div className="space-y-1">
             {app.workflows.map((w) => (

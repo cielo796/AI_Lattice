@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TenantStatus {
+  active
+  inactive
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum AppStatus {
+  draft
+  published
+  archived
+}
+
+enum FieldType {
+  text
+  textarea
+  number
+  date
+  datetime
+  boolean
+  select
+  user_ref
+  master_ref
+  file
+  ai_generated
+  calculated
+}
+
+model Tenant {
+  id        String       @id @default(cuid())
+  name      String
+  code      String       @unique
+  status    TenantStatus @default(active)
+  planType  String       @map("plan_type")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  users User[]
+  apps  App[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  tenantId     String     @map("tenant_id")
+  email        String
+  name         String
+  avatarUrl    String?    @map("avatar_url")
+  status       UserStatus @default(active)
+  passwordHash String?    @map("password_hash")
+  lastLoginAt  DateTime?  @map("last_login_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions    Session[]
+  createdApps App[]     @relation("AppCreatedBy")
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model App {
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id")
+  name        String
+  code        String
+  description String?
+  status      AppStatus @default(draft)
+  icon        String    @default("apps")
+  createdById String    @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User       @relation("AppCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  tables    AppTable[]
+  fields    AppField[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([createdById])
+  @@map("apps")
+}
+
+model AppTable {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  appId     String   @map("app_id")
+  name      String
+  code      String
+  isSystem  Boolean  @default(false) @map("is_system")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  app    App        @relation(fields: [appId], references: [id], onDelete: Cascade)
+  fields AppField[]
+
+  @@unique([appId, code])
+  @@index([tenantId])
+  @@index([appId, sortOrder])
+  @@map("app_tables")
+}
+
+model AppField {
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id")
+  appId       String    @map("app_id")
+  tableId     String    @map("table_id")
+  name        String
+  code        String
+  fieldType   FieldType @map("field_type")
+  required    Boolean   @default(false)
+  uniqueFlag  Boolean   @default(false) @map("unique_flag")
+  defaultValue Json?    @map("default_value")
+  settingsJson Json?    @map("settings_json")
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  app   App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  table AppTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, code])
+  @@index([tenantId])
+  @@index([appId])
+  @@index([tableId, sortOrder])
+  @@map("app_fields")
+}

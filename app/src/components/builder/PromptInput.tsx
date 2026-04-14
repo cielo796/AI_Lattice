@@ -29,13 +29,13 @@ export function PromptInput({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onSubmit?.()}
             className="w-full bg-transparent border-none focus:outline-none text-lg font-body placeholder:text-on-surface-variant/50 text-white"
-            placeholder="e.g. A ticketing system for customer support with escalation workflows..."
+            placeholder="例：エスカレーションフロー付きのカスタマーサポート問い合わせ管理システム..."
           />
         </div>
         {examples.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-4 border-t border-outline-variant/30">
             <span className="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-widest mr-2 py-1.5">
-              Examples:
+              例：
             </span>
             {examples.map((ex) => (
               <button

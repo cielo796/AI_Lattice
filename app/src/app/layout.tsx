@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Inter } from "next/font/google";
+import { AuthBootstrap } from "@/components/shared/AuthBootstrap";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -15,9 +16,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Stitch - The Intelligent Layer",
+  title: "AI Lattice - インテリジェント・レイヤー",
   description:
-    "AI-driven enterprise low-code platform. Build business apps with AI.",
+    "AI駆動型 エンタープライズ・ローコード基盤。AIで業務アプリを構築。",
 };
 
 export default function RootLayout({
@@ -26,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${manrope.variable} ${inter.variable}`}>
+    <html lang="ja" className={`${manrope.variable} ${inter.variable}`}>
       <head>
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
@@ -34,6 +35,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-surface text-on-surface font-body antialiased">
+        <AuthBootstrap />
         {children}
       </body>
     </html>

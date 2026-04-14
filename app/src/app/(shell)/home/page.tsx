@@ -1,47 +1,113 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { TopBar } from "@/components/shared/TopBar";
 import { Icon } from "@/components/shared/Icon";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
-import { mockApps } from "@/data/mock-apps";
+import type { App } from "@/types/app";
+import { listApps } from "@/lib/api/apps";
+import { useAuthStore } from "@/stores/authStore";
 
-const statCards = [
-  { label: "Active Apps", value: "4", icon: "apps", accent: "text-primary" },
-  { label: "Pending Approvals", value: "12", icon: "pending_actions", accent: "text-amber-400" },
-  { label: "AI Actions Today", value: "284", icon: "auto_awesome", accent: "text-primary" },
-  { label: "Open Tickets", value: "8", icon: "confirmation_number", accent: "text-blue-400" },
-];
+const statusLabel: Record<App["status"], string> = {
+  published: "Published",
+  draft: "Draft",
+  archived: "Archived",
+};
 
 export default function HomePage() {
+  const userName = useAuthStore((s) => s.user?.name ?? "Marcus");
+  const [apps, setApps] = useState<App[]>([]);
+  const [appsError, setAppsError] = useState<string | null>(null);
+  const [isLoadingApps, setIsLoadingApps] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadApps() {
+      try {
+        setIsLoadingApps(true);
+        const nextApps = await listApps();
+
+        if (active) {
+          setApps(nextApps);
+          setAppsError(null);
+        }
+      } catch (error) {
+        if (active) {
+          setApps([]);
+          setAppsError(
+            error instanceof Error ? error.message : "Failed to load apps"
+          );
+        }
+      } finally {
+        if (active) {
+          setIsLoadingApps(false);
+        }
+      }
+    }
+
+    void loadApps();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const statCards = [
+    {
+      label: "Active apps",
+      value: String(apps.length),
+      icon: "apps",
+      accent: "text-primary",
+    },
+    {
+      label: "Pending approvals",
+      value: "12",
+      icon: "pending_actions",
+      accent: "text-amber-400",
+    },
+    {
+      label: "AI runs today",
+      value: "284",
+      icon: "auto_awesome",
+      accent: "text-primary",
+    },
+    {
+      label: "Open tickets",
+      value: "8",
+      icon: "confirmation_number",
+      accent: "text-blue-400",
+    },
+  ];
+
   return (
     <>
       <TopBar
-        title="The Intelligent Layer"
+        title="AI Lattice"
         breadcrumbs={[{ label: "Dashboard" }, { label: "Home" }]}
         actions={
           <Link href="/apps/new/ai">
             <Button variant="primary" size="md">
               <Icon name="auto_awesome" size="sm" filled />
-              New AI App
+              Build with AI
             </Button>
           </Link>
         }
       />
 
       <main className="pt-16 px-10 py-10">
-        {/* Hero */}
         <div className="mb-10">
           <h2 className="font-headline text-4xl font-extrabold text-white mb-2 tracking-tight">
-            Welcome back, Marcus
+            Welcome back, {userName}
           </h2>
           <p className="text-on-surface-variant">
-            Build business apps with AI, run operations with AI, govern with confidence.
+            Use AI to design internal apps, automate workflows, and monitor daily
+            operations from a single workspace.
           </p>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           {statCards.map((stat) => (
             <div
@@ -61,20 +127,21 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* Apps grid */}
         <div className="mb-6 flex items-center justify-between">
-          <h3 className="font-headline text-2xl font-bold text-white">Your Apps</h3>
+          <h3 className="font-headline text-2xl font-bold text-white">
+            My apps
+          </h3>
           <Link
             href="/apps/new/ai"
             className="text-primary text-sm font-bold flex items-center gap-1 hover:text-emerald-400"
           >
             <Icon name="add" size="sm" />
-            Create with AI
+            Create new
           </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {mockApps.map((app) => (
+          {apps.map((app) => (
             <Link
               key={app.id}
               href={`/run/${app.code}/tickets`}
@@ -85,7 +152,7 @@ export default function HomePage() {
                   <Icon name={app.icon} className="text-primary" size="lg" />
                 </div>
                 <Badge variant={app.status === "published" ? "success" : "warning"}>
-                  {app.status}
+                  {statusLabel[app.status]}
                 </Badge>
               </div>
               <h4 className="font-headline font-bold text-white text-lg mb-1 group-hover:text-primary transition-colors">
@@ -98,10 +165,21 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* AI Suggestions */}
+        {isLoadingApps && (
+          <div className="mt-4 text-sm text-on-surface-variant">
+            Loading apps...
+          </div>
+        )}
+
+        {appsError && (
+          <div className="mt-4 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            {appsError}
+          </div>
+        )}
+
         <div className="mt-12">
           <h3 className="font-headline text-2xl font-bold text-white mb-6">
-            AI Suggestions
+            AI suggestions
           </h3>
           <div className="bg-emerald-950/30 rounded-xl p-6 border border-primary/20">
             <div className="flex items-start gap-4">
@@ -110,18 +188,18 @@ export default function HomePage() {
               </div>
               <div className="flex-1">
                 <div className="text-xs font-bold text-primary tracking-wider uppercase mb-1">
-                  AI Recommendation
+                  Recommendation
                 </div>
                 <p className="text-on-surface text-sm">
-                  Your Customer Support Desk has 3 unresolved critical tickets. Consider
-                  reviewing the escalation flow to auto-route similar issues in the future.
+                  Add a focused view for unresolved critical tickets so the support
+                  team can triage urgent incidents faster.
                 </p>
                 <div className="mt-3 flex gap-2">
                   <Button size="sm" variant="secondary">
-                    Review now
+                    Review
                   </Button>
                   <Button size="sm" variant="ghost">
-                    Dismiss
+                    Later
                   </Button>
                 </div>
               </div>
