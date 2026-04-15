@@ -12,10 +12,13 @@ import { TopBar } from "@/components/shared/TopBar";
 import {
   createComment,
   createRecord,
+  deleteAttachment,
+  deleteRecord,
   getRuntimeTableMeta,
   listAttachments,
   listComments,
   listRecords,
+  updateRecord,
   uploadAttachment,
 } from "@/lib/api/records";
 import {
@@ -35,6 +38,8 @@ type RecommendedAction = {
   label: string;
   description: string;
 };
+
+type RecordPanelMode = "create" | "edit" | null;
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -132,10 +137,14 @@ export default function RuntimeViewPage() {
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const [isLoadingMeta, setIsLoadingMeta] = useState(true);
-  const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
-  const [isCreatingRecord, setIsCreatingRecord] = useState(false);
+  const [recordPanelMode, setRecordPanelMode] = useState<RecordPanelMode>(null);
+  const [isSavingRecord, setIsSavingRecord] = useState(false);
+  const [isDeletingRecord, setIsDeletingRecord] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -324,13 +333,13 @@ export default function RuntimeViewPage() {
     }
 
     try {
-      setIsCreatingRecord(true);
+      setIsSavingRecord(true);
       const record = await createRecord(appCode, tableCode, input);
       setRecords((current) => [record, ...current]);
       setSelectedId(record.id);
       setComments([]);
       setAttachments([]);
-      setIsCreatePanelOpen(false);
+      setRecordPanelMode(null);
       setError(null);
     } catch (nextError) {
       throw (
@@ -339,7 +348,71 @@ export default function RuntimeViewPage() {
           : new Error("Failed to create record.")
       );
     } finally {
-      setIsCreatingRecord(false);
+      setIsSavingRecord(false);
+    }
+  }
+
+  async function handleUpdateRecord(input: {
+    status: string;
+    data: Record<string, unknown>;
+  }) {
+    if (!appCode || !tableCode || !selectedRecord) {
+      return;
+    }
+
+    try {
+      setIsSavingRecord(true);
+      const record = await updateRecord(appCode, tableCode, selectedRecord.id, input);
+      setRecords((current) =>
+        current.map((currentRecord) =>
+          currentRecord.id === record.id ? record : currentRecord
+        )
+      );
+      setRecordPanelMode(null);
+      setError(null);
+    } catch (nextError) {
+      throw (
+        nextError instanceof Error
+          ? nextError
+          : new Error("Failed to update record.")
+      );
+    } finally {
+      setIsSavingRecord(false);
+    }
+  }
+
+  async function handleDeleteRecord() {
+    if (!appCode || !tableCode || !selectedRecord) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete "${getRecordTitle(selectedRecord)}"? This record will be removed from the runtime list.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsDeletingRecord(true);
+      await deleteRecord(appCode, tableCode, selectedRecord.id);
+
+      const nextRecords = records.filter((record) => record.id !== selectedRecord.id);
+      setRecords(nextRecords);
+      setSelectedId(nextRecords[0]?.id ?? null);
+      setComments([]);
+      setAttachments([]);
+      setRecordPanelMode(null);
+      setError(null);
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Failed to delete record."
+      );
+    } finally {
+      setIsDeletingRecord(false);
     }
   }
 
@@ -364,8 +437,45 @@ export default function RuntimeViewPage() {
     }
   }
 
+  async function handleDeleteAttachment(attachmentId: string) {
+    if (!appCode || !tableCode || !selectedId) {
+      return;
+    }
+
+    const attachment = attachments.find(
+      (currentAttachment) => currentAttachment.id === attachmentId
+    );
+    const confirmed = window.confirm(
+      `Remove "${attachment?.fileName ?? "this attachment"}"?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingAttachmentId(attachmentId);
+      await deleteAttachment(appCode, tableCode, selectedId, attachmentId);
+      setAttachments((current) =>
+        current.filter((currentAttachment) => currentAttachment.id !== attachmentId)
+      );
+      setError(null);
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Failed to remove attachment."
+      );
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  }
+
   const recommendedActions = buildRecommendedActions(selectedRecord);
   const similarRecords = buildSimilarRecords(records, selectedRecord);
+  const shouldRenderRecordPanel =
+    recordPanelMode === "create" ||
+    (recordPanelMode === "edit" && selectedRecord !== null);
 
   return (
     <>
@@ -387,7 +497,7 @@ export default function RuntimeViewPage() {
             <Button
               variant="primary"
               size="md"
-              onClick={() => setIsCreatePanelOpen((current) => !current)}
+              onClick={() => setRecordPanelMode("create")}
               disabled={isLoadingMeta}
             >
               <Icon name="add" size="sm" />
@@ -412,13 +522,22 @@ export default function RuntimeViewPage() {
             </div>
           )}
 
-          {isCreatePanelOpen && (
+          {shouldRenderRecordPanel && (
             <RecordCreatePanel
+              key={
+                recordPanelMode === "edit"
+                  ? `edit-${selectedRecord?.id ?? "none"}`
+                  : "create"
+              }
               fields={tableMeta?.fields ?? []}
+              mode={recordPanelMode ?? "create"}
+              initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
               tableName={tableMeta?.table.name}
-              isSubmitting={isCreatingRecord}
-              onClose={() => setIsCreatePanelOpen(false)}
-              onSubmit={handleCreateRecord}
+              isSubmitting={isSavingRecord}
+              onClose={() => setRecordPanelMode(null)}
+              onSubmit={
+                recordPanelMode === "edit" ? handleUpdateRecord : handleCreateRecord
+              }
             />
           )}
 
@@ -429,8 +548,13 @@ export default function RuntimeViewPage() {
             isLoadingActivity={isLoadingActivity}
             isSubmittingComment={isSubmittingComment}
             isUploadingAttachment={isUploadingAttachment}
+            isDeletingRecord={isDeletingRecord}
+            deletingAttachmentId={deletingAttachmentId}
             onAddComment={handleAddComment}
             onAddAttachment={handleAddAttachment}
+            onEditRecord={() => setRecordPanelMode("edit")}
+            onDeleteRecord={handleDeleteRecord}
+            onDeleteAttachment={handleDeleteAttachment}
           />
         </div>
 

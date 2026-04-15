@@ -5,9 +5,12 @@ import { Button } from "@/components/shared/Button";
 import { Input } from "@/components/shared/Input";
 import { cn } from "@/lib/cn";
 import type { AppField } from "@/types/app";
+import type { AppRecord } from "@/types/record";
 
 interface RecordCreatePanelProps {
   fields: AppField[];
+  mode?: "create" | "edit";
+  initialRecord?: AppRecord | null;
   isSubmitting?: boolean;
   tableName?: string;
   onClose?: () => void;
@@ -32,9 +35,34 @@ function getSelectOptions(field: AppField) {
   return options.filter((option): option is string => typeof option === "string");
 }
 
-function getDraftValue(field: AppField): DraftValue {
+function getRecordValue(record: AppRecord | null | undefined, fieldCode: string) {
+  if (!record || !record.data || typeof record.data !== "object") {
+    return undefined;
+  }
+
+  return record.data[fieldCode];
+}
+
+function getDraftValue(field: AppField, initialRecord?: AppRecord | null): DraftValue {
+  const existingValue =
+    field.code === "status"
+      ? getRecordValue(initialRecord, field.code) ?? initialRecord?.status
+      : getRecordValue(initialRecord, field.code);
+
   if (field.fieldType === "boolean") {
+    if (typeof existingValue === "boolean") {
+      return existingValue;
+    }
+
     return typeof field.defaultValue === "boolean" ? field.defaultValue : false;
+  }
+
+  if (typeof existingValue === "string") {
+    return existingValue;
+  }
+
+  if (typeof existingValue === "number") {
+    return String(existingValue);
   }
 
   if (typeof field.defaultValue === "string") {
@@ -48,9 +76,9 @@ function getDraftValue(field: AppField): DraftValue {
   return "";
 }
 
-function buildInitialDraft(fields: AppField[]) {
+function buildInitialDraft(fields: AppField[], initialRecord?: AppRecord | null) {
   return fields.reduce<Record<string, DraftValue>>((draft, field) => {
-    draft[field.code] = getDraftValue(field);
+    draft[field.code] = getDraftValue(field, initialRecord);
     return draft;
   }, {});
 }
@@ -71,7 +99,11 @@ function getMissingRequiredFields(
     .map((field) => formatFieldLabel(field));
 }
 
-function normalizeDraft(fields: AppField[], draft: Record<string, DraftValue>) {
+function normalizeDraft(
+  fields: AppField[],
+  draft: Record<string, DraftValue>,
+  fallbackStatus: string
+) {
   const data: Record<string, unknown> = {};
 
   for (const field of fields) {
@@ -108,7 +140,7 @@ function normalizeDraft(fields: AppField[], draft: Record<string, DraftValue>) {
   const statusValue =
     typeof data.status === "string" && data.status.trim()
       ? data.status.trim()
-      : "active";
+      : fallbackStatus;
 
   return {
     status: statusValue,
@@ -212,13 +244,15 @@ function renderFieldInput(
 
 export function RecordCreatePanel({
   fields,
+  mode = "create",
+  initialRecord = null,
   isSubmitting = false,
   tableName,
   onClose,
   onSubmit,
 }: RecordCreatePanelProps) {
   const [draft, setDraft] = useState<Record<string, DraftValue>>(() =>
-    buildInitialDraft(fields)
+    buildInitialDraft(fields, initialRecord)
   );
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -237,23 +271,41 @@ export function RecordCreatePanel({
 
     try {
       setFormError(null);
-      await onSubmit(normalizeDraft(fields, draft));
+      await onSubmit(
+        normalizeDraft(fields, draft, initialRecord?.status ?? "active")
+      );
     } catch (error) {
       setFormError(
-        error instanceof Error ? error.message : "Failed to create the record."
+        error instanceof Error
+          ? error.message
+          : mode === "edit"
+            ? "Failed to update the record."
+            : "Failed to create the record."
       );
     }
   }
+
+  const title = mode === "edit" ? "Edit record" : "Create record";
+  const heading =
+    mode === "edit" ? `Update ${tableName ?? "record"}` : `New ${tableName ?? "record"}`;
+  const submitLabel =
+    mode === "edit"
+      ? isSubmitting
+        ? "Saving..."
+        : "Save changes"
+      : isSubmitting
+        ? "Creating..."
+        : "Create record";
 
   return (
     <section className="border-b border-outline-variant/30 bg-surface-container px-8 py-6">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-primary">
-            Create record
+            {title}
           </div>
           <h2 className="font-headline text-2xl font-extrabold text-white">
-            New {tableName ?? "record"}
+            {heading}
           </h2>
         </div>
         <Button type="button" variant="ghost" onClick={onClose}>
@@ -296,7 +348,7 @@ export function RecordCreatePanel({
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-            This table has no runtime fields yet. The record will be created with
+            This table has no runtime fields yet. The record will be saved with
             an empty payload.
           </div>
         )}
@@ -312,7 +364,7 @@ export function RecordCreatePanel({
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting || !onSubmit}>
-            {isSubmitting ? "Creating..." : "Create record"}
+            {submitLabel}
           </Button>
         </div>
       </form>

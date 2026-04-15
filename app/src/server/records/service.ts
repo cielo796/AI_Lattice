@@ -527,4 +527,6 @@ export async function deleteAttachmentForRecord(
   await prisma.attachment.delete({
     where: { id: attachment.id },
   });
+
+  return toAttachment(attachment);
 }
