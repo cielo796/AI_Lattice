@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { AppsServiceError } from "@/server/apps/service";
 import { getPrismaClient } from "@/server/db/prisma";
 import { ensureDemoRecordData } from "@/server/records/bootstrap";
+import type { AppField, FieldType, RuntimeTableMeta } from "@/types/app";
 import type {
   AppRecord,
   Attachment as RecordAttachment,
@@ -69,12 +70,64 @@ function toJsonObject(value: Record<string, unknown>) {
   return value as Prisma.InputJsonObject;
 }
 
+function toSettingsJson(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
+}
+
 function toDataObject(value: Prisma.JsonValue): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }
 
   return value as Record<string, unknown>;
+}
+
+function toRuntimeTable(table: {
+  id: string;
+  name: string;
+  code: string;
+}): RuntimeTableMeta["table"] {
+  return {
+    id: table.id,
+    name: table.name,
+    code: table.code,
+  };
+}
+
+function toAppField(field: {
+  id: string;
+  tenantId: string;
+  appId: string;
+  tableId: string;
+  name: string;
+  code: string;
+  fieldType: FieldType;
+  required: boolean;
+  uniqueFlag: boolean;
+  defaultValue: Prisma.JsonValue | null;
+  settingsJson: Prisma.JsonValue | null;
+  sortOrder: number;
+  createdAt: Date;
+}): AppField {
+  return {
+    id: field.id,
+    tenantId: field.tenantId,
+    appId: field.appId,
+    tableId: field.tableId,
+    name: field.name,
+    code: field.code,
+    fieldType: field.fieldType,
+    required: field.required,
+    uniqueFlag: field.uniqueFlag,
+    defaultValue: field.defaultValue ?? undefined,
+    settingsJson: toSettingsJson(field.settingsJson),
+    sortOrder: field.sortOrder,
+    createdAt: field.createdAt.toISOString(),
+  };
 }
 
 function toAppRecord(record: {
@@ -253,6 +306,31 @@ export async function listRecordsForTable(
   });
 
   return records.map(toAppRecord);
+}
+
+export async function getRuntimeTableMeta(
+  user: User,
+  appCode: string,
+  tableCode: string
+): Promise<RuntimeTableMeta> {
+  await ensureDemoRecordData();
+  const { app, table } = await getTableByCodeOrThrow(user, appCode, tableCode);
+  const prisma = getPrismaClient();
+  const fields = await prisma.appField.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId: app.id,
+      tableId: table.id,
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return {
+    table: toRuntimeTable(table),
+    fields: fields.map((field) =>
+      toAppField(field as typeof field & { fieldType: FieldType })
+    ),
+  };
 }
 
 export async function createRecordForTable(

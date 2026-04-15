@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
@@ -21,7 +21,9 @@ interface RecordDetailProps {
   attachments: Attachment[];
   isLoadingActivity?: boolean;
   isSubmittingComment?: boolean;
+  isUploadingAttachment?: boolean;
   onAddComment?: (commentText: string) => Promise<void>;
+  onAddAttachment?: (file: File) => Promise<void>;
 }
 
 function formatFieldValue(value: unknown) {
@@ -42,9 +44,12 @@ export function RecordDetail({
   attachments,
   isLoadingActivity = false,
   isSubmittingComment = false,
+  isUploadingAttachment = false,
   onAddComment,
+  onAddAttachment,
 }: RecordDetailProps) {
   const [commentText, setCommentText] = useState("");
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,6 +61,17 @@ export function RecordDetail({
 
     await onAddComment(nextComment);
     setCommentText("");
+  }
+
+  async function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file || !record || !onAddAttachment) {
+      return;
+    }
+
+    await onAddAttachment(file);
+    event.target.value = "";
   }
 
   if (!record) {
@@ -113,10 +129,7 @@ export function RecordDetail({
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               {fields.map(([key, value]) => (
-                <div
-                  key={key}
-                  className="rounded-lg bg-surface-container p-3"
-                >
+                <div key={key} className="rounded-lg bg-surface-container p-3">
                   <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                     {key}
                   </div>
@@ -148,11 +161,16 @@ export function RecordDetail({
                     <Icon name="description" size="sm" className="text-primary" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-bold text-on-surface">
+                    <a
+                      href={attachment.storagePath}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block truncate text-sm font-bold text-on-surface hover:text-primary"
+                    >
                       {attachment.fileName}
-                    </div>
+                    </a>
                     <div className="text-[11px] text-on-surface-variant">
-                      {(attachment.fileSize / 1024).toFixed(1)} KB · {attachment.mimeType}
+                      {(attachment.fileSize / 1024).toFixed(1)} KB / {attachment.mimeType}
                     </div>
                   </div>
                 </div>
@@ -210,6 +228,12 @@ export function RecordDetail({
           onSubmit={(event) => void handleSubmit(event)}
           className="rounded-xl bg-surface-container p-3"
         >
+          <input
+            ref={attachmentInputRef}
+            type="file"
+            className="hidden"
+            onChange={(event) => void handleAttachmentChange(event)}
+          />
           <textarea
             rows={3}
             value={commentText}
@@ -217,14 +241,22 @@ export function RecordDetail({
             placeholder="Add a comment..."
             className="w-full resize-none bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none"
           />
-          <div className="mt-2 flex items-center justify-between">
-            <div className="flex gap-2">
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="flex h-8 w-8 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high"
+                onClick={() => attachmentInputRef.current?.click()}
+                disabled={!record || !onAddAttachment || isUploadingAttachment}
+                className="flex h-8 w-8 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Add attachment"
               >
                 <Icon name="attach_file" size="sm" />
               </button>
+              {isUploadingAttachment && (
+                <div className="text-xs text-on-surface-variant">
+                  Uploading attachment...
+                </div>
+              )}
             </div>
             <Button
               type="submit"
