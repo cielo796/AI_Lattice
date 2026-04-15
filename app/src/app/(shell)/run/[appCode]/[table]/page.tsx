@@ -1,108 +1,396 @@
 "use client";
 
-import { useState } from "react";
-import { TopBar } from "@/components/shared/TopBar";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { AISidebar } from "@/components/ai/AISidebar";
+import { RecordDetail } from "@/components/runtime/RecordDetail";
+import { RecordList } from "@/components/runtime/RecordList";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
-import { RecordList } from "@/components/runtime/RecordList";
-import { RecordDetail } from "@/components/runtime/RecordDetail";
-import { AISidebar } from "@/components/ai/AISidebar";
-import { mockRecords } from "@/data/mock-records";
-import { mockRecordSummary } from "@/data/mock-ai-responses";
-import type { AppRecord } from "@/types/record";
+import { TopBar } from "@/components/shared/TopBar";
+import {
+  createComment,
+  listAttachments,
+  listComments,
+  listRecords,
+} from "@/lib/api/records";
+import {
+  formatRelativeTime,
+  getPriorityVariant,
+  getRecordCustomer,
+  getRecordDescription,
+  getRecordPriority,
+  getRecordSentiment,
+  getRecordTitle,
+} from "@/lib/runtime-records";
+import type { AppRecord, Attachment, RecordComment } from "@/types/record";
+
+type RecommendedAction = {
+  icon: string;
+  label: string;
+  description: string;
+};
+
+function getParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+function buildSummary(record: AppRecord | null) {
+  if (!record) {
+    return "Select a record to inspect the latest activity.";
+  }
+
+  const priority = getRecordPriority(record);
+  const customer = getRecordCustomer(record);
+  const description = getRecordDescription(record);
+
+  return [
+    `${getRecordTitle(record)} is currently ${record.status}.`,
+    priority ? `Priority is ${priority}.` : null,
+    customer ? `Reporter is ${customer}.` : null,
+    description ? `Latest context: ${description}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildRecommendedActions(record: AppRecord | null): RecommendedAction[] {
+  if (!record) {
+    return [];
+  }
+
+  const actions: RecommendedAction[] = [
+    {
+      icon: "visibility",
+      label: "Review details",
+      description: "Check comments and attachments before updating the record.",
+    },
+  ];
+
+  const priority = getRecordPriority(record);
+  if (priority && getPriorityVariant(priority) === "error") {
+    actions.unshift({
+      icon: "priority_high",
+      label: "Escalate now",
+      description: "Critical incidents should be routed to the on-call owner.",
+    });
+  }
+
+  if (record.status.toLowerCase().includes("waiting")) {
+    actions.push({
+      icon: "mail",
+      label: "Follow up",
+      description: "The record is waiting. Send an update to unblock it.",
+    });
+  }
+
+  const sentiment = getRecordSentiment(record);
+  if (typeof sentiment === "number" && sentiment < -0.5) {
+    actions.push({
+      icon: "sentiment_dissatisfied",
+      label: "Customer risk",
+      description: "Negative sentiment suggests a proactive reply is useful.",
+    });
+  }
+
+  return actions.slice(0, 3);
+}
+
+function buildSimilarRecords(records: AppRecord[], selected: AppRecord | null) {
+  if (!selected) {
+    return [];
+  }
+
+  const selectedPriority = getRecordPriority(selected);
+  const selectedCustomer = getRecordCustomer(selected);
+
+  return records
+    .filter((record) => record.id !== selected.id)
+    .filter(
+      (record) =>
+        getRecordPriority(record) === selectedPriority ||
+        getRecordCustomer(record) === selectedCustomer
+    )
+    .slice(0, 3);
+}
 
 export default function RuntimeViewPage() {
-  const [selected, setSelected] = useState<AppRecord>(mockRecords[0]);
+  const params = useParams<{ appCode: string; table: string }>();
+  const appCode = getParam(params.appCode);
+  const tableCode = getParam(params.table);
+
+  const [records, setRecords] = useState<AppRecord[]>([]);
+  const [comments, setComments] = useState<RecordComment[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const selectedRecord =
+    records.find((record) => record.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!appCode || !tableCode) {
+      setError("Missing runtime route parameters.");
+      setIsLoadingRecords(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadRuntimeRecords() {
+      try {
+        setIsLoadingRecords(true);
+        const nextRecords = await listRecords(appCode, tableCode);
+
+        if (cancelled) {
+          return;
+        }
+
+        setRecords(nextRecords);
+        setSelectedId((current) => {
+          if (current && nextRecords.some((record) => record.id === current)) {
+            return current;
+          }
+
+          return nextRecords[0]?.id ?? null;
+        });
+        setError(null);
+      } catch (nextError) {
+        if (cancelled) {
+          return;
+        }
+
+        setRecords([]);
+        setSelectedId(null);
+        setComments([]);
+        setAttachments([]);
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Failed to load runtime records."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoadingRecords(false);
+        }
+      }
+    }
+
+    void loadRuntimeRecords();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appCode, refreshKey, tableCode]);
+
+  useEffect(() => {
+    if (!appCode || !tableCode || !selectedId) {
+      setComments([]);
+      setAttachments([]);
+      return;
+    }
+
+    const currentRecordId = selectedId;
+    let cancelled = false;
+
+    async function loadRecordActivity() {
+      try {
+        setIsLoadingActivity(true);
+        const [nextComments, nextAttachments] = await Promise.all([
+          listComments(appCode, tableCode, currentRecordId),
+          listAttachments(appCode, tableCode, currentRecordId),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setComments(nextComments);
+        setAttachments(nextAttachments);
+        setError(null);
+      } catch (nextError) {
+        if (cancelled) {
+          return;
+        }
+
+        setComments([]);
+        setAttachments([]);
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Failed to load record activity."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoadingActivity(false);
+        }
+      }
+    }
+
+    void loadRecordActivity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appCode, selectedId, tableCode]);
+
+  async function handleAddComment(commentText: string) {
+    if (!appCode || !tableCode || !selectedId) {
+      return;
+    }
+
+    try {
+      setIsSubmittingComment(true);
+      const comment = await createComment(appCode, tableCode, selectedId, {
+        commentText,
+      });
+      setComments((current) => [...current, comment]);
+      setError(null);
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Failed to add comment."
+      );
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  }
+
+  const recommendedActions = buildRecommendedActions(selectedRecord);
+  const similarRecords = buildSimilarRecords(records, selectedRecord);
 
   return (
     <>
       <TopBar
-        breadcrumbs={[{ label: "ダッシュボード" }, { label: "チケット" }]}
+        breadcrumbs={[{ label: "Runtime" }, { label: tableCode || "Records" }]}
         actions={
           <>
-            <Button variant="ghost" size="md">
-              <Icon name="visibility" size="sm" />
-              プレビュー
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={() => setRefreshKey((current) => current + 1)}
+            >
+              <Icon name="sync" size="sm" />
+              Refresh
             </Button>
             <Button variant="primary" size="md">
-              <Icon name="rocket_launch" size="sm" />
-              デプロイ
+              <Icon name="add" size="sm" />
+              New record
             </Button>
           </>
         }
       />
 
-      <main className="pt-16 h-screen flex">
+      <main className="flex h-screen pt-16">
         <RecordList
-          records={mockRecords}
-          selectedId={selected.id}
-          onSelect={setSelected}
+          records={records}
+          selectedId={selectedId ?? undefined}
+          isLoading={isLoadingRecords}
+          onSelect={(record) => setSelectedId(record.id)}
         />
-        <RecordDetail record={selected} />
 
-        {/* AI Sidebar */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {error && (
+            <div className="border-b border-error/20 bg-error/10 px-8 py-3 text-sm text-error">
+              {error}
+            </div>
+          )}
+
+          <RecordDetail
+            record={selectedRecord}
+            comments={comments}
+            attachments={attachments}
+            isLoadingActivity={isLoadingActivity}
+            isSubmittingComment={isSubmittingComment}
+            onAddComment={handleAddComment}
+          />
+        </div>
+
         <AISidebar>
           <div>
-            <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-2">
-              課題サマリー
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-primary">
+              Runtime summary
             </div>
-            <p className="text-xs text-on-surface leading-relaxed">
-              {mockRecordSummary.summary}
+            <p className="text-xs leading-relaxed text-on-surface">
+              {buildSummary(selectedRecord)}
             </p>
           </div>
 
           <div>
-            <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-3">
-              推奨アクション
+            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">
+              Recommended actions
             </div>
             <div className="space-y-2">
-              {mockRecordSummary.recommendedActions.map((action) => (
-                <button
-                  key={action.label}
-                  className="w-full flex items-center gap-3 p-3 bg-surface-container rounded-lg hover:bg-surface-container-high transition-colors text-left"
-                >
-                  <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
-                    <Icon name={action.icon} size="sm" className="text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-on-surface">
-                      {action.label}
+              {recommendedActions.length > 0 ? (
+                recommendedActions.map((action) => (
+                  <div
+                    key={action.label}
+                    className="flex gap-3 rounded-lg bg-surface-container p-3"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <Icon
+                        name={action.icon}
+                        size="sm"
+                        className="text-primary"
+                      />
                     </div>
-                    <div className="text-[10px] text-on-surface-variant truncate">
-                      {action.description}
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-on-surface">
+                        {action.label}
+                      </div>
+                      <div className="text-[10px] text-on-surface-variant">
+                        {action.description}
+                      </div>
                     </div>
                   </div>
-                </button>
-              ))}
+                ))
+              ) : (
+                <div className="rounded-lg bg-surface-container p-3 text-xs text-on-surface-variant">
+                  No suggested actions yet.
+                </div>
+              )}
             </div>
           </div>
 
           <div>
-            <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-3">
-              類似インシデント
+            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">
+              Similar records
             </div>
             <div className="space-y-2">
-              {mockRecordSummary.similarIncidents.map((inc) => (
-                <div
-                  key={inc.id}
-                  className="p-3 bg-surface-container rounded-lg"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[9px] font-bold text-primary uppercase">
-                      一致率 {inc.matchPercentage}%
-                    </span>
-                    <span className="text-[9px] text-on-surface-variant">
-                      {inc.date}
-                    </span>
-                  </div>
-                  <div className="text-xs font-bold text-on-surface mb-1 line-clamp-2">
-                    {inc.title}
-                  </div>
-                  <p className="text-[10px] text-on-surface-variant line-clamp-2">
-                    {inc.resolution}
-                  </p>
+              {similarRecords.length > 0 ? (
+                similarRecords.map((record) => (
+                  <button
+                    key={record.id}
+                    type="button"
+                    onClick={() => setSelectedId(record.id)}
+                    className="w-full rounded-lg bg-surface-container p-3 text-left transition-colors hover:bg-surface-container-high"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="text-[9px] font-bold uppercase text-primary">
+                        {formatRelativeTime(record.updatedAt)}
+                      </span>
+                      <span className="text-[9px] text-on-surface-variant">
+                        {record.status}
+                      </span>
+                    </div>
+                    <div className="mb-1 line-clamp-2 text-xs font-bold text-on-surface">
+                      {getRecordTitle(record)}
+                    </div>
+                    <div className="line-clamp-2 text-[10px] text-on-surface-variant">
+                      {getRecordDescription(record) || "No description"}
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-lg bg-surface-container p-3 text-xs text-on-surface-variant">
+                  No related records found in the current table.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </AISidebar>

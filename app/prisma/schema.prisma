@@ -67,6 +67,10 @@ model User {
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sessions    Session[]
   createdApps App[]     @relation("AppCreatedBy")
+  createdRecords AppRecord[] @relation("AppRecordCreatedBy")
+  updatedRecords AppRecord[] @relation("AppRecordUpdatedBy")
+  recordComments RecordComment[] @relation("RecordCommentCreatedBy")
+  uploadedAttachments Attachment[] @relation("AttachmentUploadedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -105,6 +109,7 @@ model App {
   createdBy User       @relation("AppCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   tables    AppTable[]
   fields    AppField[]
+  records   AppRecord[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -125,6 +130,7 @@ model AppTable {
 
   app    App        @relation(fields: [appId], references: [id], onDelete: Cascade)
   fields AppField[]
+  records AppRecord[]
 
   @@unique([appId, code])
   @@index([tenantId])
@@ -156,4 +162,70 @@ model AppField {
   @@index([appId])
   @@index([tableId, sortOrder])
   @@map("app_fields")
+}
+
+model AppRecord {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  appId       String   @map("app_id")
+  tableId     String   @map("table_id")
+  status      String   @default("active")
+  dataJson    Json     @map("data_json")
+  createdById String   @map("created_by_id")
+  updatedById String   @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  app         App       @relation(fields: [appId], references: [id], onDelete: Cascade)
+  table       AppTable  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation("AppRecordCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   User      @relation("AppRecordUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  comments    RecordComment[]
+  attachments Attachment[]
+
+  @@index([tenantId])
+  @@index([appId, tableId, updatedAt])
+  @@index([tableId, deletedAt])
+  @@index([createdById])
+  @@index([updatedById])
+  @@map("app_records")
+}
+
+model RecordComment {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  recordId    String   @map("record_id")
+  commentText String   @map("comment_text")
+  createdById String   @map("created_by_id")
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  record      AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation("RecordCommentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([recordId, createdAt])
+  @@index([createdById])
+  @@map("record_comments")
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  recordId     String   @map("record_id")
+  fileName     String   @map("file_name")
+  storagePath  String   @map("storage_path")
+  mimeType     String   @map("mime_type")
+  fileSize     Int      @map("file_size")
+  uploadedById String   @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  record       AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  uploadedBy   User      @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([recordId, createdAt])
+  @@index([uploadedById])
+  @@map("attachments")
 }

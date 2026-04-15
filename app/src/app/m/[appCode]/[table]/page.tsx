@@ -1,36 +1,125 @@
 "use client";
 
-import { useState } from "react";
-import { cn } from "@/lib/cn";
-import { Icon } from "@/components/shared/Icon";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { Badge } from "@/components/shared/Badge";
-import { mockRecords } from "@/data/mock-records";
+import { Icon } from "@/components/shared/Icon";
+import { cn } from "@/lib/cn";
+import { listRecords } from "@/lib/api/records";
+import {
+  getPriorityVariant,
+  getRecordDescription,
+  getRecordIdentifier,
+  getRecordPriority,
+  getRecordSentiment,
+  getRecordTitle,
+} from "@/lib/runtime-records";
+import type { AppRecord } from "@/types/record";
 
 const tabs = [
-  { id: "all", label: "対応中" },
-  { id: "high", label: "優先度：高" },
-  { id: "ai", label: "AI提案" },
+  { id: "all", label: "All" },
+  { id: "open", label: "Open" },
+  { id: "priority", label: "Priority" },
 ];
 
-const priorityVariant: { [k: string]: "error" | "warning" | "info" | "default" } = {
-  クリティカル: "error",
-  高: "warning",
-  中: "info",
-  低: "default",
-};
+function getParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
 
 export default function MobileRuntimePage() {
+  const params = useParams<{ appCode: string; table: string }>();
+  const appCode = getParam(params.appCode);
+  const tableCode = getParam(params.table);
+
   const [activeTab, setActiveTab] = useState("all");
+  const [query, setQuery] = useState("");
+  const [records, setRecords] = useState<AppRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!appCode || !tableCode) {
+      setError("Missing runtime route parameters.");
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadRuntimeRecords() {
+      try {
+        setIsLoading(true);
+        const nextRecords = await listRecords(appCode, tableCode);
+
+        if (cancelled) {
+          return;
+        }
+
+        setRecords(nextRecords);
+        setError(null);
+      } catch (nextError) {
+        if (cancelled) {
+          return;
+        }
+
+        setRecords([]);
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Failed to load runtime records."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadRuntimeRecords();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appCode, tableCode]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredRecords = records.filter((record) => {
+    if (activeTab === "open" && !record.status.toLowerCase().includes("open")) {
+      return false;
+    }
+
+    if (activeTab === "priority") {
+      const priority = getRecordPriority(record);
+      const variant = priority ? getPriorityVariant(priority) : "default";
+      if (variant !== "error" && variant !== "warning") {
+        return false;
+      }
+    }
+
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    return [
+      getRecordIdentifier(record),
+      getRecordTitle(record),
+      getRecordDescription(record),
+      getRecordPriority(record),
+      record.status,
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedQuery);
+  });
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
-      {/* Header */}
-      <header className="glass-effect sticky top-0 z-20 px-4 pt-6 pb-4">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="font-headline font-extrabold text-white text-base tracking-tight">
-            AI Lattice
+    <div className="flex min-h-screen flex-col bg-surface">
+      <header className="glass-effect sticky top-0 z-20 px-4 pb-4 pt-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="font-headline text-base font-extrabold tracking-tight text-white">
+            Runtime
           </h1>
-          <button className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
+          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
             <Icon name="notifications" size="md" />
           </button>
         </div>
@@ -41,21 +130,23 @@ export default function MobileRuntimePage() {
             className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
           />
           <input
-            placeholder="チケットやインサイトを検索..."
-            className="w-full pl-9 pr-4 py-2.5 bg-surface-container rounded-full text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search records..."
+            className="w-full rounded-full bg-surface-container py-2.5 pl-9 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="overflow-x-auto px-4 py-3 border-b border-outline-variant/20">
-        <div className="flex gap-2 min-w-max">
+      <div className="overflow-x-auto border-b border-outline-variant/20 px-4 py-3">
+        <div className="flex min-w-max gap-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wider whitespace-nowrap transition-colors",
+                "whitespace-nowrap rounded-full px-4 py-1.5 text-[10px] font-bold tracking-wider transition-colors",
                 activeTab === tab.id
                   ? "bg-primary/10 text-primary"
                   : "bg-surface-container text-on-surface-variant"
@@ -67,54 +158,80 @@ export default function MobileRuntimePage() {
         </div>
       </div>
 
-      {/* Cards */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-3 pb-24">
-        {mockRecords.slice(0, 5).map((rec) => {
-          const data = rec.data as { [key: string]: string };
-          const isAI = data.priority === "クリティカル";
-          return (
-            <div
-              key={rec.id}
-              className={cn(
-                "bg-surface-container rounded-xl p-4",
-                isAI && "border border-primary/30"
-              )}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono text-on-surface-variant">
-                  {data.ticket_id}
-                </span>
-                <div className="flex items-center gap-2">
-                  {isAI && <Badge variant="ai">AI提案</Badge>}
-                  <Badge variant={priorityVariant[data.priority] ?? "default"}>
-                    {data.priority}
-                  </Badge>
+      <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4">
+        {error && (
+          <div className="mb-3 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            {error}
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
+            Loading records...
+          </div>
+        )}
+
+        {!isLoading && filteredRecords.length === 0 && (
+          <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+            No records found.
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {filteredRecords.map((record) => {
+            const priority = getRecordPriority(record);
+            const sentiment = getRecordSentiment(record);
+
+            return (
+              <div
+                key={record.id}
+                className="rounded-xl bg-surface-container p-4"
+              >
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className="text-[10px] font-mono text-on-surface-variant">
+                    {getRecordIdentifier(record)}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {typeof sentiment === "number" && sentiment < -0.5 && (
+                      <Badge variant="ai">Needs attention</Badge>
+                    )}
+                    {priority && (
+                      <Badge variant={getPriorityVariant(priority)}>
+                        {priority}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <h3 className="mb-1.5 text-sm font-bold leading-snug text-on-surface">
+                  {getRecordTitle(record)}
+                </h3>
+
+                <p className="mb-3 line-clamp-2 text-xs text-on-surface-variant">
+                  {getRecordDescription(record) || "No description"}
+                </p>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-on-surface-variant">
+                    {record.status}
+                  </span>
+                  <button className="flex items-center gap-1 text-[10px] font-bold text-primary">
+                    <Icon name="visibility" size="sm" />
+                    Open
+                  </button>
                 </div>
               </div>
-              <h3 className="font-bold text-on-surface text-sm mb-1.5 leading-snug">
-                {data.subject}
-              </h3>
-              <p className="text-xs text-on-surface-variant line-clamp-2 mb-3">
-                {data.description}
-              </p>
-              {isAI && (
-                <button className="text-[10px] font-bold text-primary flex items-center gap-1">
-                  <Icon name="auto_awesome" size="sm" filled />
-                  AI解決パスを表示
-                </button>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </main>
 
-      {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 glass-effect flex items-center justify-around py-3 z-20">
+      <nav className="glass-effect fixed bottom-0 left-0 right-0 z-20 flex items-center justify-around py-3">
         {[
-          { icon: "home", label: "ホーム" },
-          { icon: "apps", label: "アプリ" },
-          { icon: "task", label: "タスク", active: true },
-          { icon: "search", label: "検索" },
+          { icon: "home", label: "Home" },
+          { icon: "apps", label: "Apps" },
+          { icon: "task", label: "Records", active: true },
+          { icon: "search", label: "Search" },
         ].map((item) => (
           <button
             key={item.label}
@@ -124,13 +241,14 @@ export default function MobileRuntimePage() {
             )}
           >
             <Icon name={item.icon} size="md" />
-            <span className="text-[9px] font-bold tracking-wider">{item.label}</span>
+            <span className="text-[9px] font-bold tracking-wider">
+              {item.label}
+            </span>
           </button>
         ))}
       </nav>
 
-      {/* FAB */}
-      <button className="fixed bottom-24 right-4 w-14 h-14 bg-primary rounded-full shadow-2xl flex items-center justify-center z-30">
+      <button className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-2xl">
         <Icon name="add" size="lg" className="text-white" />
       </button>
     </div>
