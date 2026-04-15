@@ -1,35 +1,55 @@
 "use client";
 
-import { cn } from "@/lib/cn";
-import { Icon } from "@/components/shared/Icon";
+import { useState } from "react";
 import { Badge } from "@/components/shared/Badge";
+import { Icon } from "@/components/shared/Icon";
+import { cn } from "@/lib/cn";
+import {
+  formatRelativeTime,
+  getPriorityVariant,
+  getRecordDescription,
+  getRecordIdentifier,
+  getRecordPriority,
+  getRecordTitle,
+} from "@/lib/runtime-records";
 import type { AppRecord } from "@/types/record";
 
 interface RecordListProps {
   records: AppRecord[];
   selectedId?: string;
+  isLoading?: boolean;
   onSelect: (record: AppRecord) => void;
 }
 
-const priorityVariant: { [key: string]: "error" | "warning" | "info" | "default" } = {
-  クリティカル: "error",
-  高: "warning",
-  中: "info",
-  低: "default",
-};
+export function RecordList({
+  records,
+  selectedId,
+  isLoading = false,
+  onSelect,
+}: RecordListProps) {
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
 
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}分前`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}時間前`;
-  return `${Math.floor(hrs / 24)}日前`;
-}
+  const filteredRecords = records.filter((record) => {
+    if (!normalizedQuery) {
+      return true;
+    }
 
-export function RecordList({ records, selectedId, onSelect }: RecordListProps) {
+    const haystack = [
+      getRecordIdentifier(record),
+      getRecordTitle(record),
+      getRecordDescription(record),
+      getRecordPriority(record),
+      record.status,
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(normalizedQuery);
+  });
+
   return (
-    <div className="w-80 shrink-0 bg-surface-container-low flex flex-col">
+    <div className="flex w-80 shrink-0 flex-col bg-surface-container-low">
       <div className="p-4">
         <div className="relative">
           <Icon
@@ -38,57 +58,85 @@ export function RecordList({ records, selectedId, onSelect }: RecordListProps) {
             className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
           />
           <input
-            placeholder="レコードを検索..."
-            className="w-full pl-9 pr-4 py-2 bg-surface-container rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search records..."
+            className="w-full rounded-lg bg-surface-container py-2 pl-9 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
       </div>
+
       <div className="px-4 pb-2">
-        <div className="text-xs font-bold text-on-surface-variant tracking-widest uppercase">
-          チケット（{records.length}件）
+        <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+          Records · {filteredRecords.length}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-3 space-y-1 pb-6">
-        {records.map((rec) => {
-          const data = rec.data as { [key: string]: string };
-          const isSelected = rec.id === selectedId;
-          return (
-            <button
-              key={rec.id}
-              onClick={() => onSelect(rec)}
-              className={cn(
-                "w-full text-left p-3 rounded-lg transition-colors",
-                isSelected
-                  ? "bg-surface-container-high"
-                  : "hover:bg-surface-container"
-              )}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-mono font-bold text-on-surface-variant">
-                  {data.ticket_id}
-                </span>
-                <Badge variant={priorityVariant[data.priority] ?? "default"} className="text-[9px]">
-                  {data.priority}
-                </Badge>
-              </div>
-              <div
+
+      <div className="flex-1 overflow-y-auto px-3 pb-6">
+        {isLoading && (
+          <div className="rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant">
+            Loading records...
+          </div>
+        )}
+
+        {!isLoading && filteredRecords.length === 0 && (
+          <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+            No records found.
+          </div>
+        )}
+
+        <div className="space-y-1">
+          {filteredRecords.map((record) => {
+            const isSelected = record.id === selectedId;
+            const priority = getRecordPriority(record);
+
+            return (
+              <button
+                key={record.id}
+                type="button"
+                onClick={() => onSelect(record)}
                 className={cn(
-                  "text-sm font-bold line-clamp-2 mb-1",
-                  isSelected ? "text-primary" : "text-on-surface"
+                  "w-full rounded-lg p-3 text-left transition-colors",
+                  isSelected
+                    ? "bg-surface-container-high"
+                    : "hover:bg-surface-container"
                 )}
               >
-                {data.subject}
-              </div>
-              <div className="text-[11px] text-on-surface-variant line-clamp-2 mb-2">
-                {data.description}
-              </div>
-              <div className="flex items-center gap-1 text-[10px] text-on-surface-variant">
-                <Icon name="schedule" size="sm" className="text-[10px]" />
-                {timeAgo(rec.updatedAt)}
-              </div>
-            </button>
-          );
-        })}
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-mono font-bold text-on-surface-variant">
+                    {getRecordIdentifier(record)}
+                  </span>
+                  {priority && (
+                    <Badge
+                      variant={getPriorityVariant(priority)}
+                      className="text-[9px]"
+                    >
+                      {priority}
+                    </Badge>
+                  )}
+                </div>
+
+                <div
+                  className={cn(
+                    "mb-1 line-clamp-2 text-sm font-bold",
+                    isSelected ? "text-primary" : "text-on-surface"
+                  )}
+                >
+                  {getRecordTitle(record)}
+                </div>
+
+                <div className="mb-2 line-clamp-2 text-[11px] text-on-surface-variant">
+                  {getRecordDescription(record) || "No description"}
+                </div>
+
+                <div className="flex items-center gap-1 text-[10px] text-on-surface-variant">
+                  <Icon name="schedule" size="sm" className="text-[10px]" />
+                  {formatRelativeTime(record.updatedAt)}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
