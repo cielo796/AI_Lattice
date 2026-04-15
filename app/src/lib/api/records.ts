@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api/client";
+import type { RuntimeTableMeta } from "@/types/app";
 import type {
   AppRecord,
   Attachment,
@@ -31,6 +32,10 @@ function tablePath(appCode: string, tableCode: string) {
   return `/api/run/${appCode}/${tableCode}`;
 }
 
+function tableMetaPath(appCode: string, tableCode: string) {
+  return `${tablePath(appCode, tableCode)}/meta`;
+}
+
 function recordPath(appCode: string, tableCode: string, recordId: string) {
   return `${tablePath(appCode, tableCode)}/${recordId}`;
 }
@@ -54,6 +59,10 @@ function attachmentPath(
 
 export async function listRecords(appCode: string, tableCode: string) {
   return apiFetch<AppRecord[]>(tablePath(appCode, tableCode));
+}
+
+export async function getRuntimeTableMeta(appCode: string, tableCode: string) {
+  return apiFetch<RuntimeTableMeta>(tableMetaPath(appCode, tableCode));
 }
 
 export async function createRecord(
@@ -134,6 +143,21 @@ export async function createAttachment(
   return apiFetch<Attachment>(attachmentsPath(appCode, tableCode, recordId), {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export async function uploadAttachment(
+  appCode: string,
+  tableCode: string,
+  recordId: string,
+  file: File
+) {
+  const body = new FormData();
+  body.set("file", file);
+
+  return apiFetch<Attachment>(attachmentsPath(appCode, tableCode, recordId), {
+    method: "POST",
+    body,
   });
 }
 

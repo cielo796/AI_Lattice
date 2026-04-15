@@ -72,3 +72,8 @@ export interface AppForm {
   layoutJson: Record<string, unknown>;
   createdAt: string;
 }
+
+export interface RuntimeTableMeta {
+  table: Pick<AppTable, "id" | "name" | "code">;
+  fields: AppField[];
+}

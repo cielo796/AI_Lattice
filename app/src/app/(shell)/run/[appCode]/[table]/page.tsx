@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { AISidebar } from "@/components/ai/AISidebar";
+import { RecordCreatePanel } from "@/components/runtime/RecordCreatePanel";
 import { RecordDetail } from "@/components/runtime/RecordDetail";
 import { RecordList } from "@/components/runtime/RecordList";
 import { Button } from "@/components/shared/Button";
@@ -10,9 +11,12 @@ import { Icon } from "@/components/shared/Icon";
 import { TopBar } from "@/components/shared/TopBar";
 import {
   createComment,
+  createRecord,
+  getRuntimeTableMeta,
   listAttachments,
   listComments,
   listRecords,
+  uploadAttachment,
 } from "@/lib/api/records";
 import {
   formatRelativeTime,
@@ -23,6 +27,7 @@ import {
   getRecordSentiment,
   getRecordTitle,
 } from "@/lib/runtime-records";
+import type { RuntimeTableMeta } from "@/types/app";
 import type { AppRecord, Attachment, RecordComment } from "@/types/record";
 
 type RecommendedAction = {
@@ -123,9 +128,14 @@ export default function RuntimeViewPage() {
   const [comments, setComments] = useState<RecordComment[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tableMeta, setTableMeta] = useState<RuntimeTableMeta | null>(null);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  const [isLoadingMeta, setIsLoadingMeta] = useState(true);
+  const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
+  const [isCreatingRecord, setIsCreatingRecord] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -136,6 +146,7 @@ export default function RuntimeViewPage() {
     if (!appCode || !tableCode) {
       setError("Missing runtime route parameters.");
       setIsLoadingRecords(false);
+      setIsLoadingMeta(false);
       return;
     }
 
@@ -181,6 +192,49 @@ export default function RuntimeViewPage() {
     }
 
     void loadRuntimeRecords();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appCode, refreshKey, tableCode]);
+
+  useEffect(() => {
+    if (!appCode || !tableCode) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadRuntimeMeta() {
+      try {
+        setIsLoadingMeta(true);
+        const nextMeta = await getRuntimeTableMeta(appCode, tableCode);
+
+        if (cancelled) {
+          return;
+        }
+
+        setTableMeta(nextMeta);
+        setError(null);
+      } catch (nextError) {
+        if (cancelled) {
+          return;
+        }
+
+        setTableMeta(null);
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Failed to load runtime schema."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMeta(false);
+        }
+      }
+    }
+
+    void loadRuntimeMeta();
 
     return () => {
       cancelled = true;
@@ -261,13 +315,65 @@ export default function RuntimeViewPage() {
     }
   }
 
+  async function handleCreateRecord(input: {
+    status: string;
+    data: Record<string, unknown>;
+  }) {
+    if (!appCode || !tableCode) {
+      return;
+    }
+
+    try {
+      setIsCreatingRecord(true);
+      const record = await createRecord(appCode, tableCode, input);
+      setRecords((current) => [record, ...current]);
+      setSelectedId(record.id);
+      setComments([]);
+      setAttachments([]);
+      setIsCreatePanelOpen(false);
+      setError(null);
+    } catch (nextError) {
+      throw (
+        nextError instanceof Error
+          ? nextError
+          : new Error("Failed to create record.")
+      );
+    } finally {
+      setIsCreatingRecord(false);
+    }
+  }
+
+  async function handleAddAttachment(file: File) {
+    if (!appCode || !tableCode || !selectedId) {
+      return;
+    }
+
+    try {
+      setIsUploadingAttachment(true);
+      const attachment = await uploadAttachment(appCode, tableCode, selectedId, file);
+      setAttachments((current) => [attachment, ...current]);
+      setError(null);
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Failed to add attachment."
+      );
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  }
+
   const recommendedActions = buildRecommendedActions(selectedRecord);
   const similarRecords = buildSimilarRecords(records, selectedRecord);
 
   return (
     <>
       <TopBar
-        breadcrumbs={[{ label: "Runtime" }, { label: tableCode || "Records" }]}
+        breadcrumbs={[
+          { label: "Runtime" },
+          { label: tableMeta?.table.name || tableCode || "Records" },
+        ]}
         actions={
           <>
             <Button
@@ -278,9 +384,14 @@ export default function RuntimeViewPage() {
               <Icon name="sync" size="sm" />
               Refresh
             </Button>
-            <Button variant="primary" size="md">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => setIsCreatePanelOpen((current) => !current)}
+              disabled={isLoadingMeta}
+            >
               <Icon name="add" size="sm" />
-              New record
+              {isLoadingMeta ? "Loading schema..." : "New record"}
             </Button>
           </>
         }
@@ -301,13 +412,25 @@ export default function RuntimeViewPage() {
             </div>
           )}
 
+          {isCreatePanelOpen && (
+            <RecordCreatePanel
+              fields={tableMeta?.fields ?? []}
+              tableName={tableMeta?.table.name}
+              isSubmitting={isCreatingRecord}
+              onClose={() => setIsCreatePanelOpen(false)}
+              onSubmit={handleCreateRecord}
+            />
+          )}
+
           <RecordDetail
             record={selectedRecord}
             comments={comments}
             attachments={attachments}
             isLoadingActivity={isLoadingActivity}
             isSubmittingComment={isSubmittingComment}
+            isUploadingAttachment={isUploadingAttachment}
             onAddComment={handleAddComment}
+            onAddAttachment={handleAddAttachment}
           />
         </div>
 
