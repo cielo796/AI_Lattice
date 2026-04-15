@@ -22,8 +22,13 @@ interface RecordDetailProps {
   isLoadingActivity?: boolean;
   isSubmittingComment?: boolean;
   isUploadingAttachment?: boolean;
+  isDeletingRecord?: boolean;
+  deletingAttachmentId?: string | null;
   onAddComment?: (commentText: string) => Promise<void>;
   onAddAttachment?: (file: File) => Promise<void>;
+  onEditRecord?: () => void;
+  onDeleteRecord?: () => Promise<void>;
+  onDeleteAttachment?: (attachmentId: string) => Promise<void>;
 }
 
 function formatFieldValue(value: unknown) {
@@ -45,8 +50,13 @@ export function RecordDetail({
   isLoadingActivity = false,
   isSubmittingComment = false,
   isUploadingAttachment = false,
+  isDeletingRecord = false,
+  deletingAttachmentId = null,
   onAddComment,
   onAddAttachment,
+  onEditRecord,
+  onDeleteRecord,
+  onDeleteAttachment,
 }: RecordDetailProps) {
   const [commentText, setCommentText] = useState("");
   const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -95,11 +105,35 @@ export function RecordDetail({
   return (
     <section className="flex flex-1 flex-col bg-surface-container-low">
       <div className="px-8 py-6">
-        <div className="mb-4 flex items-center gap-3">
-          <Badge variant={getStatusVariant(record.status)}>{record.status}</Badge>
-          <span className="text-xs text-on-surface-variant">
-            Updated {formatDateTime(record.updatedAt)}
-          </span>
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge variant={getStatusVariant(record.status)}>{record.status}</Badge>
+            <span className="text-xs text-on-surface-variant">
+              Updated {formatDateTime(record.updatedAt)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onEditRecord}
+              disabled={!onEditRecord || isDeletingRecord}
+            >
+              <Icon name="edit" size="sm" />
+              Edit
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              onClick={() => void onDeleteRecord?.()}
+              disabled={!onDeleteRecord || isDeletingRecord}
+            >
+              <Icon name="delete" size="sm" />
+              {isDeletingRecord ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
         </div>
         <h1 className="font-headline text-3xl font-extrabold leading-tight text-white">
           {getRecordTitle(record)}
@@ -173,6 +207,18 @@ export function RecordDetail({
                       {(attachment.fileSize / 1024).toFixed(1)} KB / {attachment.mimeType}
                     </div>
                   </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void onDeleteAttachment?.(attachment.id)}
+                    disabled={
+                      !onDeleteAttachment || deletingAttachmentId === attachment.id
+                    }
+                  >
+                    <Icon name="delete" size="sm" />
+                    {deletingAttachmentId === attachment.id ? "Removing..." : "Remove"}
+                  </Button>
                 </div>
               ))}
             </div>
