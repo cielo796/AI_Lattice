@@ -27,16 +27,16 @@ export default function WorkflowEditorPage() {
         }
       />
 
-      <main className="pt-16 h-screen flex">
+      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
         {/* Left: Canvas */}
-        <section className="flex-1 relative">
+        <section className="relative h-[60vh] md:h-[70vh] 2xl:h-auto 2xl:flex-1">
           <WorkflowToolbar />
           <WorkflowCanvas />
           <AICommandBar />
         </section>
 
         {/* Right: AI Assistant */}
-        <AISidebar>
+        <AISidebar className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
           <div className="bg-emerald-950/30 border border-primary/20 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Icon name="auto_awesome" size="sm" className="text-primary" filled />

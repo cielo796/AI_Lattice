@@ -321,8 +321,9 @@ export default function TableDesignerPage() {
         }
       />
 
-      <main className="flex h-screen pt-16">
-        <aside className="w-80 overflow-y-auto bg-surface-container p-6">
+      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+        <aside className="w-full border-b border-outline-variant/20 bg-surface-container p-4 xl:w-80 xl:overflow-y-auto xl:border-b-0 xl:border-r xl:p-6">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Tables</div>
@@ -414,7 +415,7 @@ export default function TableDesignerPage() {
           </form>
         </aside>
 
-        <section className="flex-1 overflow-y-auto bg-surface p-10">
+        <section className="flex-1 overflow-y-auto bg-surface px-4 py-6 md:px-6 xl:p-10">
           {error && (
             <div className="mb-6 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
               {error}
@@ -422,9 +423,9 @@ export default function TableDesignerPage() {
           )}
 
           <div className="max-w-4xl">
-            <div className="mb-8 flex items-center justify-between gap-4">
+            <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="font-headline text-3xl font-bold text-white">
+                <h2 className="font-headline text-2xl font-bold text-white md:text-3xl">
                   {activeTable ? activeTable.name : "Select a table"}
                 </h2>
                 <p className="mt-2 text-sm text-on-surface-variant">
@@ -434,7 +435,7 @@ export default function TableDesignerPage() {
               {activeTable && <Badge variant="info">{fields.length} fields</Badge>}
             </div>
 
-            <form onSubmit={(event) => void onSubmitField(event)} className="mb-8 rounded-xl bg-surface-container p-6">
+            <form onSubmit={(event) => void onSubmitField(event)} className="mb-8 rounded-xl bg-surface-container p-4 md:p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">{editingFieldId ? "Edit field" : "New field"}</h3>
                 {editingFieldId && (
@@ -472,7 +473,7 @@ export default function TableDesignerPage() {
               </div>
             </form>
 
-            <div className="grid grid-cols-[minmax(0,2fr)_160px_120px] gap-4 px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+            <div className="hidden gap-4 px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant md:grid md:grid-cols-[minmax(0,2fr)_160px_120px]">
               <div>Field</div>
               <div>Type</div>
               <div>Actions</div>
@@ -486,8 +487,11 @@ export default function TableDesignerPage() {
               )}
 
               {fields.map((field) => (
-                <div key={field.id} className="grid grid-cols-[minmax(0,2fr)_160px_120px] items-center gap-4 rounded-lg bg-surface-container p-4">
+                <div key={field.id} className="grid grid-cols-1 gap-4 rounded-lg bg-surface-container p-4 md:grid-cols-[minmax(0,2fr)_160px_120px] md:items-center">
                   <div className="min-w-0">
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant md:hidden">
+                      Field
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className={cn("truncate font-mono text-sm", field.fieldType === "ai_generated" ? "font-bold text-primary" : "text-on-surface")}>
                         {field.name}
@@ -498,9 +502,12 @@ export default function TableDesignerPage() {
                     <div className="mt-1 text-xs text-on-surface-variant">{field.code}</div>
                   </div>
                   <div>
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant md:hidden">
+                      Type
+                    </div>
                     <Badge variant={FIELD_META[field.fieldType].variant}>{FIELD_META[field.fieldType].label}</Badge>
                   </div>
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap gap-2 md:justify-end">
                     <Button
                       type="button"
                       size="sm"
@@ -543,8 +550,9 @@ export default function TableDesignerPage() {
             </div>
           </div>
         </section>
+        </div>
 
-        <AISidebar>
+        <AISidebar className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
           <div className="text-xs text-on-surface">
             This screen now reads and writes real table metadata through the existing API.
           </div>

@@ -11,12 +11,12 @@ const tools = [
 
 export function WorkflowToolbar() {
   return (
-    <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-10">
+    <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 flex-row gap-2 md:left-6 md:top-1/2 md:translate-x-0 md:-translate-y-1/2 md:flex-col">
       {tools.map((tool) => (
         <button
           key={tool.label}
           title={tool.label}
-          className="w-10 h-10 bg-surface-container rounded-lg flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors"
+          className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-container text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
         >
           <Icon name={tool.icon} size="md" />
         </button>

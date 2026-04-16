@@ -507,58 +507,60 @@ export default function RuntimeViewPage() {
         }
       />
 
-      <main className="flex h-screen pt-16">
-        <RecordList
-          records={records}
-          selectedId={selectedId ?? undefined}
-          isLoading={isLoadingRecords}
-          onSelect={(record) => setSelectedId(record.id)}
-        />
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          {error && (
-            <div className="border-b border-error/20 bg-error/10 px-8 py-3 text-sm text-error">
-              {error}
-            </div>
-          )}
-
-          {shouldRenderRecordPanel && (
-            <RecordCreatePanel
-              key={
-                recordPanelMode === "edit"
-                  ? `edit-${selectedRecord?.id ?? "none"}`
-                  : "create"
-              }
-              fields={tableMeta?.fields ?? []}
-              mode={recordPanelMode ?? "create"}
-              initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
-              tableName={tableMeta?.table.name}
-              isSubmitting={isSavingRecord}
-              onClose={() => setRecordPanelMode(null)}
-              onSubmit={
-                recordPanelMode === "edit" ? handleUpdateRecord : handleCreateRecord
-              }
-            />
-          )}
-
-          <RecordDetail
-            record={selectedRecord}
-            comments={comments}
-            attachments={attachments}
-            isLoadingActivity={isLoadingActivity}
-            isSubmittingComment={isSubmittingComment}
-            isUploadingAttachment={isUploadingAttachment}
-            isDeletingRecord={isDeletingRecord}
-            deletingAttachmentId={deletingAttachmentId}
-            onAddComment={handleAddComment}
-            onAddAttachment={handleAddAttachment}
-            onEditRecord={() => setRecordPanelMode("edit")}
-            onDeleteRecord={handleDeleteRecord}
-            onDeleteAttachment={handleDeleteAttachment}
+      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+          <RecordList
+            records={records}
+            selectedId={selectedId ?? undefined}
+            isLoading={isLoadingRecords}
+            onSelect={(record) => setSelectedId(record.id)}
           />
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            {error && (
+              <div className="border-b border-error/20 bg-error/10 px-4 py-3 text-sm text-error md:px-8">
+                {error}
+              </div>
+            )}
+
+            {shouldRenderRecordPanel && (
+              <RecordCreatePanel
+                key={
+                  recordPanelMode === "edit"
+                    ? `edit-${selectedRecord?.id ?? "none"}`
+                    : "create"
+                }
+                fields={tableMeta?.fields ?? []}
+                mode={recordPanelMode ?? "create"}
+                initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
+                tableName={tableMeta?.table.name}
+                isSubmitting={isSavingRecord}
+                onClose={() => setRecordPanelMode(null)}
+                onSubmit={
+                  recordPanelMode === "edit" ? handleUpdateRecord : handleCreateRecord
+                }
+              />
+            )}
+
+            <RecordDetail
+              record={selectedRecord}
+              comments={comments}
+              attachments={attachments}
+              isLoadingActivity={isLoadingActivity}
+              isSubmittingComment={isSubmittingComment}
+              isUploadingAttachment={isUploadingAttachment}
+              isDeletingRecord={isDeletingRecord}
+              deletingAttachmentId={deletingAttachmentId}
+              onAddComment={handleAddComment}
+              onAddAttachment={handleAddAttachment}
+              onEditRecord={() => setRecordPanelMode("edit")}
+              onDeleteRecord={handleDeleteRecord}
+              onDeleteAttachment={handleDeleteAttachment}
+            />
+          </div>
         </div>
 
-        <AISidebar>
+        <AISidebar className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
           <div>
             <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-primary">
               Runtime summary

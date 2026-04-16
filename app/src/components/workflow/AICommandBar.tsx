@@ -5,16 +5,17 @@ import { Icon } from "@/components/shared/Icon";
 
 export function AICommandBar() {
   const [value, setValue] = useState("優先度がクリティカルの場合、マネージャー承認ステップを追加");
+
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl z-20">
-      <div className="glass-effect rounded-full flex items-center gap-3 px-5 py-3 shadow-2xl">
+    <div className="absolute bottom-4 left-4 right-4 z-20 md:bottom-6 md:left-1/2 md:right-auto md:w-full md:max-w-2xl md:-translate-x-1/2">
+      <div className="glass-effect flex items-center gap-3 rounded-full px-5 py-3 shadow-2xl">
         <Icon name="auto_awesome" className="text-primary" filled size="sm" />
         <input
           value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="flex-1 bg-transparent border-none focus:outline-none text-sm text-white placeholder:text-on-surface-variant/50"
+          onChange={(event) => setValue(event.target.value)}
+          className="flex-1 border-none bg-transparent text-sm text-white placeholder:text-on-surface-variant/50 focus:outline-none"
         />
-        <button className="w-8 h-8 rounded-full bg-primary flex items-center justify-center hover:bg-emerald-600 transition-colors">
+        <button className="flex h-8 w-8 items-center justify-center rounded-full bg-primary transition-colors hover:bg-emerald-600">
           <Icon name="arrow_upward" size="sm" className="text-white" />
         </button>
       </div>

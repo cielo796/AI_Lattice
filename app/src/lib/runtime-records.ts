@@ -100,16 +100,16 @@ export function getPriorityVariant(priority: string): BadgeVariant {
   if (
     normalized.includes("critical") ||
     normalized.includes("urgent") ||
-    priority === "繧ｯ繝ｪ繝・ぅ繧ｫ繝ｫ"
+    priority === "クリティカル"
   ) {
     return "error";
   }
 
-  if (normalized.includes("high") || priority === "鬮・") {
+  if (normalized.includes("high") || priority === "高") {
     return "warning";
   }
 
-  if (normalized.includes("medium") || priority === "荳ｭ") {
+  if (normalized.includes("medium") || priority === "中") {
     return "info";
   }
 

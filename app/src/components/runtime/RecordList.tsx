@@ -49,7 +49,7 @@ export function RecordList({
   });
 
   return (
-    <div className="flex w-80 shrink-0 flex-col bg-surface-container-low">
+    <div className="flex w-full shrink-0 flex-col border-b border-outline-variant/20 bg-surface-container-low xl:w-80 xl:border-b-0 xl:border-r">
       <div className="p-4">
         <div className="relative">
           <Icon
@@ -68,7 +68,7 @@ export function RecordList({
 
       <div className="px-4 pb-2">
         <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
-          Records · {filteredRecords.length}
+          Records / {filteredRecords.length}
         </div>
       </div>
 
