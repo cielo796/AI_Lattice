@@ -1,20 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useParams } from "next/navigation";
 import { Badge } from "@/components/shared/Badge";
 import { Icon } from "@/components/shared/Icon";
+import { Button } from "@/components/shared/Button";
+import { RecordCreatePanel } from "@/components/runtime/RecordCreatePanel";
 import { cn } from "@/lib/cn";
-import { listRecords } from "@/lib/api/records";
 import {
+  createComment,
+  createRecord,
+  getRuntimeTableMeta,
+  listAttachments,
+  listComments,
+  listRecords,
+  uploadAttachment,
+} from "@/lib/api/records";
+import {
+  formatDateTime,
+  getDisplayFields,
   getPriorityVariant,
+  getRecordCustomer,
   getRecordDescription,
   getRecordIdentifier,
   getRecordPriority,
   getRecordSentiment,
   getRecordTitle,
+  getStatusVariant,
 } from "@/lib/runtime-records";
-import type { AppRecord } from "@/types/record";
+import type { RuntimeTableMeta } from "@/types/app";
+import type { AppRecord, Attachment, RecordComment } from "@/types/record";
 
 const tabs = [
   { id: "all", label: "All" },
@@ -22,8 +43,258 @@ const tabs = [
   { id: "priority", label: "Priority" },
 ];
 
+type MobileOverlay = "detail" | "create" | null;
+
+interface MobileRecordDetailViewProps {
+  error?: string | null;
+  record: AppRecord;
+  comments: RecordComment[];
+  attachments: Attachment[];
+  isLoadingActivity?: boolean;
+  isSubmittingComment?: boolean;
+  isUploadingAttachment?: boolean;
+  onBack: () => void;
+  onAddComment?: (commentText: string) => Promise<void>;
+  onAddAttachment?: (file: File) => Promise<void>;
+}
+
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+function formatFieldValue(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return JSON.stringify(value);
+}
+
+function MobileRecordDetailView({
+  error,
+  record,
+  comments,
+  attachments,
+  isLoadingActivity = false,
+  isSubmittingComment = false,
+  isUploadingAttachment = false,
+  onBack,
+  onAddComment,
+  onAddAttachment,
+}: MobileRecordDetailViewProps) {
+  const [commentText, setCommentText] = useState("");
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+
+  const description = getRecordDescription(record);
+  const customer = getRecordCustomer(record) || "Unknown reporter";
+  const fields = getDisplayFields(record);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const nextComment = commentText.trim();
+    if (!nextComment || !onAddComment) {
+      return;
+    }
+
+    await onAddComment(nextComment);
+    setCommentText("");
+  }
+
+  async function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file || !onAddAttachment) {
+      return;
+    }
+
+    await onAddAttachment(file);
+    event.target.value = "";
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex flex-col bg-surface">
+      <header className="border-b border-outline-variant/20 bg-surface px-4 pb-4 pt-6">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container text-on-surface"
+          >
+            <Icon name="arrow_back" size="md" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge variant={getStatusVariant(record.status)}>{record.status}</Badge>
+              <span className="text-[10px] font-mono text-on-surface-variant">
+                {getRecordIdentifier(record)}
+              </span>
+            </div>
+            <h1 className="text-lg font-bold leading-tight text-on-surface">
+              {getRecordTitle(record)}
+            </h1>
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            {error}
+          </div>
+        )}
+      </header>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-28 pt-4">
+        <div className="mb-4 rounded-2xl bg-surface-container p-4">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className="text-sm font-bold text-on-surface">{customer}</span>
+            <span className="text-[10px] text-on-surface-variant">
+              {formatDateTime(record.createdAt)}
+            </span>
+          </div>
+          <p className="text-sm leading-relaxed text-on-surface">
+            {description || "No description"}
+          </p>
+        </div>
+
+        {fields.length > 0 && (
+          <div className="mb-5">
+            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              Record data
+            </div>
+            <div className="space-y-2">
+              {fields.map(([key, value]) => (
+                <div key={key} className="rounded-xl bg-surface-container p-4">
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                    {key}
+                  </div>
+                  <div className="text-sm text-on-surface">
+                    {formatFieldValue(value)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mb-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              Attachments
+            </div>
+            {isUploadingAttachment && (
+              <div className="text-[10px] text-on-surface-variant">
+                Uploading...
+              </div>
+            )}
+          </div>
+          {isLoadingActivity && attachments.length === 0 ? (
+            <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
+              Loading attachments...
+            </div>
+          ) : attachments.length > 0 ? (
+            <div className="space-y-2">
+              {attachments.map((attachment) => (
+                <a
+                  key={attachment.id}
+                  href={attachment.storagePath}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block rounded-xl bg-surface-container p-4"
+                >
+                  <div className="mb-1 text-sm font-bold text-on-surface">
+                    {attachment.fileName}
+                  </div>
+                  <div className="text-[11px] text-on-surface-variant">
+                    {(attachment.fileSize / 1024).toFixed(1)} KB / {attachment.mimeType}
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+              No attachments yet.
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            Comments
+          </div>
+          {isLoadingActivity && comments.length === 0 ? (
+            <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
+              Loading comments...
+            </div>
+          ) : comments.length > 0 ? (
+            <div className="space-y-2">
+              {comments.map((comment) => (
+                <div key={comment.id} className="rounded-xl bg-surface-container p-4">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      {comment.isSystem && <Badge variant="info">System</Badge>}
+                      <span className="text-xs font-bold text-on-surface">
+                        {comment.isSystem ? "System event" : comment.createdBy}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-on-surface-variant">
+                      {formatDateTime(comment.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-on-surface">
+                    {comment.commentText}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+              No comments yet.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-outline-variant/20 bg-surface px-4 pb-6 pt-3">
+        <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3">
+          <input
+            ref={attachmentInputRef}
+            type="file"
+            className="hidden"
+            onChange={(event) => void handleAttachmentChange(event)}
+          />
+          <textarea
+            rows={3}
+            value={commentText}
+            onChange={(event) => setCommentText(event.target.value)}
+            placeholder="Add a comment..."
+            className="w-full rounded-2xl bg-surface-container px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => attachmentInputRef.current?.click()}
+              disabled={!onAddAttachment || isUploadingAttachment}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container text-on-surface-variant disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Add attachment"
+            >
+              <Icon name="attach_file" size="sm" />
+            </button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!commentText.trim() || isSubmittingComment || !onAddComment}
+            >
+              {isSubmittingComment ? "Sending..." : "Send"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 export default function MobileRuntimePage() {
@@ -34,13 +305,27 @@ export default function MobileRuntimePage() {
   const [activeTab, setActiveTab] = useState("all");
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState<AppRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [tableMeta, setTableMeta] = useState<RuntimeTableMeta | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [comments, setComments] = useState<RecordComment[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+  const [isLoadingMeta, setIsLoadingMeta] = useState(true);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  const [isSavingRecord, setIsSavingRecord] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [activeOverlay, setActiveOverlay] = useState<MobileOverlay>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedRecord =
+    records.find((record) => record.id === selectedId) ?? null;
 
   useEffect(() => {
     if (!appCode || !tableCode) {
       setError("Missing runtime route parameters.");
-      setIsLoading(false);
+      setIsLoadingRecords(false);
+      setIsLoadingMeta(false);
       return;
     }
 
@@ -48,7 +333,7 @@ export default function MobileRuntimePage() {
 
     async function loadRuntimeRecords() {
       try {
-        setIsLoading(true);
+        setIsLoadingRecords(true);
         const nextRecords = await listRecords(appCode, tableCode);
 
         if (cancelled) {
@@ -70,7 +355,7 @@ export default function MobileRuntimePage() {
         );
       } finally {
         if (!cancelled) {
-          setIsLoading(false);
+          setIsLoadingRecords(false);
         }
       }
     }
@@ -81,6 +366,177 @@ export default function MobileRuntimePage() {
       cancelled = true;
     };
   }, [appCode, tableCode]);
+
+  useEffect(() => {
+    if (!appCode || !tableCode) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadRuntimeMeta() {
+      try {
+        setIsLoadingMeta(true);
+        const nextMeta = await getRuntimeTableMeta(appCode, tableCode);
+
+        if (cancelled) {
+          return;
+        }
+
+        setTableMeta(nextMeta);
+        setError(null);
+      } catch (nextError) {
+        if (cancelled) {
+          return;
+        }
+
+        setTableMeta(null);
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Failed to load runtime schema."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMeta(false);
+        }
+      }
+    }
+
+    void loadRuntimeMeta();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appCode, tableCode]);
+
+  useEffect(() => {
+    if (!appCode || !tableCode || !selectedId || activeOverlay !== "detail") {
+      setComments([]);
+      setAttachments([]);
+      return;
+    }
+
+    const currentRecordId = selectedId;
+    let cancelled = false;
+
+    async function loadRecordActivity() {
+      try {
+        setIsLoadingActivity(true);
+        const [nextComments, nextAttachments] = await Promise.all([
+          listComments(appCode, tableCode, currentRecordId),
+          listAttachments(appCode, tableCode, currentRecordId),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setComments(nextComments);
+        setAttachments(nextAttachments);
+        setError(null);
+      } catch (nextError) {
+        if (cancelled) {
+          return;
+        }
+
+        setComments([]);
+        setAttachments([]);
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Failed to load record activity."
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoadingActivity(false);
+        }
+      }
+    }
+
+    void loadRecordActivity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOverlay, appCode, selectedId, tableCode]);
+
+  function openDetail(recordId: string) {
+    setSelectedId(recordId);
+    setActiveOverlay("detail");
+  }
+
+  async function handleCreateRecord(input: {
+    status: string;
+    data: Record<string, unknown>;
+  }) {
+    if (!appCode || !tableCode) {
+      return;
+    }
+
+    try {
+      setIsSavingRecord(true);
+      const record = await createRecord(appCode, tableCode, input);
+      setRecords((current) => [record, ...current]);
+      setSelectedId(record.id);
+      setComments([]);
+      setAttachments([]);
+      setActiveOverlay("detail");
+      setError(null);
+    } catch (nextError) {
+      throw (
+        nextError instanceof Error
+          ? nextError
+          : new Error("Failed to create record.")
+      );
+    } finally {
+      setIsSavingRecord(false);
+    }
+  }
+
+  async function handleAddComment(commentText: string) {
+    if (!appCode || !tableCode || !selectedId) {
+      return;
+    }
+
+    try {
+      setIsSubmittingComment(true);
+      const comment = await createComment(appCode, tableCode, selectedId, {
+        commentText,
+      });
+      setComments((current) => [...current, comment]);
+      setError(null);
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Failed to add comment."
+      );
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  }
+
+  async function handleAddAttachment(file: File) {
+    if (!appCode || !tableCode || !selectedId) {
+      return;
+    }
+
+    try {
+      setIsUploadingAttachment(true);
+      const attachment = await uploadAttachment(appCode, tableCode, selectedId, file);
+      setAttachments((current) => [attachment, ...current]);
+      setError(null);
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Failed to add attachment."
+      );
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  }
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredRecords = records.filter((record) => {
@@ -116,9 +572,14 @@ export default function MobileRuntimePage() {
     <div className="flex min-h-screen flex-col bg-surface">
       <header className="glass-effect sticky top-0 z-20 px-4 pb-4 pt-6">
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="font-headline text-base font-extrabold tracking-tight text-white">
-            Runtime
-          </h1>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-primary">
+              Mobile runtime
+            </div>
+            <h1 className="font-headline text-base font-extrabold tracking-tight text-white">
+              {tableMeta?.table.name || "Runtime"}
+            </h1>
+          </div>
           <button className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
             <Icon name="notifications" size="md" />
           </button>
@@ -159,19 +620,19 @@ export default function MobileRuntimePage() {
       </div>
 
       <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4">
-        {error && (
+        {error && activeOverlay === null && (
           <div className="mb-3 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
             {error}
           </div>
         )}
 
-        {isLoading && (
+        {(isLoadingRecords || isLoadingMeta) && (
           <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
             Loading records...
           </div>
         )}
 
-        {!isLoading && filteredRecords.length === 0 && (
+        {!isLoadingRecords && filteredRecords.length === 0 && (
           <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
             No records found.
           </div>
@@ -183,9 +644,11 @@ export default function MobileRuntimePage() {
             const sentiment = getRecordSentiment(record);
 
             return (
-              <div
+              <button
                 key={record.id}
-                className="rounded-xl bg-surface-container p-4"
+                type="button"
+                onClick={() => openDetail(record.id)}
+                className="block w-full rounded-xl bg-surface-container p-4 text-left"
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <span className="text-[10px] font-mono text-on-surface-variant">
@@ -215,12 +678,12 @@ export default function MobileRuntimePage() {
                   <span className="text-[10px] text-on-surface-variant">
                     {record.status}
                   </span>
-                  <button className="flex items-center gap-1 text-[10px] font-bold text-primary">
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
                     <Icon name="visibility" size="sm" />
                     Open
-                  </button>
+                  </span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -248,9 +711,47 @@ export default function MobileRuntimePage() {
         ))}
       </nav>
 
-      <button className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-2xl">
+      <button
+        type="button"
+        onClick={() => setActiveOverlay("create")}
+        disabled={isLoadingMeta}
+        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
+      >
         <Icon name="add" size="lg" className="text-white" />
       </button>
+
+      {activeOverlay === "detail" && selectedRecord && (
+        <MobileRecordDetailView
+          error={error}
+          record={selectedRecord}
+          comments={comments}
+          attachments={attachments}
+          isLoadingActivity={isLoadingActivity}
+          isSubmittingComment={isSubmittingComment}
+          isUploadingAttachment={isUploadingAttachment}
+          onBack={() => setActiveOverlay(null)}
+          onAddComment={handleAddComment}
+          onAddAttachment={handleAddAttachment}
+        />
+      )}
+
+      {activeOverlay === "create" && (
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-surface pb-24 pt-4">
+          {error && (
+            <div className="mx-4 mb-3 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+              {error}
+            </div>
+          )}
+          <RecordCreatePanel
+            key={`mobile-create-${tableMeta?.table.id ?? tableCode}`}
+            fields={tableMeta?.fields ?? []}
+            tableName={tableMeta?.table.name}
+            isSubmitting={isSavingRecord}
+            onClose={() => setActiveOverlay(null)}
+            onSubmit={handleCreateRecord}
+          />
+        </div>
+      )}
     </div>
   );
 }
