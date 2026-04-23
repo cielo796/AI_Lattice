@@ -22,7 +22,7 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
           type="button"
           onClick={toggleMobileNav}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-white md:hidden"
-          aria-label="Open navigation"
+          aria-label="ナビゲーションを開く"
         >
           <Icon name="menu" />
         </button>

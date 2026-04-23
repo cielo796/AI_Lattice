@@ -56,7 +56,7 @@ export const mockWorkflowEdges: Edge[] = [
     id: "wf-edge-2",
     source: "wf-node-2",
     target: "wf-node-3",
-    label: "Yes",
+    label: "はい",
     animated: true,
     style: { stroke: "#10b981", strokeWidth: 2 },
   },
@@ -64,7 +64,7 @@ export const mockWorkflowEdges: Edge[] = [
     id: "wf-edge-3",
     source: "wf-node-2",
     target: "wf-node-4",
-    label: "No",
+    label: "いいえ",
     style: { stroke: "#475569", strokeWidth: 2, strokeDasharray: "8 4" },
   },
 ];

@@ -40,7 +40,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         user: null,
         isAuthenticated: false,
         isLoading: false,
-        error: error instanceof Error ? error.message : "Login failed",
+        error: error instanceof Error ? error.message : "ログインに失敗しました",
       });
       return false;
     }
@@ -73,7 +73,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         user: null,
         isAuthenticated: false,
         isLoading: false,
-        error: error instanceof Error ? error.message : "Session check failed",
+        error: error instanceof Error ? error.message : "セッション確認に失敗しました",
       });
     }
   },

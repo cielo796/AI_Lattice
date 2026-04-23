@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
+    return NextResponse.json({ message: "リクエスト本文が不正です" }, { status: 400 });
   }
 
   const email = body.email?.trim() ?? "";
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
   if (!email || !password) {
     return NextResponse.json(
-      { message: "Email and password are required" },
+      { message: "メールアドレスとパスワードを入力してください" },
       { status: 400 }
     );
   }
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const user = await authenticateUser({ email, password });
   if (!user) {
     return NextResponse.json(
-      { message: "Invalid email or password" },
+      { message: "メールアドレスまたはパスワードが正しくありません" },
       { status: 401 }
     );
   }

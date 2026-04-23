@@ -92,7 +92,13 @@ function normalizeIdentifier(value: string, separator: "-" | "_") {
 
 function assertNonEmpty(value: string | undefined, fieldName: string) {
   if (!value || !value.trim()) {
-    throw new AppsServiceError(`${fieldName} is required`, 400);
+    const labels: Record<string, string> = {
+      "App name": "アプリ名",
+      "Table name": "テーブル名",
+      "Field name": "フィールド名",
+    };
+
+    throw new AppsServiceError(`${labels[fieldName] ?? fieldName}は必須です`, 400);
   }
 
   return value.trim();
@@ -100,7 +106,7 @@ function assertNonEmpty(value: string | undefined, fieldName: string) {
 
 function assertFieldType(value: string): FieldType {
   if (!FIELD_TYPES.includes(value as FieldType)) {
-    throw new AppsServiceError("Invalid field type", 400);
+    throw new AppsServiceError("フィールド種類が不正です", 400);
   }
 
   return value as FieldType;
@@ -147,6 +153,29 @@ function toApp(app: {
     createdBy: app.createdById,
     createdAt: app.createdAt.toISOString(),
     updatedAt: app.updatedAt.toISOString(),
+  };
+}
+
+function toAppSummary(app: {
+  id: string;
+  tenantId: string;
+  name: string;
+  code: string;
+  description: string | null;
+  status: App["status"];
+  icon: string;
+  createdById: string;
+  createdAt: Date;
+  updatedAt: Date;
+  tables?: Array<{ code: string }>;
+  _count?: { tables: number };
+}): App {
+  const base = toApp(app);
+
+  return {
+    ...base,
+    primaryTableCode: app.tables?.[0]?.code,
+    tableCount: app._count?.tables ?? app.tables?.length,
   };
 }
 
@@ -224,7 +253,7 @@ async function ensureUniqueAppCode(user: User, code: string, excludeAppId?: stri
   });
 
   if (duplicate) {
-    throw new AppsServiceError("App code already exists", 409);
+    throw new AppsServiceError("同じアプリコードが既に存在します", 409);
   }
 }
 
@@ -246,7 +275,7 @@ async function ensureUniqueTableCode(
   });
 
   if (duplicate) {
-    throw new AppsServiceError("Table code already exists", 409);
+    throw new AppsServiceError("同じテーブルコードが既に存在します", 409);
   }
 }
 
@@ -270,7 +299,7 @@ async function ensureUniqueFieldCode(
   });
 
   if (duplicate) {
-    throw new AppsServiceError("Field code already exists", 409);
+    throw new AppsServiceError("同じフィールドコードが既に存在します", 409);
   }
 }
 
@@ -284,7 +313,7 @@ async function getAppOrThrow(user: User, appId: string) {
   });
 
   if (!app) {
-    throw new AppsServiceError("App not found", 404);
+    throw new AppsServiceError("アプリが見つかりません", 404);
   }
 
   return app;
@@ -303,7 +332,7 @@ async function getTableOrThrow(user: User, appId: string, tableId: string) {
   });
 
   if (!table) {
-    throw new AppsServiceError("Table not found", 404);
+    throw new AppsServiceError("テーブルが見つかりません", 404);
   }
 
   return table;
@@ -328,7 +357,7 @@ async function getFieldOrThrow(
   });
 
   if (!field) {
-    throw new AppsServiceError("Field not found", 404);
+    throw new AppsServiceError("フィールドが見つかりません", 404);
   }
 
   return field;
@@ -364,10 +393,22 @@ export async function listAppsForUser(user: User) {
     where: {
       tenantId: user.tenantId,
     },
+    include: {
+      tables: {
+        select: { code: true },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 1,
+      },
+      _count: {
+        select: {
+          tables: true,
+        },
+      },
+    },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
   });
 
-  return apps.map(toApp);
+  return apps.map(toAppSummary);
 }
 
 export async function getAppForUser(user: User, appId: string) {
@@ -383,7 +424,7 @@ export async function createAppForUser(user: User, input: CreateAppInput) {
   const code = normalizeIdentifier(input.code ?? name, "-");
 
   if (!code) {
-    throw new AppsServiceError("App code is required", 400);
+    throw new AppsServiceError("アプリコードは必須です", 400);
   }
 
   await ensureUniqueAppCode(user, code);
@@ -417,11 +458,11 @@ export async function updateAppForUser(
   const nextCode = normalizeIdentifier(input.code ?? existingApp.code, "-");
 
   if (!nextName) {
-    throw new AppsServiceError("App name is required", 400);
+    throw new AppsServiceError("アプリ名は必須です", 400);
   }
 
   if (!nextCode) {
-    throw new AppsServiceError("App code is required", 400);
+    throw new AppsServiceError("アプリコードは必須です", 400);
   }
 
   await ensureUniqueAppCode(user, nextCode, existingApp.id);
@@ -491,7 +532,7 @@ export async function createTableForApp(
   const code = normalizeIdentifier(input.code ?? name, "-");
 
   if (!code) {
-    throw new AppsServiceError("Table code is required", 400);
+    throw new AppsServiceError("テーブルコードは必須です", 400);
   }
 
   await ensureUniqueTableCode(user, appId, code);
@@ -525,11 +566,11 @@ export async function updateTableForApp(
   const nextCode = normalizeIdentifier(input.code ?? existingTable.code, "-");
 
   if (!nextName) {
-    throw new AppsServiceError("Table name is required", 400);
+    throw new AppsServiceError("テーブル名は必須です", 400);
   }
 
   if (!nextCode) {
-    throw new AppsServiceError("Table code is required", 400);
+    throw new AppsServiceError("テーブルコードは必須です", 400);
   }
 
   await ensureUniqueTableCode(user, appId, nextCode, existingTable.id);
@@ -607,7 +648,7 @@ export async function createFieldForTable(
   const code = normalizeIdentifier(input.code ?? name, "_");
 
   if (!code) {
-    throw new AppsServiceError("Field code is required", 400);
+    throw new AppsServiceError("フィールドコードは必須です", 400);
   }
 
   await ensureUniqueFieldCode(user, appId, tableId, code);
@@ -649,11 +690,11 @@ export async function updateFieldForTable(
   const nextCode = normalizeIdentifier(input.code ?? existingField.code, "_");
 
   if (!nextName) {
-    throw new AppsServiceError("Field name is required", 400);
+    throw new AppsServiceError("フィールド名は必須です", 400);
   }
 
   if (!nextCode) {
-    throw new AppsServiceError("Field code is required", 400);
+    throw new AppsServiceError("フィールドコードは必須です", 400);
   }
 
   await ensureUniqueFieldCode(user, appId, tableId, nextCode, existingField.id);

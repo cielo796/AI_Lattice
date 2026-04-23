@@ -7,6 +7,8 @@ import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import {
   formatDateTime,
+  formatFieldKey,
+  formatStatusLabel,
   getDisplayFields,
   getRecordCustomer,
   getRecordDescription,
@@ -88,10 +90,9 @@ export function RecordDetail({
     return (
       <section className="flex flex-1 items-center justify-center bg-surface-container-low">
         <div className="max-w-md rounded-xl border border-dashed border-outline-variant/40 p-8 text-center">
-          <div className="mb-2 text-lg font-bold text-white">No record selected</div>
+          <div className="mb-2 text-lg font-bold text-white">レコードが選択されていません</div>
           <p className="text-sm text-on-surface-variant">
-            Pick a record from the list to inspect its details, comments, and
-            attachments.
+            一覧からレコードを選択すると、詳細、コメント、添付ファイルを確認できます。
           </p>
         </div>
       </section>
@@ -99,7 +100,7 @@ export function RecordDetail({
   }
 
   const description = getRecordDescription(record);
-  const customer = getRecordCustomer(record) || "Unknown reporter";
+  const customer = getRecordCustomer(record) || "依頼者不明";
   const fields = getDisplayFields(record);
 
   return (
@@ -107,9 +108,11 @@ export function RecordDetail({
       <div className="px-8 py-6">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
-            <Badge variant={getStatusVariant(record.status)}>{record.status}</Badge>
+            <Badge variant={getStatusVariant(record.status)}>
+              {formatStatusLabel(record.status)}
+            </Badge>
             <span className="text-xs text-on-surface-variant">
-              Updated {formatDateTime(record.updatedAt)}
+              更新: {formatDateTime(record.updatedAt)}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -121,7 +124,7 @@ export function RecordDetail({
               disabled={!onEditRecord || isDeletingRecord}
             >
               <Icon name="edit" size="sm" />
-              Edit
+              編集
             </Button>
             <Button
               type="button"
@@ -131,7 +134,7 @@ export function RecordDetail({
               disabled={!onDeleteRecord || isDeletingRecord}
             >
               <Icon name="delete" size="sm" />
-              {isDeletingRecord ? "Deleting..." : "Delete"}
+              {isDeletingRecord ? "削除中..." : "削除"}
             </Button>
           </div>
         </div>
@@ -147,11 +150,11 @@ export function RecordDetail({
             <div className="mb-2 flex items-baseline gap-2">
               <span className="text-sm font-bold text-white">{customer}</span>
               <span className="text-xs text-on-surface-variant">
-                Created {formatDateTime(record.createdAt)}
+                作成: {formatDateTime(record.createdAt)}
               </span>
             </div>
             <div className="rounded-xl bg-surface-container p-4 text-sm leading-relaxed text-on-surface">
-              {description || "No description"}
+              {description || "説明はありません"}
             </div>
           </div>
         </div>
@@ -159,13 +162,13 @@ export function RecordDetail({
         {fields.length > 0 && (
           <div className="mb-6">
             <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-              Record data
+              レコードデータ
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               {fields.map(([key, value]) => (
                 <div key={key} className="rounded-lg bg-surface-container p-3">
                   <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-                    {key}
+                    {formatFieldKey(key)}
                   </div>
                   <div className="text-sm text-on-surface">
                     {formatFieldValue(value)}
@@ -178,11 +181,11 @@ export function RecordDetail({
 
         <div className="mb-6">
           <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-            Attachments
+            添付ファイル
           </div>
           {isLoadingActivity && attachments.length === 0 ? (
             <div className="rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant">
-              Loading attachments...
+              添付ファイルを読み込んでいます...
             </div>
           ) : attachments.length > 0 ? (
             <div className="space-y-2">
@@ -217,25 +220,25 @@ export function RecordDetail({
                     }
                   >
                     <Icon name="delete" size="sm" />
-                    {deletingAttachmentId === attachment.id ? "Removing..." : "Remove"}
+                    {deletingAttachmentId === attachment.id ? "削除中..." : "削除"}
                   </Button>
                 </div>
               ))}
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              No attachments yet.
+              添付ファイルはまだありません。
             </div>
           )}
         </div>
 
         <div>
           <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-            Comments
+            コメント
           </div>
           {isLoadingActivity && comments.length === 0 ? (
             <div className="rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant">
-              Loading comments...
+              コメントを読み込んでいます...
             </div>
           ) : comments.length > 0 ? (
             <div className="space-y-3">
@@ -246,9 +249,9 @@ export function RecordDetail({
                 >
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      {comment.isSystem && <Badge variant="info">System</Badge>}
+                      {comment.isSystem && <Badge variant="info">システム</Badge>}
                       <span className="text-xs font-bold text-on-surface">
-                        {comment.isSystem ? "System event" : comment.createdBy}
+                        {comment.isSystem ? "システムイベント" : comment.createdBy}
                       </span>
                     </div>
                     <span className="text-[11px] text-on-surface-variant">
@@ -263,7 +266,7 @@ export function RecordDetail({
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              No comments yet.
+              コメントはまだありません。
             </div>
           )}
         </div>
@@ -284,7 +287,7 @@ export function RecordDetail({
             rows={3}
             value={commentText}
             onChange={(event) => setCommentText(event.target.value)}
-            placeholder="Add a comment..."
+            placeholder="コメントを追加..."
             className="w-full resize-none bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none"
           />
           <div className="mt-2 flex items-center justify-between gap-3">
@@ -294,13 +297,13 @@ export function RecordDetail({
                 onClick={() => attachmentInputRef.current?.click()}
                 disabled={!record || !onAddAttachment || isUploadingAttachment}
                 className="flex h-8 w-8 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Add attachment"
+                aria-label="添付ファイルを追加"
               >
                 <Icon name="attach_file" size="sm" />
               </button>
               {isUploadingAttachment && (
                 <div className="text-xs text-on-surface-variant">
-                  Uploading attachment...
+                  添付ファイルをアップロード中...
                 </div>
               )}
             </div>
@@ -309,7 +312,7 @@ export function RecordDetail({
               size="sm"
               disabled={!commentText.trim() || isSubmittingComment || !onAddComment}
             >
-              {isSubmittingComment ? "Sending..." : "Send"}
+              {isSubmittingComment ? "送信中..." : "送信"}
             </Button>
           </div>
         </form>

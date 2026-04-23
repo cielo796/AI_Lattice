@@ -64,7 +64,7 @@ export async function apiFetch<T>(
       responseBody !== null &&
       "message" in responseBody
         ? String(responseBody.message)
-        : "Request failed";
+        : "リクエストに失敗しました";
 
     throw new ApiError(message, response.status, responseBody);
   }

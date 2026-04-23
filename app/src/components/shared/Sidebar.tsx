@@ -1,32 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { listApps } from "@/lib/api/apps";
+import type { App } from "@/types/app";
 import { cn } from "@/lib/cn";
 import { Icon } from "./Icon";
 import { useShellChrome } from "./ShellChrome";
 
-const navItems = [
-  { href: "/home", icon: "apps", label: "\u30a2\u30d7\u30ea" },
-  { href: "/apps/app-001/tables", icon: "table_chart", label: "\u30c6\u30fc\u30d6\u30eb" },
-  {
-    href: "/apps/app-001/workflows",
-    icon: "account_tree",
-    label: "\u30ef\u30fc\u30af\u30d5\u30ed\u30fc",
-  },
-  { href: "/admin/ai-settings", icon: "psychology", label: "AI\u8a2d\u5b9a" },
-  { href: "/admin/audit-logs", icon: "admin_panel_settings", label: "\u7ba1\u7406" },
+const bottomItems = [
+  { href: "#", icon: "help", label: "ヘルプ" },
+  { href: "#", icon: "chat_bubble", label: "フィードバック" },
 ];
 
-const bottomItems = [
-  { href: "#", icon: "help", label: "\u30d8\u30eb\u30d7" },
-  {
-    href: "#",
-    icon: "chat_bubble",
-    label: "\u30d5\u30a3\u30fc\u30c9\u30d0\u30c3\u30af",
-  },
-];
+function resolveCurrentApp(pathname: string | null, apps: App[]) {
+  if (!pathname) {
+    return null;
+  }
+
+  const appRouteMatch = pathname.match(/^\/apps\/([^/]+)/);
+  if (appRouteMatch) {
+    return apps.find((app) => app.id === appRouteMatch[1]) ?? null;
+  }
+
+  const runtimeMatch = pathname.match(/^\/(?:run|m)\/([^/]+)/);
+  if (runtimeMatch) {
+    return apps.find((app) => app.code === runtimeMatch[1]) ?? null;
+  }
+
+  return null;
+}
+
+function isAppScopedPath(pathname: string | null) {
+  return Boolean(pathname?.startsWith("/apps/") || pathname?.startsWith("/run/") || pathname?.startsWith("/m/"));
+}
 
 interface SidebarContentProps {
   pathname: string | null;
@@ -41,9 +49,66 @@ function SidebarContent({
   onClose,
   mobile = false,
 }: SidebarContentProps) {
+  const router = useRouter();
+  const [apps, setApps] = useState<App[]>([]);
+  const [isLoadingApps, setIsLoadingApps] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAppsForSidebar() {
+      try {
+        setIsLoadingApps(true);
+        const nextApps = await listApps();
+
+        if (active) {
+          setApps(nextApps);
+        }
+      } catch {
+        if (active) {
+          setApps([]);
+        }
+      } finally {
+        if (active) {
+          setIsLoadingApps(false);
+        }
+      }
+    }
+
+    void loadAppsForSidebar();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const currentApp = useMemo(() => resolveCurrentApp(pathname, apps), [apps, pathname]);
+  const navItems = useMemo(
+    () => [
+      { href: "/home", icon: "apps", label: "アプリ" },
+      ...(currentApp
+        ? [
+            {
+              href: `/apps/${currentApp.id}/tables`,
+              icon: "table_chart",
+              label: "テーブル",
+            },
+            {
+              href: `/apps/${currentApp.id}/workflows`,
+              icon: "account_tree",
+              label: "ワークフロー",
+            },
+          ]
+        : []),
+      { href: "/admin/audit-logs", icon: "admin_panel_settings", label: "管理" },
+    ],
+    [currentApp]
+  );
+  const showAppSwitcher = isAppScopedPath(pathname);
+
   return (
     <div className="flex h-full flex-col p-6">
-      <div className="mb-8 flex items-start justify-between gap-3">
+      <div className="mb-6 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <Icon name="apps" className="text-white" size="sm" />
@@ -62,12 +127,50 @@ function SidebarContent({
             type="button"
             onClick={onClose}
             className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-white"
-            aria-label="Close navigation"
+            aria-label="ナビゲーションを閉じる"
           >
             <Icon name="close" size="md" />
           </button>
         )}
       </div>
+
+      {showAppSwitcher && (
+        <div className="mb-6 rounded-xl bg-surface-container p-4">
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            現在のアプリ
+          </div>
+          <select
+            value={currentApp?.id ?? ""}
+            disabled={isLoadingApps || apps.length === 0}
+            onChange={(event) => {
+              const nextAppId = event.target.value;
+              if (!nextAppId) {
+                return;
+              }
+
+              router.push(`/apps/${nextAppId}/tables`);
+              onNavigate?.();
+            }}
+            className="w-full rounded-lg bg-surface px-3 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {!currentApp && <option value="">アプリを選択</option>}
+            {apps.map((app) => (
+              <option key={app.id} value={app.id}>
+                {app.name}
+              </option>
+            ))}
+          </select>
+
+          <Link
+            href="/apps/new/ai"
+            onClick={onNavigate}
+            className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-primary transition-colors hover:text-emerald-400"
+          >
+            <Icon name="auto_awesome" size="sm" />
+            新しいアプリを作成
+          </Link>
+        </div>
+      )}
 
       <nav className="flex-1 space-y-1">
         {navItems.map((item) => {

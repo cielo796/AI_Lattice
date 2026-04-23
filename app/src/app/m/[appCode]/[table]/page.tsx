@@ -24,6 +24,9 @@ import {
 } from "@/lib/api/records";
 import {
   formatDateTime,
+  formatFieldKey,
+  formatPriorityLabel,
+  formatStatusLabel,
   getDisplayFields,
   getPriorityVariant,
   getRecordCustomer,
@@ -38,9 +41,9 @@ import type { RuntimeTableMeta } from "@/types/app";
 import type { AppRecord, Attachment, RecordComment } from "@/types/record";
 
 const tabs = [
-  { id: "all", label: "All" },
-  { id: "open", label: "Open" },
-  { id: "priority", label: "Priority" },
+  { id: "all", label: "すべて" },
+  { id: "open", label: "未対応" },
+  { id: "priority", label: "優先度高" },
 ];
 
 type MobileOverlay = "detail" | "create" | null;
@@ -90,7 +93,7 @@ function MobileRecordDetailView({
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const description = getRecordDescription(record);
-  const customer = getRecordCustomer(record) || "Unknown reporter";
+  const customer = getRecordCustomer(record) || "依頼者不明";
   const fields = getDisplayFields(record);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -129,7 +132,9 @@ function MobileRecordDetailView({
           </button>
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Badge variant={getStatusVariant(record.status)}>{record.status}</Badge>
+              <Badge variant={getStatusVariant(record.status)}>
+                {formatStatusLabel(record.status)}
+              </Badge>
               <span className="text-[10px] font-mono text-on-surface-variant">
                 {getRecordIdentifier(record)}
               </span>
@@ -156,20 +161,20 @@ function MobileRecordDetailView({
             </span>
           </div>
           <p className="text-sm leading-relaxed text-on-surface">
-            {description || "No description"}
+            {description || "説明はありません"}
           </p>
         </div>
 
         {fields.length > 0 && (
           <div className="mb-5">
             <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-              Record data
+              レコードデータ
             </div>
             <div className="space-y-2">
               {fields.map(([key, value]) => (
                 <div key={key} className="rounded-xl bg-surface-container p-4">
                   <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-                    {key}
+                    {formatFieldKey(key)}
                   </div>
                   <div className="text-sm text-on-surface">
                     {formatFieldValue(value)}
@@ -183,17 +188,17 @@ function MobileRecordDetailView({
         <div className="mb-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-              Attachments
+              添付ファイル
             </div>
             {isUploadingAttachment && (
               <div className="text-[10px] text-on-surface-variant">
-                Uploading...
+                アップロード中...
               </div>
             )}
           </div>
           {isLoadingActivity && attachments.length === 0 ? (
             <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
-              Loading attachments...
+              添付ファイルを読み込んでいます...
             </div>
           ) : attachments.length > 0 ? (
             <div className="space-y-2">
@@ -216,18 +221,18 @@ function MobileRecordDetailView({
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              No attachments yet.
+              添付ファイルはまだありません。
             </div>
           )}
         </div>
 
         <div>
           <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-            Comments
+            コメント
           </div>
           {isLoadingActivity && comments.length === 0 ? (
             <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
-              Loading comments...
+              コメントを読み込んでいます...
             </div>
           ) : comments.length > 0 ? (
             <div className="space-y-2">
@@ -235,9 +240,9 @@ function MobileRecordDetailView({
                 <div key={comment.id} className="rounded-xl bg-surface-container p-4">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      {comment.isSystem && <Badge variant="info">System</Badge>}
+                      {comment.isSystem && <Badge variant="info">システム</Badge>}
                       <span className="text-xs font-bold text-on-surface">
-                        {comment.isSystem ? "System event" : comment.createdBy}
+                        {comment.isSystem ? "システムイベント" : comment.createdBy}
                       </span>
                     </div>
                     <span className="text-[10px] text-on-surface-variant">
@@ -252,7 +257,7 @@ function MobileRecordDetailView({
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              No comments yet.
+              コメントはまだありません。
             </div>
           )}
         </div>
@@ -270,7 +275,7 @@ function MobileRecordDetailView({
             rows={3}
             value={commentText}
             onChange={(event) => setCommentText(event.target.value)}
-            placeholder="Add a comment..."
+            placeholder="コメントを追加..."
             className="w-full rounded-2xl bg-surface-container px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           <div className="flex items-center justify-between gap-3">
@@ -279,7 +284,7 @@ function MobileRecordDetailView({
               onClick={() => attachmentInputRef.current?.click()}
               disabled={!onAddAttachment || isUploadingAttachment}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container text-on-surface-variant disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Add attachment"
+              aria-label="添付ファイルを追加"
             >
               <Icon name="attach_file" size="sm" />
             </button>
@@ -288,7 +293,7 @@ function MobileRecordDetailView({
               size="sm"
               disabled={!commentText.trim() || isSubmittingComment || !onAddComment}
             >
-              {isSubmittingComment ? "Sending..." : "Send"}
+              {isSubmittingComment ? "送信中..." : "送信"}
             </Button>
           </div>
         </form>
@@ -323,7 +328,7 @@ export default function MobileRuntimePage() {
 
   useEffect(() => {
     if (!appCode || !tableCode) {
-      setError("Missing runtime route parameters.");
+      setError("実行画面のルートパラメータが見つかりません。");
       setIsLoadingRecords(false);
       setIsLoadingMeta(false);
       return;
@@ -351,7 +356,7 @@ export default function MobileRuntimePage() {
         setError(
           nextError instanceof Error
             ? nextError.message
-            : "Failed to load runtime records."
+            : "レコードの読み込みに失敗しました。"
         );
       } finally {
         if (!cancelled) {
@@ -394,7 +399,7 @@ export default function MobileRuntimePage() {
         setError(
           nextError instanceof Error
             ? nextError.message
-            : "Failed to load runtime schema."
+            : "スキーマの読み込みに失敗しました。"
         );
       } finally {
         if (!cancelled) {
@@ -445,7 +450,7 @@ export default function MobileRuntimePage() {
         setError(
           nextError instanceof Error
             ? nextError.message
-            : "Failed to load record activity."
+            : "レコード活動の読み込みに失敗しました。"
         );
       } finally {
         if (!cancelled) {
@@ -487,7 +492,7 @@ export default function MobileRuntimePage() {
       throw (
         nextError instanceof Error
           ? nextError
-          : new Error("Failed to create record.")
+          : new Error("レコードの作成に失敗しました。")
       );
     } finally {
       setIsSavingRecord(false);
@@ -510,7 +515,7 @@ export default function MobileRuntimePage() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : "Failed to add comment."
+          : "コメントの追加に失敗しました。"
       );
     } finally {
       setIsSubmittingComment(false);
@@ -531,7 +536,7 @@ export default function MobileRuntimePage() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : "Failed to add attachment."
+          : "添付ファイルの追加に失敗しました。"
       );
     } finally {
       setIsUploadingAttachment(false);
@@ -574,10 +579,10 @@ export default function MobileRuntimePage() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-widest text-primary">
-              Mobile runtime
+              モバイル実行画面
             </div>
             <h1 className="font-headline text-base font-extrabold tracking-tight text-white">
-              {tableMeta?.table.name || "Runtime"}
+              {tableMeta?.table.name || "実行画面"}
             </h1>
           </div>
           <button className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
@@ -593,7 +598,7 @@ export default function MobileRuntimePage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search records..."
+            placeholder="レコードを検索..."
             className="w-full rounded-full bg-surface-container py-2.5 pl-9 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
@@ -628,13 +633,13 @@ export default function MobileRuntimePage() {
 
         {(isLoadingRecords || isLoadingMeta) && (
           <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
-            Loading records...
+            レコードを読み込んでいます...
           </div>
         )}
 
         {!isLoadingRecords && filteredRecords.length === 0 && (
           <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-            No records found.
+            レコードが見つかりません。
           </div>
         )}
 
@@ -656,11 +661,11 @@ export default function MobileRuntimePage() {
                   </span>
                   <div className="flex items-center gap-2">
                     {typeof sentiment === "number" && sentiment < -0.5 && (
-                      <Badge variant="ai">Needs attention</Badge>
+                      <Badge variant="ai">要確認</Badge>
                     )}
                     {priority && (
                       <Badge variant={getPriorityVariant(priority)}>
-                        {priority}
+                        {formatPriorityLabel(priority)}
                       </Badge>
                     )}
                   </div>
@@ -671,16 +676,16 @@ export default function MobileRuntimePage() {
                 </h3>
 
                 <p className="mb-3 line-clamp-2 text-xs text-on-surface-variant">
-                  {getRecordDescription(record) || "No description"}
+                  {getRecordDescription(record) || "説明はありません"}
                 </p>
 
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-on-surface-variant">
-                    {record.status}
+                    {formatStatusLabel(record.status)}
                   </span>
                   <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
                     <Icon name="visibility" size="sm" />
-                    Open
+                    開く
                   </span>
                 </div>
               </button>
@@ -691,10 +696,10 @@ export default function MobileRuntimePage() {
 
       <nav className="glass-effect fixed bottom-0 left-0 right-0 z-20 flex items-center justify-around py-3">
         {[
-          { icon: "home", label: "Home" },
-          { icon: "apps", label: "Apps" },
-          { icon: "task", label: "Records", active: true },
-          { icon: "search", label: "Search" },
+          { icon: "home", label: "ホーム" },
+          { icon: "apps", label: "アプリ" },
+          { icon: "task", label: "レコード", active: true },
+          { icon: "search", label: "検索" },
         ].map((item) => (
           <button
             key={item.label}

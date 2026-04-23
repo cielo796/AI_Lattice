@@ -1,3 +1,5 @@
+import type { FieldType } from "@/types/app";
+
 export interface AIGeneratedApp {
   name: string;
   code: string;
@@ -30,6 +32,33 @@ export interface AIGeneratedView {
 export interface AIGeneratedWorkflow {
   name: string;
   triggerType: string;
+}
+
+export type GeneratedBlueprintFieldType = Extract<
+  FieldType,
+  "text" | "textarea" | "number" | "date" | "datetime" | "boolean" | "select"
+>;
+
+export interface GeneratedBlueprintField {
+  name: string;
+  code: string;
+  fieldType: GeneratedBlueprintFieldType;
+  required: boolean;
+  options?: string[];
+}
+
+export interface GeneratedBlueprintTable {
+  name: string;
+  code: string;
+  fields: GeneratedBlueprintField[];
+}
+
+export interface GeneratedAppBlueprint {
+  name: string;
+  code: string;
+  description: string;
+  aiInsight: string;
+  tables: GeneratedBlueprintTable[];
 }
 
 export interface AISummary {

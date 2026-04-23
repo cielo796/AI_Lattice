@@ -23,7 +23,7 @@ export function getRecordIdentifier(record: AppRecord | null | undefined) {
     getStringValue(data, "code") ||
     getStringValue(data, "id") ||
     record?.id ||
-    "Record"
+    "レコード"
   );
 }
 
@@ -72,19 +72,19 @@ export function formatRelativeTime(dateStr: string) {
   const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
 
   if (diffMinutes < 60) {
-    return `${diffMinutes}m ago`;
+    return `${diffMinutes}分前`;
   }
 
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) {
-    return `${diffHours}h ago`;
+    return `${diffHours}時間前`;
   }
 
-  return `${Math.floor(diffHours / 24)}d ago`;
+  return `${Math.floor(diffHours / 24)}日前`;
 }
 
 export function formatDateTime(dateStr: string) {
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -92,6 +92,93 @@ export function formatDateTime(dateStr: string) {
     minute: "2-digit",
     timeZoneName: "short",
   }).format(new Date(dateStr));
+}
+
+export function formatFieldKey(key: string) {
+  const labels: Record<string, string> = {
+    ticket_id: "チケット ID",
+    code: "コード",
+    id: "ID",
+    status: "ステータス",
+    priority: "優先度",
+    customer: "顧客",
+    requester: "依頼者",
+    account: "アカウント",
+    assignee: "担当者",
+    sentiment_score: "感情スコア",
+    created_at: "作成日時",
+    updated_at: "更新日時",
+  };
+
+  return labels[key] ?? key.replace(/[_-]+/g, " ");
+}
+
+export function formatPriorityLabel(priority: string) {
+  const normalized = priority.toLowerCase();
+
+  if (priority === "クリティカル" || normalized.includes("critical")) {
+    return "クリティカル";
+  }
+
+  if (priority === "高" || normalized.includes("high")) {
+    return "高";
+  }
+
+  if (priority === "中" || normalized.includes("medium")) {
+    return "中";
+  }
+
+  if (priority === "低" || normalized.includes("low")) {
+    return "低";
+  }
+
+  return priority;
+}
+
+export function formatStatusLabel(status: string) {
+  const normalized = status.toLowerCase();
+
+  if (normalized.includes("resolved")) {
+    return "解決済み";
+  }
+
+  if (normalized.includes("closed")) {
+    return "完了";
+  }
+
+  if (normalized.includes("approved")) {
+    return "承認済み";
+  }
+
+  if (normalized.includes("open")) {
+    return "未対応";
+  }
+
+  if (normalized.includes("active")) {
+    return "有効";
+  }
+
+  if (normalized.includes("progress")) {
+    return "対応中";
+  }
+
+  if (normalized.includes("pending")) {
+    return "保留中";
+  }
+
+  if (normalized.includes("waiting")) {
+    return "待機中";
+  }
+
+  if (normalized.includes("rejected")) {
+    return "却下";
+  }
+
+  if (normalized.includes("failed")) {
+    return "失敗";
+  }
+
+  return status;
 }
 
 export function getPriorityVariant(priority: string): BadgeVariant {
