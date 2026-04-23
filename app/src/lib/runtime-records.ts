@@ -1,6 +1,8 @@
+import type { AppField } from "@/types/app";
 import type { AppRecord } from "@/types/record";
 
 type BadgeVariant = "default" | "success" | "warning" | "error" | "info" | "ai";
+type FieldLabelSource = Pick<AppField, "code" | "name">;
 
 export function getRecordData(record: AppRecord | null | undefined) {
   if (!record || !record.data || typeof record.data !== "object") {
@@ -94,7 +96,7 @@ export function formatDateTime(dateStr: string) {
   }).format(new Date(dateStr));
 }
 
-export function formatFieldKey(key: string) {
+function formatFallbackFieldKey(key: string) {
   const labels: Record<string, string> = {
     ticket_id: "チケット ID",
     code: "コード",
@@ -111,6 +113,21 @@ export function formatFieldKey(key: string) {
   };
 
   return labels[key] ?? key.replace(/[_-]+/g, " ");
+}
+
+export function getFieldDisplayName(field: FieldLabelSource) {
+  const configuredName = field.name.trim();
+  return configuredName || formatFallbackFieldKey(field.code);
+}
+
+export function formatFieldKey(key: string, fields: FieldLabelSource[] = []) {
+  const matchedField = fields.find((field) => field.code === key);
+
+  if (matchedField) {
+    return getFieldDisplayName(matchedField);
+  }
+
+  return formatFallbackFieldKey(key);
 }
 
 export function formatPriorityLabel(priority: string) {

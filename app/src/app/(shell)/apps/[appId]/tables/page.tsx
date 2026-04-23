@@ -453,16 +453,39 @@ export default function TableDesignerPage() {
                 )}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <Input value={fieldForm.name} onChange={(event) => setFieldForm((current) => ({ ...current, name: event.target.value }))} placeholder="フィールド名" required disabled={!activeTable || isSavingField} />
-                <Input value={fieldForm.code} onChange={(event) => setFieldForm((current) => ({ ...current, code: event.target.value }))} placeholder="field_code" disabled={!activeTable || isSavingField} />
-                <select value={fieldForm.fieldType} onChange={(event) => setFieldForm((current) => ({ ...current, fieldType: event.target.value as FieldType }))} disabled={!activeTable || isSavingField} className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30">
-                  {FIELD_TYPES.map((fieldType) => (
-                    <option key={fieldType} value={fieldType}>
-                      {FIELD_META[fieldType].label}
-                    </option>
-                  ))}
-                </select>
-                <Input value={fieldForm.optionsText} onChange={(event) => setFieldForm((current) => ({ ...current, optionsText: event.target.value }))} placeholder="選択肢 A, 選択肢 B" disabled={!activeTable || isSavingField || fieldForm.fieldType !== "select"} />
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                    表示名
+                  </label>
+                  <Input value={fieldForm.name} onChange={(event) => setFieldForm((current) => ({ ...current, name: event.target.value }))} placeholder="件名" required disabled={!activeTable || isSavingField} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                    フィールドコード
+                  </label>
+                  <Input value={fieldForm.code} onChange={(event) => setFieldForm((current) => ({ ...current, code: event.target.value }))} placeholder="field_code" disabled={!activeTable || isSavingField} />
+                </div>
+                <div className="rounded-lg border border-outline-variant/30 bg-surface-container-high/60 px-3 py-2 text-xs text-on-surface-variant md:col-span-2">
+                  表示名は画面に表示される名称です。コードは API とレコード保存に使われます。
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                    フィールド型
+                  </label>
+                  <select value={fieldForm.fieldType} onChange={(event) => setFieldForm((current) => ({ ...current, fieldType: event.target.value as FieldType }))} disabled={!activeTable || isSavingField} className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    {FIELD_TYPES.map((fieldType) => (
+                      <option key={fieldType} value={fieldType}>
+                        {FIELD_META[fieldType].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                    選択肢
+                  </label>
+                  <Input value={fieldForm.optionsText} onChange={(event) => setFieldForm((current) => ({ ...current, optionsText: event.target.value }))} placeholder="選択肢 A, 選択肢 B" disabled={!activeTable || isSavingField || fieldForm.fieldType !== "select"} />
+                </div>
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
@@ -482,7 +505,10 @@ export default function TableDesignerPage() {
             </form>
 
             <div className="hidden gap-4 px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant md:grid md:grid-cols-[minmax(0,2fr)_160px_120px]">
-              <div>フィールド</div>
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                <div>表示名</div>
+                <div>フィールドコード</div>
+              </div>
               <div>種類</div>
               <div>操作</div>
             </div>
@@ -498,16 +524,30 @@ export default function TableDesignerPage() {
                 <div key={field.id} className="grid grid-cols-1 gap-4 rounded-lg bg-surface-container p-4 md:grid-cols-[minmax(0,2fr)_160px_120px] md:items-center">
                   <div className="min-w-0">
                     <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant md:hidden">
-                      フィールド
+                      表示名 / フィールドコード
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={cn("truncate font-mono text-sm", field.fieldType === "ai_generated" ? "font-bold text-primary" : "text-on-surface")}>
-                        {field.name}
-                      </span>
-                      {field.required && <span className="text-xs text-error">*</span>}
-                      {field.uniqueFlag && <Badge variant="info">一意</Badge>}
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                          表示名
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("truncate text-sm", field.fieldType === "ai_generated" ? "font-bold text-primary" : "text-on-surface")}>
+                            {field.name}
+                          </span>
+                          {field.required && <span className="text-xs text-error">*</span>}
+                          {field.uniqueFlag && <Badge variant="info">一意</Badge>}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                          フィールドコード
+                        </div>
+                        <div className="truncate font-mono text-xs text-on-surface-variant">
+                          {field.code}
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-1 text-xs text-on-surface-variant">{field.code}</div>
                   </div>
                   <div>
                     <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant md:hidden">

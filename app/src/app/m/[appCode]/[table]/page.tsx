@@ -37,7 +37,7 @@ import {
   getRecordTitle,
   getStatusVariant,
 } from "@/lib/runtime-records";
-import type { RuntimeTableMeta } from "@/types/app";
+import type { AppField, RuntimeTableMeta } from "@/types/app";
 import type { AppRecord, Attachment, RecordComment } from "@/types/record";
 
 const tabs = [
@@ -51,6 +51,7 @@ type MobileOverlay = "detail" | "create" | null;
 interface MobileRecordDetailViewProps {
   error?: string | null;
   record: AppRecord;
+  fieldDefinitions?: AppField[];
   comments: RecordComment[];
   attachments: Attachment[];
   isLoadingActivity?: boolean;
@@ -80,6 +81,7 @@ function formatFieldValue(value: unknown) {
 function MobileRecordDetailView({
   error,
   record,
+  fieldDefinitions = [],
   comments,
   attachments,
   isLoadingActivity = false,
@@ -174,7 +176,7 @@ function MobileRecordDetailView({
               {fields.map(([key, value]) => (
                 <div key={key} className="rounded-xl bg-surface-container p-4">
                   <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-                    {formatFieldKey(key)}
+                    {formatFieldKey(key, fieldDefinitions)}
                   </div>
                   <div className="text-sm text-on-surface">
                     {formatFieldValue(value)}
@@ -729,6 +731,7 @@ export default function MobileRuntimePage() {
         <MobileRecordDetailView
           error={error}
           record={selectedRecord}
+          fieldDefinitions={tableMeta?.fields}
           comments={comments}
           attachments={attachments}
           isLoadingActivity={isLoadingActivity}

@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/shared/Button";
 import { Input } from "@/components/shared/Input";
 import { cn } from "@/lib/cn";
+import { getFieldDisplayName } from "@/lib/runtime-records";
 import type { AppField } from "@/types/app";
 import type { AppRecord } from "@/types/record";
 
@@ -20,22 +21,7 @@ interface RecordCreatePanelProps {
 type DraftValue = string | boolean;
 
 function formatFieldLabel(field: AppField) {
-  const labelByCode: Record<string, string> = {
-    ticket_id: "チケット ID",
-    subject: "件名",
-    title: "タイトル",
-    description: "説明",
-    details: "詳細",
-    priority: "優先度",
-    status: "ステータス",
-    customer: "顧客",
-    requester: "依頼者",
-    assignee: "担当者",
-  };
-
-  return labelByCode[field.code] ?? field.name
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (value) => value.toUpperCase());
+  return getFieldDisplayName(field);
 }
 
 function formatFieldType(fieldType: AppField["fieldType"]) {

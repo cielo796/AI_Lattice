@@ -546,6 +546,7 @@ export default function RuntimeViewPage() {
 
             <RecordDetail
               record={selectedRecord}
+              fieldDefinitions={tableMeta?.fields}
               comments={comments}
               attachments={attachments}
               isLoadingActivity={isLoadingActivity}

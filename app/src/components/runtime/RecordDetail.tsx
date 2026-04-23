@@ -15,10 +15,12 @@ import {
   getRecordTitle,
   getStatusVariant,
 } from "@/lib/runtime-records";
+import type { AppField } from "@/types/app";
 import type { AppRecord, Attachment, RecordComment } from "@/types/record";
 
 interface RecordDetailProps {
   record: AppRecord | null;
+  fieldDefinitions?: AppField[];
   comments: RecordComment[];
   attachments: Attachment[];
   isLoadingActivity?: boolean;
@@ -47,6 +49,7 @@ function formatFieldValue(value: unknown) {
 
 export function RecordDetail({
   record,
+  fieldDefinitions = [],
   comments,
   attachments,
   isLoadingActivity = false,
@@ -168,7 +171,7 @@ export function RecordDetail({
               {fields.map(([key, value]) => (
                 <div key={key} className="rounded-lg bg-surface-container p-3">
                   <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-                    {formatFieldKey(key)}
+                    {formatFieldKey(key, fieldDefinitions)}
                   </div>
                   <div className="text-sm text-on-surface">
                     {formatFieldValue(value)}
