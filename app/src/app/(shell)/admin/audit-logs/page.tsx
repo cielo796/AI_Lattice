@@ -17,6 +17,14 @@ const actionTypeVariant: { [key: string]: "info" | "ai" | "warning" | "default" 
   API_KEY_ROT: "warning",
 };
 
+const actionTypeLabel: Record<string, string> = {
+  SCHEMA_UPDATE: "スキーマ更新",
+  NODE_SCALING: "ノード増強",
+  ACCESS_DENIED: "アクセス拒否",
+  AUTH_LOGIN: "ログイン",
+  API_KEY_ROT: "API キー更新",
+};
+
 export default function AuditLogsPage() {
   const [selected, setSelected] = useState<AuditLog>(mockAuditLogs[0]);
 
@@ -109,7 +117,7 @@ export default function AuditLogsPage() {
                       variant={actionTypeVariant[log.actionType] ?? "default"}
                       className="text-[9px]"
                     >
-                      {log.actionType}
+                      {actionTypeLabel[log.actionType] ?? log.actionType}
                     </Badge>
                   </div>
                   <div className="text-xs font-mono text-on-surface-variant truncate">
@@ -150,7 +158,7 @@ export default function AuditLogsPage() {
                 </span>
               </div>
               <div className="text-lg font-headline font-bold text-white">
-                {selected.actionType}
+                {actionTypeLabel[selected.actionType] ?? selected.actionType}
               </div>
               <p className="text-xs text-on-surface-variant mt-2 leading-relaxed">
                 {String(selected.detailJson?.changes ?? selected.detailJson?.reason ?? "システムに対して主要な更新が実行されました。")}
@@ -178,7 +186,7 @@ export default function AuditLogsPage() {
 
             <div>
               <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-                Raw Payload
+                生データ
               </div>
               <pre className="bg-surface-container-low rounded-lg p-3 text-[10px] font-mono text-on-surface-variant overflow-x-auto whitespace-pre-wrap">
 {JSON.stringify(

@@ -23,6 +23,8 @@ import {
 } from "@/lib/api/records";
 import {
   formatRelativeTime,
+  formatPriorityLabel,
+  formatStatusLabel,
   getPriorityVariant,
   getRecordCustomer,
   getRecordDescription,
@@ -47,7 +49,7 @@ function getParam(value: string | string[] | undefined) {
 
 function buildSummary(record: AppRecord | null) {
   if (!record) {
-    return "Select a record to inspect the latest activity.";
+    return "レコードを選択すると、最新の活動内容を確認できます。";
   }
 
   const priority = getRecordPriority(record);
@@ -55,10 +57,10 @@ function buildSummary(record: AppRecord | null) {
   const description = getRecordDescription(record);
 
   return [
-    `${getRecordTitle(record)} is currently ${record.status}.`,
-    priority ? `Priority is ${priority}.` : null,
-    customer ? `Reporter is ${customer}.` : null,
-    description ? `Latest context: ${description}` : null,
+    `${getRecordTitle(record)} は現在「${formatStatusLabel(record.status)}」です。`,
+    priority ? `優先度は「${formatPriorityLabel(priority)}」です。` : null,
+    customer ? `依頼者は ${customer} です。` : null,
+    description ? `最新の内容: ${description}` : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -72,8 +74,8 @@ function buildRecommendedActions(record: AppRecord | null): RecommendedAction[] 
   const actions: RecommendedAction[] = [
     {
       icon: "visibility",
-      label: "Review details",
-      description: "Check comments and attachments before updating the record.",
+      label: "詳細を確認",
+      description: "更新前にコメントと添付ファイルを確認します。",
     },
   ];
 
@@ -81,16 +83,16 @@ function buildRecommendedActions(record: AppRecord | null): RecommendedAction[] 
   if (priority && getPriorityVariant(priority) === "error") {
     actions.unshift({
       icon: "priority_high",
-      label: "Escalate now",
-      description: "Critical incidents should be routed to the on-call owner.",
+      label: "すぐにエスカレーション",
+      description: "重要インシデントはオンコール担当へ連携してください。",
     });
   }
 
   if (record.status.toLowerCase().includes("waiting")) {
     actions.push({
       icon: "mail",
-      label: "Follow up",
-      description: "The record is waiting. Send an update to unblock it.",
+      label: "フォローアップ",
+      description: "待機中のレコードです。進行のために更新を送信してください。",
     });
   }
 
@@ -98,8 +100,8 @@ function buildRecommendedActions(record: AppRecord | null): RecommendedAction[] 
   if (typeof sentiment === "number" && sentiment < -0.5) {
     actions.push({
       icon: "sentiment_dissatisfied",
-      label: "Customer risk",
-      description: "Negative sentiment suggests a proactive reply is useful.",
+      label: "顧客リスク",
+      description: "ネガティブな感情があるため、先回りした返信が有効です。",
     });
   }
 
@@ -153,7 +155,7 @@ export default function RuntimeViewPage() {
 
   useEffect(() => {
     if (!appCode || !tableCode) {
-      setError("Missing runtime route parameters.");
+      setError("実行画面のルートパラメータが見つかりません。");
       setIsLoadingRecords(false);
       setIsLoadingMeta(false);
       return;
@@ -191,7 +193,7 @@ export default function RuntimeViewPage() {
         setError(
           nextError instanceof Error
             ? nextError.message
-            : "Failed to load runtime records."
+            : "レコードの読み込みに失敗しました。"
         );
       } finally {
         if (!cancelled) {
@@ -234,7 +236,7 @@ export default function RuntimeViewPage() {
         setError(
           nextError instanceof Error
             ? nextError.message
-            : "Failed to load runtime schema."
+            : "スキーマの読み込みに失敗しました。"
         );
       } finally {
         if (!cancelled) {
@@ -285,7 +287,7 @@ export default function RuntimeViewPage() {
         setError(
           nextError instanceof Error
             ? nextError.message
-            : "Failed to load record activity."
+            : "レコード活動の読み込みに失敗しました。"
         );
       } finally {
         if (!cancelled) {
@@ -317,7 +319,7 @@ export default function RuntimeViewPage() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : "Failed to add comment."
+          : "コメントの追加に失敗しました。"
       );
     } finally {
       setIsSubmittingComment(false);
@@ -345,7 +347,7 @@ export default function RuntimeViewPage() {
       throw (
         nextError instanceof Error
           ? nextError
-          : new Error("Failed to create record.")
+          : new Error("レコードの作成に失敗しました。")
       );
     } finally {
       setIsSavingRecord(false);
@@ -374,7 +376,7 @@ export default function RuntimeViewPage() {
       throw (
         nextError instanceof Error
           ? nextError
-          : new Error("Failed to update record.")
+          : new Error("レコードの更新に失敗しました。")
       );
     } finally {
       setIsSavingRecord(false);
@@ -387,7 +389,7 @@ export default function RuntimeViewPage() {
     }
 
     const confirmed = window.confirm(
-      `Delete "${getRecordTitle(selectedRecord)}"? This record will be removed from the runtime list.`
+      `「${getRecordTitle(selectedRecord)}」を削除しますか？このレコードは一覧から削除されます。`
     );
 
     if (!confirmed) {
@@ -409,7 +411,7 @@ export default function RuntimeViewPage() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : "Failed to delete record."
+          : "レコードの削除に失敗しました。"
       );
     } finally {
       setIsDeletingRecord(false);
@@ -430,7 +432,7 @@ export default function RuntimeViewPage() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : "Failed to add attachment."
+          : "添付ファイルの追加に失敗しました。"
       );
     } finally {
       setIsUploadingAttachment(false);
@@ -446,7 +448,7 @@ export default function RuntimeViewPage() {
       (currentAttachment) => currentAttachment.id === attachmentId
     );
     const confirmed = window.confirm(
-      `Remove "${attachment?.fileName ?? "this attachment"}"?`
+      `「${attachment?.fileName ?? "この添付ファイル"}」を削除しますか？`
     );
 
     if (!confirmed) {
@@ -464,7 +466,7 @@ export default function RuntimeViewPage() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : "Failed to remove attachment."
+          : "添付ファイルの削除に失敗しました。"
       );
     } finally {
       setDeletingAttachmentId(null);
@@ -481,8 +483,8 @@ export default function RuntimeViewPage() {
     <>
       <TopBar
         breadcrumbs={[
-          { label: "Runtime" },
-          { label: tableMeta?.table.name || tableCode || "Records" },
+          { label: "実行画面" },
+          { label: tableMeta?.table.name || tableCode || "レコード" },
         ]}
         actions={
           <>
@@ -492,7 +494,7 @@ export default function RuntimeViewPage() {
               onClick={() => setRefreshKey((current) => current + 1)}
             >
               <Icon name="sync" size="sm" />
-              Refresh
+              更新
             </Button>
             <Button
               variant="primary"
@@ -501,67 +503,70 @@ export default function RuntimeViewPage() {
               disabled={isLoadingMeta}
             >
               <Icon name="add" size="sm" />
-              {isLoadingMeta ? "Loading schema..." : "New record"}
+              {isLoadingMeta ? "スキーマを読み込み中..." : "新規レコード"}
             </Button>
           </>
         }
       />
 
-      <main className="flex h-screen pt-16">
-        <RecordList
-          records={records}
-          selectedId={selectedId ?? undefined}
-          isLoading={isLoadingRecords}
-          onSelect={(record) => setSelectedId(record.id)}
-        />
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          {error && (
-            <div className="border-b border-error/20 bg-error/10 px-8 py-3 text-sm text-error">
-              {error}
-            </div>
-          )}
-
-          {shouldRenderRecordPanel && (
-            <RecordCreatePanel
-              key={
-                recordPanelMode === "edit"
-                  ? `edit-${selectedRecord?.id ?? "none"}`
-                  : "create"
-              }
-              fields={tableMeta?.fields ?? []}
-              mode={recordPanelMode ?? "create"}
-              initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
-              tableName={tableMeta?.table.name}
-              isSubmitting={isSavingRecord}
-              onClose={() => setRecordPanelMode(null)}
-              onSubmit={
-                recordPanelMode === "edit" ? handleUpdateRecord : handleCreateRecord
-              }
-            />
-          )}
-
-          <RecordDetail
-            record={selectedRecord}
-            comments={comments}
-            attachments={attachments}
-            isLoadingActivity={isLoadingActivity}
-            isSubmittingComment={isSubmittingComment}
-            isUploadingAttachment={isUploadingAttachment}
-            isDeletingRecord={isDeletingRecord}
-            deletingAttachmentId={deletingAttachmentId}
-            onAddComment={handleAddComment}
-            onAddAttachment={handleAddAttachment}
-            onEditRecord={() => setRecordPanelMode("edit")}
-            onDeleteRecord={handleDeleteRecord}
-            onDeleteAttachment={handleDeleteAttachment}
+      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+          <RecordList
+            records={records}
+            selectedId={selectedId ?? undefined}
+            isLoading={isLoadingRecords}
+            onSelect={(record) => setSelectedId(record.id)}
           />
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            {error && (
+              <div className="border-b border-error/20 bg-error/10 px-4 py-3 text-sm text-error md:px-8">
+                {error}
+              </div>
+            )}
+
+            {shouldRenderRecordPanel && (
+              <RecordCreatePanel
+                key={
+                  recordPanelMode === "edit"
+                    ? `edit-${selectedRecord?.id ?? "none"}`
+                    : "create"
+                }
+                fields={tableMeta?.fields ?? []}
+                mode={recordPanelMode ?? "create"}
+                initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
+                tableName={tableMeta?.table.name}
+                isSubmitting={isSavingRecord}
+                onClose={() => setRecordPanelMode(null)}
+                onSubmit={
+                  recordPanelMode === "edit" ? handleUpdateRecord : handleCreateRecord
+                }
+              />
+            )}
+
+            <RecordDetail
+              record={selectedRecord}
+              fieldDefinitions={tableMeta?.fields}
+              comments={comments}
+              attachments={attachments}
+              isLoadingActivity={isLoadingActivity}
+              isSubmittingComment={isSubmittingComment}
+              isUploadingAttachment={isUploadingAttachment}
+              isDeletingRecord={isDeletingRecord}
+              deletingAttachmentId={deletingAttachmentId}
+              onAddComment={handleAddComment}
+              onAddAttachment={handleAddAttachment}
+              onEditRecord={() => setRecordPanelMode("edit")}
+              onDeleteRecord={handleDeleteRecord}
+              onDeleteAttachment={handleDeleteAttachment}
+            />
+          </div>
         </div>
 
-        <AISidebar>
+        <AISidebar className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
           <div>
             <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-primary">
-              Runtime summary
+              実行サマリー
             </div>
             <p className="text-xs leading-relaxed text-on-surface">
               {buildSummary(selectedRecord)}
@@ -570,7 +575,7 @@ export default function RuntimeViewPage() {
 
           <div>
             <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">
-              Recommended actions
+              推奨アクション
             </div>
             <div className="space-y-2">
               {recommendedActions.length > 0 ? (
@@ -598,7 +603,7 @@ export default function RuntimeViewPage() {
                 ))
               ) : (
                 <div className="rounded-lg bg-surface-container p-3 text-xs text-on-surface-variant">
-                  No suggested actions yet.
+                  推奨アクションはまだありません。
                 </div>
               )}
             </div>
@@ -606,7 +611,7 @@ export default function RuntimeViewPage() {
 
           <div>
             <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">
-              Similar records
+              類似レコード
             </div>
             <div className="space-y-2">
               {similarRecords.length > 0 ? (
@@ -622,20 +627,20 @@ export default function RuntimeViewPage() {
                         {formatRelativeTime(record.updatedAt)}
                       </span>
                       <span className="text-[9px] text-on-surface-variant">
-                        {record.status}
+                        {formatStatusLabel(record.status)}
                       </span>
                     </div>
                     <div className="mb-1 line-clamp-2 text-xs font-bold text-on-surface">
                       {getRecordTitle(record)}
                     </div>
                     <div className="line-clamp-2 text-[10px] text-on-surface-variant">
-                      {getRecordDescription(record) || "No description"}
+                      {getRecordDescription(record) || "説明はありません"}
                     </div>
                   </button>
                 ))
               ) : (
                 <div className="rounded-lg bg-surface-container p-3 text-xs text-on-surface-variant">
-                  No related records found in the current table.
+                  現在のテーブルに関連レコードは見つかりません。
                 </div>
               )}
             </div>

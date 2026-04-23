@@ -1,46 +1,53 @@
 "use client";
 
-import { cn } from "@/lib/cn";
 import { Icon } from "@/components/shared/Icon";
-import type { AIGeneratedApp } from "@/types/ai";
+import { cn } from "@/lib/cn";
 
 interface GeneratedAssetsListProps {
-  app: AIGeneratedApp;
-  activeTableCode?: string;
-  onSelectTable?: (code: string) => void;
+  aiInsight: string;
+  tables: Array<{
+    id: string;
+    name: string;
+    fieldCount: number;
+  }>;
+  activeTableId?: string;
+  onSelectTable?: (tableId: string) => void;
 }
 
 export function GeneratedAssetsList({
-  app,
-  activeTableCode,
+  aiInsight,
+  tables,
+  activeTableId,
   onSelectTable,
 }: GeneratedAssetsListProps) {
   return (
     <div>
-      <h3 className="font-headline font-bold text-sm text-on-surface-variant uppercase tracking-widest mb-6">
-        生成されたアセット
+      <h3 className="mb-6 font-headline text-sm font-bold uppercase tracking-widest text-on-surface-variant">
+        生成された構成案
       </h3>
       <div className="space-y-6">
-        {/* Tables */}
         <div>
-          <div className="flex items-center gap-2 mb-3 px-2">
+          <div className="mb-3 flex items-center gap-2 px-2">
             <Icon name="table_chart" size="sm" className="text-on-surface-variant" />
             <span className="text-sm font-bold text-on-surface">テーブル</span>
           </div>
           <div className="space-y-1">
-            {app.tables.map((t) => (
+            {tables.map((table) => (
               <button
-                key={t.code}
-                onClick={() => onSelectTable?.(t.code)}
+                key={table.id}
+                onClick={() => onSelectTable?.(table.id)}
                 className={cn(
-                  "w-full flex items-center justify-between p-2 rounded-lg text-sm transition-colors",
-                  activeTableCode === t.code
-                    ? "bg-surface-container-high text-primary font-semibold"
-                    : "hover:bg-surface-container-high text-on-surface-variant"
+                  "flex w-full items-center rounded-lg p-2 text-sm transition-colors",
+                  activeTableId === table.id
+                    ? "bg-surface-container-high font-semibold text-primary"
+                    : "text-on-surface-variant hover:bg-surface-container-high"
                 )}
               >
-                <span>{t.name}</span>
-                {activeTableCode === t.code && (
+                <span>{table.name}</span>
+                <span className="ml-auto mr-2 text-[10px] text-on-surface-variant">
+                  {table.fieldCount} フィールド
+                </span>
+                {activeTableId === table.id && (
                   <Icon name="check_circle" size="sm" className="text-primary" filled />
                 )}
               </button>
@@ -48,40 +55,12 @@ export function GeneratedAssetsList({
           </div>
         </div>
 
-        {/* Views */}
-        <div>
-          <div className="flex items-center gap-2 mb-3 px-2">
-            <Icon name="grid_view" size="sm" className="text-on-surface-variant" />
-            <span className="text-sm font-bold text-on-surface">ビュー</span>
+        <div className="rounded-xl border border-primary/15 bg-emerald-950/20 p-4">
+          <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary">
+            <Icon name="auto_awesome" size="sm" filled className="text-primary" />
+            AI インサイト
           </div>
-          <div className="space-y-1">
-            {app.views.map((v) => (
-              <div
-                key={v.name}
-                className="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant text-sm transition-colors"
-              >
-                <span>{v.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Workflows */}
-        <div>
-          <div className="flex items-center gap-2 mb-3 px-2">
-            <Icon name="account_tree" size="sm" className="text-on-surface-variant" />
-            <span className="text-sm font-bold text-on-surface">ワークフロー</span>
-          </div>
-          <div className="space-y-1">
-            {app.workflows.map((w) => (
-              <div
-                key={w.name}
-                className="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant text-sm transition-colors"
-              >
-                <span>{w.name}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-sm leading-relaxed text-on-surface">{aiInsight}</p>
         </div>
       </div>
     </div>

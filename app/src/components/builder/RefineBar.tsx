@@ -8,8 +8,8 @@ export function RefineBar() {
   const router = useRouter();
 
   return (
-    <footer className="fixed bottom-0 right-0 left-64 h-24 glass-effect flex items-center px-12 z-50">
-      <div className="flex-1 max-w-4xl mx-auto flex items-center gap-6">
+    <footer className="glass-effect fixed bottom-0 left-0 right-0 z-50 px-4 py-4 md:left-64 md:h-24 md:px-12 md:py-0">
+      <div className="mx-auto flex max-w-4xl flex-col gap-4 md:flex-row md:items-center md:gap-6">
         <div className="flex-1 relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant text-lg">
             edit_note
@@ -19,7 +19,7 @@ export function RefineBar() {
             placeholder="AIで調整（例：SLA状態というステータス項目を追加）"
           />
         </div>
-        <div className="flex gap-4">
+        <div className="flex justify-end gap-4">
           <Button
             variant="primary"
             size="lg"

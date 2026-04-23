@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/shared/Button";
 import { Input } from "@/components/shared/Input";
 import { cn } from "@/lib/cn";
+import { getFieldDisplayName } from "@/lib/runtime-records";
 import type { AppField } from "@/types/app";
 import type { AppRecord } from "@/types/record";
 
@@ -20,9 +21,26 @@ interface RecordCreatePanelProps {
 type DraftValue = string | boolean;
 
 function formatFieldLabel(field: AppField) {
-  return field.name
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (value) => value.toUpperCase());
+  return getFieldDisplayName(field);
+}
+
+function formatFieldType(fieldType: AppField["fieldType"]) {
+  const labels: Record<AppField["fieldType"], string> = {
+    text: "テキスト",
+    textarea: "長文テキスト",
+    number: "数値",
+    date: "日付",
+    datetime: "日時",
+    boolean: "真偽値",
+    select: "選択式",
+    user_ref: "ユーザー参照",
+    master_ref: "マスター参照",
+    file: "ファイル",
+    ai_generated: "AI 生成",
+    calculated: "計算式",
+  };
+
+  return labels[fieldType] ?? fieldType;
 }
 
 function getSelectOptions(field: AppField) {
@@ -127,7 +145,7 @@ function normalizeDraft(
       const numericValue = Number(trimmedValue);
 
       if (Number.isNaN(numericValue)) {
-        throw new Error(`${formatFieldLabel(field)} must be a number.`);
+        throw new Error(`${formatFieldLabel(field)}は数値で入力してください。`);
       }
 
       data[field.code] = numericValue;
@@ -163,7 +181,7 @@ function renderFieldInput(
         value={typeof value === "string" ? value : ""}
         onChange={(event) => onChange(event.target.value)}
         className={cn(sharedClassName, "resize-y")}
-        placeholder={`Enter ${formatFieldLabel(field).toLowerCase()}`}
+        placeholder={`${formatFieldLabel(field)}を入力`}
       />
     );
   }
@@ -171,7 +189,7 @@ function renderFieldInput(
   if (field.fieldType === "boolean") {
     return (
       <label className="flex min-h-[50px] items-center justify-between rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface">
-        <span>Enabled</span>
+        <span>有効</span>
         <input
           type="checkbox"
           checked={Boolean(value)}
@@ -191,7 +209,7 @@ function renderFieldInput(
         onChange={(event) => onChange(event.target.value)}
         className={sharedClassName}
       >
-        <option value="">Select an option</option>
+        <option value="">選択してください</option>
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
@@ -227,7 +245,7 @@ function renderFieldInput(
         type="number"
         value={typeof value === "string" ? value : ""}
         onChange={(event) => onChange(event.target.value)}
-        placeholder={`Enter ${formatFieldLabel(field).toLowerCase()}`}
+        placeholder={`${formatFieldLabel(field)}を入力`}
       />
     );
   }
@@ -237,7 +255,7 @@ function renderFieldInput(
       type="text"
       value={typeof value === "string" ? value : ""}
       onChange={(event) => onChange(event.target.value)}
-      placeholder={`Enter ${formatFieldLabel(field).toLowerCase()}`}
+      placeholder={`${formatFieldLabel(field)}を入力`}
     />
   );
 }
@@ -265,7 +283,7 @@ export function RecordCreatePanel({
 
     const missingFields = getMissingRequiredFields(fields, draft);
     if (missingFields.length > 0) {
-      setFormError(`Required fields: ${missingFields.join(", ")}`);
+      setFormError(`必須項目: ${missingFields.join(", ")}`);
       return;
     }
 
@@ -279,23 +297,25 @@ export function RecordCreatePanel({
         error instanceof Error
           ? error.message
           : mode === "edit"
-            ? "Failed to update the record."
-            : "Failed to create the record."
+            ? "レコードの更新に失敗しました。"
+            : "レコードの作成に失敗しました。"
       );
     }
   }
 
-  const title = mode === "edit" ? "Edit record" : "Create record";
+  const title = mode === "edit" ? "レコード編集" : "レコード作成";
   const heading =
-    mode === "edit" ? `Update ${tableName ?? "record"}` : `New ${tableName ?? "record"}`;
+    mode === "edit"
+      ? `${tableName ?? "レコード"}を更新`
+      : `新規${tableName ?? "レコード"}`;
   const submitLabel =
     mode === "edit"
       ? isSubmitting
-        ? "Saving..."
-        : "Save changes"
+        ? "保存中..."
+        : "変更を保存"
       : isSubmitting
-        ? "Creating..."
-        : "Create record";
+        ? "作成中..."
+        : "レコードを作成";
 
   return (
     <section className="border-b border-outline-variant/30 bg-surface-container px-8 py-6">
@@ -309,7 +329,7 @@ export function RecordCreatePanel({
           </h2>
         </div>
         <Button type="button" variant="ghost" onClick={onClose}>
-          Cancel
+          キャンセル
         </Button>
       </div>
 
@@ -330,7 +350,7 @@ export function RecordCreatePanel({
                   </label>
                   {field.required && (
                     <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                      Required
+                      必須
                     </span>
                   )}
                 </div>
@@ -341,15 +361,14 @@ export function RecordCreatePanel({
                   }));
                 })}
                 <div className="text-[11px] uppercase tracking-wider text-on-surface-variant">
-                  {field.fieldType}
+                  {formatFieldType(field.fieldType)}
                 </div>
               </div>
             ))}
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-            This table has no runtime fields yet. The record will be saved with
-            an empty payload.
+            このテーブルには実行時フィールドがまだありません。レコードは空のデータで保存されます。
           </div>
         )}
 
@@ -361,7 +380,7 @@ export function RecordCreatePanel({
 
         <div className="mt-5 flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
+            キャンセル
           </Button>
           <Button type="submit" disabled={isSubmitting || !onSubmit}>
             {submitLabel}

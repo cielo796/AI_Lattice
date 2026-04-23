@@ -1,5 +1,6 @@
 "use client";
 
+import { ShellChromeProvider } from "./ShellChrome";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -12,10 +13,12 @@ interface AppShellProps {
 
 export function AppShell({ children, title, breadcrumbs, actions }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-surface">
-      <Sidebar />
-      <TopBar title={title} breadcrumbs={breadcrumbs} actions={actions} />
-      <main className="ml-64 pt-16 min-h-screen">{children}</main>
-    </div>
+    <ShellChromeProvider>
+      <div className="min-h-screen bg-surface">
+        <Sidebar />
+        <TopBar title={title} breadcrumbs={breadcrumbs} actions={actions} />
+        <main className="min-h-screen pt-16 md:ml-64">{children}</main>
+      </div>
+    </ShellChromeProvider>
   );
 }

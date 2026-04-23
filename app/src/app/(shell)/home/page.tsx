@@ -11,10 +11,16 @@ import { listApps } from "@/lib/api/apps";
 import { useAuthStore } from "@/stores/authStore";
 
 const statusLabel: Record<App["status"], string> = {
-  published: "Published",
-  draft: "Draft",
-  archived: "Archived",
+  published: "公開中",
+  draft: "下書き",
+  archived: "アーカイブ",
 };
+
+function getAppHref(app: App) {
+  return app.primaryTableCode
+    ? `/run/${app.code}/${app.primaryTableCode}`
+    : `/apps/${app.id}/tables`;
+}
 
 export default function HomePage() {
   const userName = useAuthStore((s) => s.user?.name ?? "Marcus");
@@ -38,7 +44,7 @@ export default function HomePage() {
         if (active) {
           setApps([]);
           setAppsError(
-            error instanceof Error ? error.message : "Failed to load apps"
+            error instanceof Error ? error.message : "アプリの読み込みに失敗しました"
           );
         }
       } finally {
@@ -57,25 +63,25 @@ export default function HomePage() {
 
   const statCards = [
     {
-      label: "Active apps",
+      label: "有効なアプリ",
       value: String(apps.length),
       icon: "apps",
       accent: "text-primary",
     },
     {
-      label: "Pending approvals",
+      label: "承認待ち",
       value: "12",
       icon: "pending_actions",
       accent: "text-amber-400",
     },
     {
-      label: "AI runs today",
+      label: "本日の AI 実行",
       value: "284",
       icon: "auto_awesome",
       accent: "text-primary",
     },
     {
-      label: "Open tickets",
+      label: "未対応チケット",
       value: "8",
       icon: "confirmation_number",
       accent: "text-blue-400",
@@ -86,12 +92,12 @@ export default function HomePage() {
     <>
       <TopBar
         title="AI Lattice"
-        breadcrumbs={[{ label: "Dashboard" }, { label: "Home" }]}
+        breadcrumbs={[{ label: "ダッシュボード" }, { label: "ホーム" }]}
         actions={
           <Link href="/apps/new/ai">
             <Button variant="primary" size="md">
               <Icon name="auto_awesome" size="sm" filled />
-              Build with AI
+              AI で作成
             </Button>
           </Link>
         }
@@ -100,11 +106,11 @@ export default function HomePage() {
       <main className="pt-16 px-10 py-10">
         <div className="mb-10">
           <h2 className="font-headline text-4xl font-extrabold text-white mb-2 tracking-tight">
-            Welcome back, {userName}
+            おかえりなさい、{userName}
           </h2>
           <p className="text-on-surface-variant">
-            Use AI to design internal apps, automate workflows, and monitor daily
-            operations from a single workspace.
+            AI で社内アプリを設計し、ワークフローを自動化し、日々の業務を
+            ひとつのワークスペースで確認できます。
           </p>
         </div>
 
@@ -129,14 +135,14 @@ export default function HomePage() {
 
         <div className="mb-6 flex items-center justify-between">
           <h3 className="font-headline text-2xl font-bold text-white">
-            My apps
+            マイアプリ
           </h3>
           <Link
             href="/apps/new/ai"
             className="text-primary text-sm font-bold flex items-center gap-1 hover:text-emerald-400"
           >
             <Icon name="add" size="sm" />
-            Create new
+            新規作成
           </Link>
         </div>
 
@@ -144,7 +150,7 @@ export default function HomePage() {
           {apps.map((app) => (
             <Link
               key={app.id}
-              href={`/run/${app.code}/tickets`}
+              href={getAppHref(app)}
               className="bg-surface-container rounded-xl p-6 hover:bg-surface-container-high transition-colors group"
             >
               <div className="flex items-start justify-between mb-4">
@@ -161,13 +167,18 @@ export default function HomePage() {
               <p className="text-xs text-on-surface-variant line-clamp-2">
                 {app.description}
               </p>
+              <div className="mt-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
+                {app.tableCount && app.tableCount > 0
+                  ? `${app.tableCount} 件のテーブル`
+                  : "テーブル未作成"}
+              </div>
             </Link>
           ))}
         </div>
 
         {isLoadingApps && (
           <div className="mt-4 text-sm text-on-surface-variant">
-            Loading apps...
+            アプリを読み込んでいます...
           </div>
         )}
 
@@ -179,7 +190,7 @@ export default function HomePage() {
 
         <div className="mt-12">
           <h3 className="font-headline text-2xl font-bold text-white mb-6">
-            AI suggestions
+            AI からの提案
           </h3>
           <div className="bg-emerald-950/30 rounded-xl p-6 border border-primary/20">
             <div className="flex items-start gap-4">
@@ -188,18 +199,18 @@ export default function HomePage() {
               </div>
               <div className="flex-1">
                 <div className="text-xs font-bold text-primary tracking-wider uppercase mb-1">
-                  Recommendation
+                  おすすめ
                 </div>
                 <p className="text-on-surface text-sm">
-                  Add a focused view for unresolved critical tickets so the support
-                  team can triage urgent incidents faster.
+                  未解決の重要チケットに絞ったビューを追加すると、サポートチームが
+                  緊急インシデントをより早く切り分けられます。
                 </p>
                 <div className="mt-3 flex gap-2">
                   <Button size="sm" variant="secondary">
-                    Review
+                    確認する
                   </Button>
                   <Button size="sm" variant="ghost">
-                    Later
+                    後で
                   </Button>
                 </div>
               </div>

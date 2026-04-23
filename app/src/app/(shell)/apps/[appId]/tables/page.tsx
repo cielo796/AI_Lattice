@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { AISidebar } from "@/components/ai/AISidebar";
 import { Badge } from "@/components/shared/Badge";
@@ -63,18 +63,18 @@ const FIELD_TYPES: FieldType[] = [
 ];
 
 const FIELD_META: Record<FieldType, { label: string; variant: BadgeVariant }> = {
-  text: { label: "Text", variant: "default" },
-  textarea: { label: "Textarea", variant: "default" },
-  number: { label: "Number", variant: "info" },
-  date: { label: "Date", variant: "info" },
-  datetime: { label: "Datetime", variant: "info" },
-  boolean: { label: "Boolean", variant: "default" },
-  select: { label: "Select", variant: "warning" },
-  user_ref: { label: "User ref", variant: "info" },
-  master_ref: { label: "Master ref", variant: "info" },
-  file: { label: "File", variant: "default" },
-  ai_generated: { label: "AI generated", variant: "ai" },
-  calculated: { label: "Calculated", variant: "warning" },
+  text: { label: "テキスト", variant: "default" },
+  textarea: { label: "長文テキスト", variant: "default" },
+  number: { label: "数値", variant: "info" },
+  date: { label: "日付", variant: "info" },
+  datetime: { label: "日時", variant: "info" },
+  boolean: { label: "真偽値", variant: "default" },
+  select: { label: "選択式", variant: "warning" },
+  user_ref: { label: "ユーザー参照", variant: "info" },
+  master_ref: { label: "マスター参照", variant: "info" },
+  file: { label: "ファイル", variant: "default" },
+  ai_generated: { label: "AI 生成", variant: "ai" },
+  calculated: { label: "計算式", variant: "warning" },
 };
 
 function getParam(value: string | string[] | undefined) {
@@ -98,7 +98,9 @@ function getFieldOptions(field: AppField) {
 
 export default function TableDesignerPage() {
   const params = useParams<{ appId: string }>();
+  const searchParams = useSearchParams();
   const appId = getParam(params.appId);
+  const wasCreated = searchParams.get("created") === "1";
 
   const [tables, setTables] = useState<AppTable[]>([]);
   const [fields, setFields] = useState<AppField[]>([]);
@@ -117,7 +119,7 @@ export default function TableDesignerPage() {
 
   useEffect(() => {
     if (!appId) {
-      setError("Missing app id.");
+      setError("アプリ ID が見つかりません。");
       setIsLoadingTables(false);
       return;
     }
@@ -140,7 +142,7 @@ export default function TableDesignerPage() {
         if (!cancelled) {
           setTables([]);
           setActiveTableId(null);
-          setError(nextError instanceof Error ? nextError.message : "Failed to load tables.");
+          setError(nextError instanceof Error ? nextError.message : "テーブルの読み込みに失敗しました。");
         }
       } finally {
         if (!cancelled) setIsLoadingTables(false);
@@ -173,7 +175,7 @@ export default function TableDesignerPage() {
       } catch (nextError) {
         if (!cancelled) {
           setFields([]);
-          setError(nextError instanceof Error ? nextError.message : "Failed to load fields.");
+          setError(nextError instanceof Error ? nextError.message : "フィールドの読み込みに失敗しました。");
         }
       } finally {
         if (!cancelled) setIsLoadingFields(false);
@@ -226,14 +228,14 @@ export default function TableDesignerPage() {
       setError(null);
       resetTableForm();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Failed to save table.");
+      setError(nextError instanceof Error ? nextError.message : "テーブルの保存に失敗しました。");
     } finally {
       setIsSavingTable(false);
     }
   }
 
   async function onDeleteTable(table: AppTable) {
-    if (!appId || !window.confirm(`Delete table "${table.name}"?`)) return;
+    if (!appId || !window.confirm(`テーブル「${table.name}」を削除しますか？`)) return;
     try {
       await deleteTable(appId, table.id);
       const nextTables = tables.filter((item) => item.id !== table.id);
@@ -243,7 +245,7 @@ export default function TableDesignerPage() {
       resetFieldForm();
       setError(null);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Failed to delete table.");
+      setError(nextError instanceof Error ? nextError.message : "テーブルの削除に失敗しました。");
     }
   }
 
@@ -285,55 +287,56 @@ export default function TableDesignerPage() {
       setError(null);
       resetFieldForm();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Failed to save field.");
+      setError(nextError instanceof Error ? nextError.message : "フィールドの保存に失敗しました。");
     } finally {
       setIsSavingField(false);
     }
   }
 
   async function onDeleteField(field: AppField) {
-    if (!appId || !activeTableId || !window.confirm(`Delete field "${field.name}"?`)) return;
+    if (!appId || !activeTableId || !window.confirm(`フィールド「${field.name}」を削除しますか？`)) return;
     try {
       await deleteField(appId, activeTableId, field.id);
       setFields((current) => current.filter((item) => item.id !== field.id));
       if (editingFieldId === field.id) resetFieldForm();
       setError(null);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Failed to delete field.");
+      setError(nextError instanceof Error ? nextError.message : "フィールドの削除に失敗しました。");
     }
   }
 
   return (
     <>
       <TopBar
-        breadcrumbs={[{ label: "Builder" }, { label: "Apps" }, { label: "Tables" }]}
+        breadcrumbs={[{ label: "ビルダー" }, { label: "アプリ" }, { label: "テーブル" }]}
         actions={
           <>
             <Button variant="ghost" size="md">
               <Icon name="visibility" size="sm" />
-              Preview
+              プレビュー
             </Button>
             <Button variant="primary" size="md">
               <Icon name="rocket_launch" size="sm" />
-              Publish
+              公開
             </Button>
           </>
         }
       />
 
-      <main className="flex h-screen pt-16">
-        <aside className="w-80 overflow-y-auto bg-surface-container p-6">
+      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+        <aside className="w-full border-b border-outline-variant/20 bg-surface-container p-4 xl:w-80 xl:overflow-y-auto xl:border-b-0 xl:border-r xl:p-6">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Tables</div>
-              <div className="text-sm text-on-surface-variant">Real API-backed metadata.</div>
+              <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">テーブル</div>
+              <div className="text-sm text-on-surface-variant">API と連携したメタデータです。</div>
             </div>
             <Badge variant="info">{tables.length}</Badge>
           </div>
 
           {isLoadingTables && (
             <div className="mb-4 rounded-lg bg-surface-container-high p-4 text-sm text-on-surface-variant">
-              Loading tables...
+              テーブルを読み込んでいます...
             </div>
           )}
 
@@ -361,7 +364,7 @@ export default function TableDesignerPage() {
                       <div className="truncate text-sm font-semibold text-on-surface">{table.name}</div>
                       <div className="text-xs text-on-surface-variant">{table.code}</div>
                     </div>
-                    {table.isSystem && <Badge variant="warning">System</Badge>}
+                    {table.isSystem && <Badge variant="warning">システム</Badge>}
                   </div>
                 </button>
                 <div className="mt-3 flex gap-2">
@@ -375,7 +378,7 @@ export default function TableDesignerPage() {
                       setTableForm({ name: table.name, code: table.code, isSystem: table.isSystem });
                     }}
                   >
-                    Edit
+                    編集
                   </Button>
                   <Button
                     type="button"
@@ -384,7 +387,7 @@ export default function TableDesignerPage() {
                     className="flex-1"
                     onClick={() => void onDeleteTable(table)}
                   >
-                    Delete
+                    削除
                   </Button>
                 </div>
               </div>
@@ -393,28 +396,34 @@ export default function TableDesignerPage() {
 
           <form onSubmit={(event) => void onSubmitTable(event)} className="mt-6 rounded-xl bg-surface p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">{editingTableId ? "Edit table" : "New table"}</h3>
+              <h3 className="text-sm font-bold text-white">{editingTableId ? "テーブルを編集" : "新規テーブル"}</h3>
               {editingTableId && (
                 <Button type="button" size="sm" variant="ghost" onClick={resetTableForm}>
-                  Cancel
+                  キャンセル
                 </Button>
               )}
             </div>
             <div className="space-y-3">
-              <Input value={tableForm.name} onChange={(event) => setTableForm((current) => ({ ...current, name: event.target.value }))} placeholder="Table name" required />
+              <Input value={tableForm.name} onChange={(event) => setTableForm((current) => ({ ...current, name: event.target.value }))} placeholder="テーブル名" required />
               <Input value={tableForm.code} onChange={(event) => setTableForm((current) => ({ ...current, code: event.target.value }))} placeholder="table_code" />
               <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
                 <input type="checkbox" checked={tableForm.isSystem} onChange={(event) => setTableForm((current) => ({ ...current, isSystem: event.target.checked }))} className="h-4 w-4" />
-                System table
+                システムテーブル
               </label>
               <Button type="submit" disabled={isSavingTable} className="w-full">
-                {isSavingTable ? "Saving..." : editingTableId ? "Update table" : "Create table"}
+                {isSavingTable ? "保存中..." : editingTableId ? "テーブルを更新" : "テーブルを作成"}
               </Button>
             </div>
           </form>
         </aside>
 
-        <section className="flex-1 overflow-y-auto bg-surface p-10">
+        <section className="flex-1 overflow-y-auto bg-surface px-4 py-6 md:px-6 xl:p-10">
+          {wasCreated && (
+            <div className="mb-6 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+              アプリを作成しました。生成されたスキーマを確認し、必要に応じてテーブルとフィールドを調整してください。
+            </div>
+          )}
+
           {error && (
             <div className="mb-6 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
               {error}
@@ -422,85 +431,131 @@ export default function TableDesignerPage() {
           )}
 
           <div className="max-w-4xl">
-            <div className="mb-8 flex items-center justify-between gap-4">
+            <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="font-headline text-3xl font-bold text-white">
-                  {activeTable ? activeTable.name : "Select a table"}
+                <h2 className="font-headline text-2xl font-bold text-white md:text-3xl">
+                  {activeTable ? activeTable.name : "テーブルを選択"}
                 </h2>
                 <p className="mt-2 text-sm text-on-surface-variant">
-                  {activeTable ? `Fields saved to ${activeTable.code}.` : "Create or select a table first."}
+                  {activeTable ? `${activeTable.code} に保存されているフィールドです。` : "先にテーブルを作成または選択してください。"}
                 </p>
               </div>
-              {activeTable && <Badge variant="info">{fields.length} fields</Badge>}
+              {activeTable && <Badge variant="info">{fields.length} フィールド</Badge>}
             </div>
 
-            <form onSubmit={(event) => void onSubmitField(event)} className="mb-8 rounded-xl bg-surface-container p-6">
+            <form onSubmit={(event) => void onSubmitField(event)} className="mb-8 rounded-xl bg-surface-container p-4 md:p-6">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">{editingFieldId ? "Edit field" : "New field"}</h3>
+                <h3 className="text-lg font-bold text-white">{editingFieldId ? "フィールドを編集" : "新規フィールド"}</h3>
                 {editingFieldId && (
                   <Button type="button" size="sm" variant="ghost" onClick={resetFieldForm}>
-                    Cancel
+                    キャンセル
                   </Button>
                 )}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <Input value={fieldForm.name} onChange={(event) => setFieldForm((current) => ({ ...current, name: event.target.value }))} placeholder="Field name" required disabled={!activeTable || isSavingField} />
-                <Input value={fieldForm.code} onChange={(event) => setFieldForm((current) => ({ ...current, code: event.target.value }))} placeholder="field_code" disabled={!activeTable || isSavingField} />
-                <select value={fieldForm.fieldType} onChange={(event) => setFieldForm((current) => ({ ...current, fieldType: event.target.value as FieldType }))} disabled={!activeTable || isSavingField} className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30">
-                  {FIELD_TYPES.map((fieldType) => (
-                    <option key={fieldType} value={fieldType}>
-                      {FIELD_META[fieldType].label}
-                    </option>
-                  ))}
-                </select>
-                <Input value={fieldForm.optionsText} onChange={(event) => setFieldForm((current) => ({ ...current, optionsText: event.target.value }))} placeholder="Option A, Option B" disabled={!activeTable || isSavingField || fieldForm.fieldType !== "select"} />
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                    表示名
+                  </label>
+                  <Input value={fieldForm.name} onChange={(event) => setFieldForm((current) => ({ ...current, name: event.target.value }))} placeholder="件名" required disabled={!activeTable || isSavingField} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                    フィールドコード
+                  </label>
+                  <Input value={fieldForm.code} onChange={(event) => setFieldForm((current) => ({ ...current, code: event.target.value }))} placeholder="field_code" disabled={!activeTable || isSavingField} />
+                </div>
+                <div className="rounded-lg border border-outline-variant/30 bg-surface-container-high/60 px-3 py-2 text-xs text-on-surface-variant md:col-span-2">
+                  表示名は画面に表示される名称です。コードは API とレコード保存に使われます。
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                    フィールド型
+                  </label>
+                  <select value={fieldForm.fieldType} onChange={(event) => setFieldForm((current) => ({ ...current, fieldType: event.target.value as FieldType }))} disabled={!activeTable || isSavingField} className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    {FIELD_TYPES.map((fieldType) => (
+                      <option key={fieldType} value={fieldType}>
+                        {FIELD_META[fieldType].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                    選択肢
+                  </label>
+                  <Input value={fieldForm.optionsText} onChange={(event) => setFieldForm((current) => ({ ...current, optionsText: event.target.value }))} placeholder="選択肢 A, 選択肢 B" disabled={!activeTable || isSavingField || fieldForm.fieldType !== "select"} />
+                </div>
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
                   <input type="checkbox" checked={fieldForm.required} onChange={(event) => setFieldForm((current) => ({ ...current, required: event.target.checked }))} disabled={!activeTable || isSavingField} className="h-4 w-4" />
-                  Required
+                  必須
                 </label>
                 <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
                   <input type="checkbox" checked={fieldForm.uniqueFlag} onChange={(event) => setFieldForm((current) => ({ ...current, uniqueFlag: event.target.checked }))} disabled={!activeTable || isSavingField} className="h-4 w-4" />
-                  Unique
+                  一意
                 </label>
               </div>
               <div className="mt-6">
                 <Button type="submit" disabled={!activeTable || isSavingField}>
-                  {isSavingField ? "Saving..." : editingFieldId ? "Update field" : "Create field"}
+                  {isSavingField ? "保存中..." : editingFieldId ? "フィールドを更新" : "フィールドを作成"}
                 </Button>
               </div>
             </form>
 
-            <div className="grid grid-cols-[minmax(0,2fr)_160px_120px] gap-4 px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-              <div>Field</div>
-              <div>Type</div>
-              <div>Actions</div>
+            <div className="hidden gap-4 px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant md:grid md:grid-cols-[minmax(0,2fr)_160px_120px]">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                <div>表示名</div>
+                <div>フィールドコード</div>
+              </div>
+              <div>種類</div>
+              <div>操作</div>
             </div>
 
             <div className="space-y-2">
               {activeTable && isLoadingFields && (
                 <div className="rounded-lg bg-surface-container p-6 text-sm text-on-surface-variant">
-                  Loading fields...
+                  フィールドを読み込んでいます...
                 </div>
               )}
 
               {fields.map((field) => (
-                <div key={field.id} className="grid grid-cols-[minmax(0,2fr)_160px_120px] items-center gap-4 rounded-lg bg-surface-container p-4">
+                <div key={field.id} className="grid grid-cols-1 gap-4 rounded-lg bg-surface-container p-4 md:grid-cols-[minmax(0,2fr)_160px_120px] md:items-center">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={cn("truncate font-mono text-sm", field.fieldType === "ai_generated" ? "font-bold text-primary" : "text-on-surface")}>
-                        {field.name}
-                      </span>
-                      {field.required && <span className="text-xs text-error">*</span>}
-                      {field.uniqueFlag && <Badge variant="info">Unique</Badge>}
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant md:hidden">
+                      表示名 / フィールドコード
                     </div>
-                    <div className="mt-1 text-xs text-on-surface-variant">{field.code}</div>
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                          表示名
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("truncate text-sm", field.fieldType === "ai_generated" ? "font-bold text-primary" : "text-on-surface")}>
+                            {field.name}
+                          </span>
+                          {field.required && <span className="text-xs text-error">*</span>}
+                          {field.uniqueFlag && <Badge variant="info">一意</Badge>}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                          フィールドコード
+                        </div>
+                        <div className="truncate font-mono text-xs text-on-surface-variant">
+                          {field.code}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div>
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant md:hidden">
+                      種類
+                    </div>
                     <Badge variant={FIELD_META[field.fieldType].variant}>{FIELD_META[field.fieldType].label}</Badge>
                   </div>
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap gap-2 md:justify-end">
                     <Button
                       type="button"
                       size="sm"
@@ -517,10 +572,10 @@ export default function TableDesignerPage() {
                         });
                       }}
                     >
-                      Edit
+                      編集
                     </Button>
                     <Button type="button" size="sm" variant="danger" onClick={() => void onDeleteField(field)}>
-                      Delete
+                      削除
                     </Button>
                   </div>
                 </div>
@@ -528,7 +583,7 @@ export default function TableDesignerPage() {
 
               {!isLoadingFields && activeTable && fields.length === 0 && (
                 <div className="rounded-lg border border-dashed border-outline-variant/40 p-6 text-sm text-on-surface-variant">
-                  No fields yet.
+                  フィールドはまだありません。
                 </div>
               )}
             </div>
@@ -536,17 +591,18 @@ export default function TableDesignerPage() {
             <div className="mt-10 flex justify-end">
               <Link href={`/apps/${appId}/workflows`}>
                 <Button variant="ghost" size="md">
-                  Next: workflows
+                  次へ: ワークフロー
                   <Icon name="arrow_forward" size="sm" />
                 </Button>
               </Link>
             </div>
           </div>
         </section>
+        </div>
 
-        <AISidebar>
+        <AISidebar className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
           <div className="text-xs text-on-surface">
-            This screen now reads and writes real table metadata through the existing API.
+            この画面では、既存 API 経由で実際のテーブルメタデータを読み書きします。
           </div>
         </AISidebar>
       </main>

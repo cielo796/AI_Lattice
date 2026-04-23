@@ -6,6 +6,8 @@ export interface App {
   description?: string;
   status: "draft" | "published" | "archived";
   icon: string;
+  primaryTableCode?: string;
+  tableCount?: number;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

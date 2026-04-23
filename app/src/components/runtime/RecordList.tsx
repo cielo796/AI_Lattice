@@ -6,6 +6,7 @@ import { Icon } from "@/components/shared/Icon";
 import { cn } from "@/lib/cn";
 import {
   formatRelativeTime,
+  formatPriorityLabel,
   getPriorityVariant,
   getRecordDescription,
   getRecordIdentifier,
@@ -49,7 +50,7 @@ export function RecordList({
   });
 
   return (
-    <div className="flex w-80 shrink-0 flex-col bg-surface-container-low">
+    <div className="flex w-full shrink-0 flex-col border-b border-outline-variant/20 bg-surface-container-low xl:w-80 xl:border-b-0 xl:border-r">
       <div className="p-4">
         <div className="relative">
           <Icon
@@ -60,7 +61,7 @@ export function RecordList({
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search records..."
+            placeholder="レコードを検索..."
             className="w-full rounded-lg bg-surface-container py-2 pl-9 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
@@ -68,20 +69,20 @@ export function RecordList({
 
       <div className="px-4 pb-2">
         <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
-          Records · {filteredRecords.length}
+          レコード / {filteredRecords.length}
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-6">
         {isLoading && (
           <div className="rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant">
-            Loading records...
+            レコードを読み込んでいます...
           </div>
         )}
 
         {!isLoading && filteredRecords.length === 0 && (
           <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-            No records found.
+            レコードが見つかりません。
           </div>
         )}
 
@@ -111,7 +112,7 @@ export function RecordList({
                       variant={getPriorityVariant(priority)}
                       className="text-[9px]"
                     >
-                      {priority}
+                      {formatPriorityLabel(priority)}
                     </Badge>
                   )}
                 </div>
@@ -126,7 +127,7 @@ export function RecordList({
                 </div>
 
                 <div className="mb-2 line-clamp-2 text-[11px] text-on-surface-variant">
-                  {getRecordDescription(record) || "No description"}
+                  {getRecordDescription(record) || "説明はありません"}
                 </div>
 
                 <div className="flex items-center gap-1 text-[10px] text-on-surface-variant">

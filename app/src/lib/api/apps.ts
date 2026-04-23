@@ -1,4 +1,5 @@
 import type { App, AppField, AppTable, FieldType } from "@/types/app";
+import type { GeneratedAppBlueprint } from "@/types/ai";
 import { apiFetch } from "@/lib/api/client";
 
 export interface CreateTableInput {
@@ -41,6 +42,14 @@ function appPath(appId: string) {
   return `/api/apps/${appId}`;
 }
 
+function appBlueprintPath() {
+  return "/api/apps/blueprints";
+}
+
+function appGeneratePath() {
+  return "/api/apps/generate";
+}
+
 function tableCollectionPath(appId: string) {
   return `${appPath(appId)}/tables`;
 }
@@ -59,6 +68,20 @@ function fieldItemPath(appId: string, tableId: string, fieldId: string) {
 
 export async function listApps() {
   return apiFetch<App[]>("/api/apps");
+}
+
+export async function generateAppBlueprint(prompt: string) {
+  return apiFetch<GeneratedAppBlueprint>(appGeneratePath(), {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+}
+
+export async function createAppFromBlueprint(blueprint: GeneratedAppBlueprint) {
+  return apiFetch<App>(appBlueprintPath(), {
+    method: "POST",
+    body: JSON.stringify(blueprint),
+  });
 }
 
 export async function listTables(appId: string) {
