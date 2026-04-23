@@ -84,6 +84,12 @@ export async function createAppFromBlueprint(blueprint: GeneratedAppBlueprint) {
   });
 }
 
+export async function deleteApp(appId: string) {
+  await apiFetch<string>(appPath(appId), {
+    method: "DELETE",
+  });
+}
+
 export async function listTables(appId: string) {
   return apiFetch<AppTable[]>(tableCollectionPath(appId));
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { AISidebar } from "@/components/ai/AISidebar";
 import { Badge } from "@/components/shared/Badge";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 import {
   createField,
   createTable,
+  deleteApp,
   deleteField,
   deleteTable,
   listFields,
@@ -98,6 +99,7 @@ function getFieldOptions(field: AppField) {
 
 export default function TableDesignerPage() {
   const params = useParams<{ appId: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const appId = getParam(params.appId);
   const wasCreated = searchParams.get("created") === "1";
@@ -114,6 +116,7 @@ export default function TableDesignerPage() {
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [isSavingTable, setIsSavingTable] = useState(false);
   const [isSavingField, setIsSavingField] = useState(false);
+  const [isDeletingApp, setIsDeletingApp] = useState(false);
 
   const activeTable = tables.find((table) => table.id === activeTableId) ?? null;
 
@@ -305,6 +308,28 @@ export default function TableDesignerPage() {
     }
   }
 
+  async function onDeleteApp() {
+    if (
+      !appId ||
+      !window.confirm(
+        "このアプリを削除しますか？テーブル、フィールド、レコードも削除されます。"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setIsDeletingApp(true);
+      await deleteApp(appId);
+      setError(null);
+      router.push("/home");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "アプリの削除に失敗しました。");
+    } finally {
+      setIsDeletingApp(false);
+    }
+  }
+
   return (
     <>
       <TopBar
@@ -314,6 +339,10 @@ export default function TableDesignerPage() {
             <Button variant="ghost" size="md">
               <Icon name="visibility" size="sm" />
               プレビュー
+            </Button>
+            <Button variant="danger" size="md" disabled={isDeletingApp} onClick={() => void onDeleteApp()}>
+              <Icon name="delete" size="sm" />
+              {isDeletingApp ? "削除中..." : "アプリを削除"}
             </Button>
             <Button variant="primary" size="md">
               <Icon name="rocket_launch" size="sm" />
