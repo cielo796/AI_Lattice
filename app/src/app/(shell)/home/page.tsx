@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { TopBar } from "@/components/shared/TopBar";
-import { Icon } from "@/components/shared/Icon";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
-import type { App } from "@/types/app";
-import { listApps } from "@/lib/api/apps";
+import { Icon } from "@/components/shared/Icon";
+import { TopBar } from "@/components/shared/TopBar";
+import { deleteApp, listApps } from "@/lib/api/apps";
 import { useAuthStore } from "@/stores/authStore";
+import type { App } from "@/types/app";
 
 const statusLabel: Record<App["status"], string> = {
   published: "公開中",
@@ -23,10 +23,11 @@ function getAppHref(app: App) {
 }
 
 export default function HomePage() {
-  const userName = useAuthStore((s) => s.user?.name ?? "Marcus");
+  const userName = useAuthStore((store) => store.user?.name ?? "Marcus");
   const [apps, setApps] = useState<App[]>([]);
   const [appsError, setAppsError] = useState<string | null>(null);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
+  const [deletingAppId, setDeletingAppId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -61,9 +62,32 @@ export default function HomePage() {
     };
   }, []);
 
+  async function handleDeleteApp(app: App) {
+    const confirmed = window.confirm(
+      `「${app.name}」を削除しますか？このアプリに紐づくテーブル、フィールド、レコードも削除されます。`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingAppId(app.id);
+      await deleteApp(app.id);
+      setApps((current) => current.filter((currentApp) => currentApp.id !== app.id));
+      setAppsError(null);
+    } catch (error) {
+      setAppsError(
+        error instanceof Error ? error.message : "アプリの削除に失敗しました"
+      );
+    } finally {
+      setDeletingAppId(null);
+    }
+  }
+
   const statCards = [
     {
-      label: "有効なアプリ",
+      label: "公開中のアプリ",
       value: String(apps.length),
       icon: "apps",
       accent: "text-primary",
@@ -103,25 +127,25 @@ export default function HomePage() {
         }
       />
 
-      <main className="pt-16 px-10 py-10">
+      <main className="px-10 py-10 pt-16">
         <div className="mb-10">
-          <h2 className="font-headline text-4xl font-extrabold text-white mb-2 tracking-tight">
+          <h2 className="mb-2 font-headline text-4xl font-extrabold tracking-tight text-white">
             おかえりなさい、{userName}
           </h2>
           <p className="text-on-surface-variant">
-            AI で社内アプリを設計し、ワークフローを自動化し、日々の業務を
+            AI で業務アプリを設計し、ワークフローを整理しながら日々の運用を
             ひとつのワークスペースで確認できます。
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           {statCards.map((stat) => (
             <div
               key={stat.label}
-              className="bg-surface-container rounded-xl p-6 hover:bg-surface-container-high transition-colors"
+              className="rounded-xl bg-surface-container p-6 transition-colors hover:bg-surface-container-high"
             >
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
                   {stat.label}
                 </span>
                 <Icon name={stat.icon} className={stat.accent} size="md" />
@@ -139,40 +163,66 @@ export default function HomePage() {
           </h3>
           <Link
             href="/apps/new/ai"
-            className="text-primary text-sm font-bold flex items-center gap-1 hover:text-emerald-400"
+            className="flex items-center gap-1 text-sm font-bold text-primary hover:text-emerald-400"
           >
             <Icon name="add" size="sm" />
             新規作成
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {apps.map((app) => (
-            <Link
+            <div
               key={app.id}
-              href={getAppHref(app)}
-              className="bg-surface-container rounded-xl p-6 hover:bg-surface-container-high transition-colors group"
+              className="rounded-xl bg-surface-container p-6 transition-colors hover:bg-surface-container-high"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <Link
+                  href={getAppHref(app)}
+                  className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 transition-colors hover:bg-primary/20"
+                >
                   <Icon name={app.icon} className="text-primary" size="lg" />
-                </div>
+                </Link>
                 <Badge variant={app.status === "published" ? "success" : "warning"}>
                   {statusLabel[app.status]}
                 </Badge>
               </div>
-              <h4 className="font-headline font-bold text-white text-lg mb-1 group-hover:text-primary transition-colors">
-                {app.name}
-              </h4>
-              <p className="text-xs text-on-surface-variant line-clamp-2">
-                {app.description}
-              </p>
-              <div className="mt-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
-                {app.tableCount && app.tableCount > 0
-                  ? `${app.tableCount} 件のテーブル`
-                  : "テーブル未作成"}
+
+              <Link href={getAppHref(app)} className="block">
+                <h4 className="mb-1 font-headline text-lg font-bold text-white transition-colors hover:text-primary">
+                  {app.name}
+                </h4>
+                <p className="line-clamp-2 text-xs text-on-surface-variant">
+                  {app.description || "説明はありません"}
+                </p>
+              </Link>
+
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
+                  {app.tableCount && app.tableCount > 0
+                    ? `${app.tableCount} 個のテーブル`
+                    : "テーブル未作成"}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={getAppHref(app)}
+                    className="text-xs font-bold text-primary transition-colors hover:text-emerald-400"
+                  >
+                    開く
+                  </Link>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
+                    disabled={deletingAppId === app.id}
+                    onClick={() => void handleDeleteApp(app)}
+                  >
+                    <Icon name="delete" size="sm" />
+                    {deletingAppId === app.id ? "削除中..." : "削除"}
+                  </Button>
+                </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
 
@@ -189,21 +239,21 @@ export default function HomePage() {
         )}
 
         <div className="mt-12">
-          <h3 className="font-headline text-2xl font-bold text-white mb-6">
+          <h3 className="mb-6 font-headline text-2xl font-bold text-white">
             AI からの提案
           </h3>
-          <div className="bg-emerald-950/30 rounded-xl p-6 border border-primary/20">
+          <div className="rounded-xl border border-primary/20 bg-emerald-950/30 p-6">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center shrink-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/20">
                 <Icon name="auto_awesome" className="text-primary" filled size="md" />
               </div>
               <div className="flex-1">
-                <div className="text-xs font-bold text-primary tracking-wider uppercase mb-1">
+                <div className="mb-1 text-xs font-bold uppercase tracking-wider text-primary">
                   おすすめ
                 </div>
-                <p className="text-on-surface text-sm">
-                  未解決の重要チケットに絞ったビューを追加すると、サポートチームが
-                  緊急インシデントをより早く切り分けられます。
+                <p className="text-sm text-on-surface">
+                  未解決の高優先度チケットに沿ったビューを追加すると、サポートチームの
+                  優先順位インシデントをより早く追いかけられます。
                 </p>
                 <div className="mt-3 flex gap-2">
                   <Button size="sm" variant="secondary">
