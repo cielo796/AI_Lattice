@@ -26,7 +26,18 @@ async function loadBootstrap() {
 describe("ensureDemoRecordData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.DEMO_AUTO_SEED;
     ensureDemoBuilderData.mockResolvedValue(undefined);
+  });
+
+  it("skips demo record seed when auto seed is disabled", async () => {
+    process.env.DEMO_AUTO_SEED = "false";
+
+    const { ensureDemoRecordData } = await loadBootstrap();
+    await ensureDemoRecordData();
+
+    expect(ensureDemoBuilderData).not.toHaveBeenCalled();
+    expect(getPrismaClient).not.toHaveBeenCalled();
   });
 
   it("does not recreate deleted demo records when the tenant already has records", async () => {
