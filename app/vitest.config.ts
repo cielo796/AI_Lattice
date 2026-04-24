@@ -11,5 +11,6 @@ export default defineConfig({
     environment: "node",
     globals: true,
     clearMocks: true,
+    exclude: ["e2e/**", "node_modules/**", ".next/**", "dist/**", "coverage/**"],
   },
 });

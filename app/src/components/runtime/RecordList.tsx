@@ -98,6 +98,7 @@ export function RecordList({
               <button
                 key={record.id}
                 type="button"
+                data-testid={`record-row-${record.id}`}
                 onClick={() => onSelect(record)}
                 className={cn(
                   "w-full rounded-lg p-3 text-left transition-colors",
