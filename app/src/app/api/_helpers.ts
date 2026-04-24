@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/server/auth/service";
 import { AppsServiceError } from "@/server/apps/service";
+import {
+  isDatabaseSetupError,
+  toDatabaseSetupErrorBody,
+} from "@/server/db/setup-errors";
 
 export async function requireAuthenticatedUser() {
   const user = await getAuthenticatedUser();
@@ -26,6 +30,10 @@ export function toRouteErrorResponse(error: unknown) {
       { message: error.message },
       { status: error.status }
     );
+  }
+
+  if (isDatabaseSetupError(error)) {
+    return NextResponse.json(toDatabaseSetupErrorBody(error), { status: 503 });
   }
 
   return NextResponse.json(
