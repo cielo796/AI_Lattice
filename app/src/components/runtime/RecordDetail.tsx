@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { RecordActivitySections } from "@/components/runtime/RecordActivitySections";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
@@ -338,156 +339,17 @@ export function RecordDetail({
           </div>
         )}
 
-        <div className="mb-6">
-          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-            逆参照
-          </div>
-          {isLoadingBackReferences && backReferenceGroups.length === 0 ? (
-            <div className="rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant">
-              逆参照を読み込んでいます...
-            </div>
-          ) : backReferenceGroups.length > 0 ? (
-            <div className="space-y-3">
-              {backReferenceGroups.map((group) => (
-                <div
-                  key={`${group.sourceTableId}:${group.fieldCode}`}
-                  className="rounded-lg bg-surface-container p-4"
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-bold text-on-surface">
-                        {group.sourceTableName}
-                      </div>
-                      <div className="text-[11px] text-on-surface-variant">
-                        {group.fieldName}
-                      </div>
-                    </div>
-                    <Badge variant="info">{group.records.length}</Badge>
-                  </div>
-                  <div className="space-y-2">
-                    {group.records.map((backReferenceRecord) => (
-                      <Link
-                        key={backReferenceRecord.id}
-                        href={buildReferenceRecordHref(
-                          runtimeBasePath,
-                          appCode ?? "",
-                          group.sourceTableCode,
-                          backReferenceRecord.id
-                        )}
-                        className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high"
-                      >
-                        <span className="truncate font-bold">
-                          {getRecordTitle(backReferenceRecord)}
-                        </span>
-                        <Icon
-                          name="arrow_outward"
-                          size="sm"
-                          className="shrink-0 text-primary"
-                        />
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              逆参照はまだありません。
-            </div>
-          )}
-        </div>
-
-        <div className="mb-6">
-          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-            添付ファイル
-          </div>
-          {isLoadingActivity && attachments.length === 0 ? (
-            <div className="rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant">
-              添付ファイルを読み込んでいます...
-            </div>
-          ) : attachments.length > 0 ? (
-            <div className="space-y-2">
-              {attachments.map((attachment) => (
-                <div
-                  key={attachment.id}
-                  className="flex items-center gap-3 rounded-lg bg-surface-container p-3"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Icon name="description" size="sm" className="text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <a
-                      href={attachment.storagePath}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block truncate text-sm font-bold text-on-surface hover:text-primary"
-                    >
-                      {attachment.fileName}
-                    </a>
-                    <div className="text-[11px] text-on-surface-variant">
-                      {(attachment.fileSize / 1024).toFixed(1)} KB / {attachment.mimeType}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void onDeleteAttachment?.(attachment.id)}
-                    disabled={
-                      !onDeleteAttachment || deletingAttachmentId === attachment.id
-                    }
-                  >
-                    <Icon name="delete" size="sm" />
-                    {deletingAttachmentId === attachment.id ? "削除中..." : "削除"}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              添付ファイルはまだありません。
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-            コメント
-          </div>
-          {isLoadingActivity && comments.length === 0 ? (
-            <div className="rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant">
-              コメントを読み込んでいます...
-            </div>
-          ) : comments.length > 0 ? (
-            <div className="space-y-3">
-              {comments.map((comment) => (
-                <div
-                  key={comment.id}
-                  className="rounded-xl bg-surface-container p-4"
-                >
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      {comment.isSystem && <Badge variant="info">システム</Badge>}
-                      <span className="text-xs font-bold text-on-surface">
-                        {comment.isSystem ? "システムイベント" : comment.createdBy}
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-on-surface-variant">
-                      {formatDateTime(comment.createdAt)}
-                    </span>
-                  </div>
-                  <div className="text-sm leading-relaxed text-on-surface">
-                    {comment.commentText}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              コメントはまだありません。
-            </div>
-          )}
-        </div>
+        <RecordActivitySections
+          appCode={appCode}
+          runtimeBasePath={runtimeBasePath}
+          backReferenceGroups={backReferenceGroups}
+          isLoadingBackReferences={isLoadingBackReferences}
+          comments={comments}
+          attachments={attachments}
+          isLoadingActivity={isLoadingActivity}
+          deletingAttachmentId={deletingAttachmentId}
+          onDeleteAttachment={onDeleteAttachment}
+        />
       </div>
 
       <div className="px-8 py-4">

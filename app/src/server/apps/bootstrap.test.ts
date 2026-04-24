@@ -23,7 +23,18 @@ async function loadBootstrap() {
 describe("ensureDemoBuilderData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.DEMO_AUTO_SEED;
     ensureDemoAuthData.mockResolvedValue(undefined);
+  });
+
+  it("skips demo builder seed when auto seed is disabled", async () => {
+    process.env.DEMO_AUTO_SEED = "false";
+
+    const { ensureDemoBuilderData } = await loadBootstrap();
+    await ensureDemoBuilderData();
+
+    expect(ensureDemoAuthData).not.toHaveBeenCalled();
+    expect(getPrismaClient).not.toHaveBeenCalled();
   });
 
   it("does not recreate deleted demo apps when the tenant already has apps", async () => {

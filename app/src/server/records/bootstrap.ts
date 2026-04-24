@@ -6,6 +6,7 @@ import {
 } from "@/data/mock-records";
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
 import { getPrismaClient } from "@/server/db/prisma";
+import { isDemoAutoSeedEnabled } from "@/server/demo/seed-policy";
 
 let bootstrapPromise: Promise<void> | null = null;
 
@@ -18,6 +19,10 @@ function toJsonObject(value: Record<string, unknown>) {
 }
 
 export async function ensureDemoRecordData() {
+  if (!isDemoAutoSeedEnabled()) {
+    return;
+  }
+
   if (!bootstrapPromise) {
     bootstrapPromise = (async () => {
       await ensureDemoBuilderData();

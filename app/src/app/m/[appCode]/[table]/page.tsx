@@ -12,6 +12,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/shared/Badge";
 import { Icon } from "@/components/shared/Icon";
 import { Button } from "@/components/shared/Button";
+import { RecordActivitySections } from "@/components/runtime/RecordActivitySections";
 import { RecordCreatePanel } from "@/components/runtime/RecordCreatePanel";
 import { cn } from "@/lib/cn";
 import {
@@ -52,6 +53,7 @@ import {
   type ReferenceRecordsByField,
 } from "@/lib/runtime-records";
 import type { ReferenceLabelsByField } from "@/lib/runtime-records";
+import { useToastStore } from "@/stores/toastStore";
 import type { AppField, RuntimeTableMeta } from "@/types/app";
 import type {
   AppRecord,
@@ -345,141 +347,17 @@ function MobileRecordDetailView({
           </div>
         )}
 
-        <div className="mb-5">
-          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-            逆参照
-          </div>
-          {isLoadingBackReferences && backReferenceGroups.length === 0 ? (
-            <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
-              逆参照を読み込んでいます...
-            </div>
-          ) : backReferenceGroups.length > 0 ? (
-            <div className="space-y-2">
-              {backReferenceGroups.map((group) => (
-                <div
-                  key={`${group.sourceTableId}:${group.fieldCode}`}
-                  className="rounded-xl bg-surface-container p-4"
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-bold text-on-surface">
-                        {group.sourceTableName}
-                      </div>
-                      <div className="text-[11px] text-on-surface-variant">
-                        {group.fieldName}
-                      </div>
-                    </div>
-                    <Badge variant="info">{group.records.length}</Badge>
-                  </div>
-                  <div className="space-y-2">
-                    {group.records.map((backReferenceRecord) => (
-                      <Link
-                        key={backReferenceRecord.id}
-                        href={buildReferenceRecordHref(
-                          runtimeBasePath,
-                          appCode ?? "",
-                          group.sourceTableCode,
-                          backReferenceRecord.id
-                        )}
-                        className="flex items-center justify-between gap-3 rounded-xl bg-surface-container-high/60 px-3 py-2 text-sm text-on-surface"
-                      >
-                        <span className="truncate font-bold">
-                          {getRecordTitle(backReferenceRecord)}
-                        </span>
-                        <Icon
-                          name="arrow_outward"
-                          size="sm"
-                          className="shrink-0 text-primary"
-                        />
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              逆参照はまだありません。
-            </div>
-          )}
-        </div>
-
-        <div className="mb-5">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-              添付ファイル
-            </div>
-            {isUploadingAttachment && (
-              <div className="text-[10px] text-on-surface-variant">
-                アップロード中...
-              </div>
-            )}
-          </div>
-          {isLoadingActivity && attachments.length === 0 ? (
-            <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
-              添付ファイルを読み込んでいます...
-            </div>
-          ) : attachments.length > 0 ? (
-            <div className="space-y-2">
-              {attachments.map((attachment) => (
-                <a
-                  key={attachment.id}
-                  href={attachment.storagePath}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-xl bg-surface-container p-4"
-                >
-                  <div className="mb-1 text-sm font-bold text-on-surface">
-                    {attachment.fileName}
-                  </div>
-                  <div className="text-[11px] text-on-surface-variant">
-                    {(attachment.fileSize / 1024).toFixed(1)} KB / {attachment.mimeType}
-                  </div>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              添付ファイルはまだありません。
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-            コメント
-          </div>
-          {isLoadingActivity && comments.length === 0 ? (
-            <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
-              コメントを読み込んでいます...
-            </div>
-          ) : comments.length > 0 ? (
-            <div className="space-y-2">
-              {comments.map((comment) => (
-                <div key={comment.id} className="rounded-xl bg-surface-container p-4">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      {comment.isSystem && <Badge variant="info">システム</Badge>}
-                      <span className="text-xs font-bold text-on-surface">
-                        {comment.isSystem ? "システムイベント" : comment.createdBy}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-on-surface-variant">
-                      {formatDateTime(comment.createdAt)}
-                    </span>
-                  </div>
-                  <p className="text-sm leading-relaxed text-on-surface">
-                    {comment.commentText}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-              コメントはまだありません。
-            </div>
-          )}
-        </div>
+        <RecordActivitySections
+          appCode={appCode}
+          runtimeBasePath={runtimeBasePath}
+          backReferenceGroups={backReferenceGroups}
+          isLoadingBackReferences={isLoadingBackReferences}
+          comments={comments}
+          attachments={attachments}
+          isLoadingActivity={isLoadingActivity}
+          isUploadingAttachment={isUploadingAttachment}
+          compact
+        />
       </div>
 
       <div className="border-t border-outline-variant/20 bg-surface px-4 pb-6 pt-3">
@@ -527,6 +405,7 @@ export default function MobileRuntimePage() {
   const appCode = getParam(params.appCode);
   const tableCode = getParam(params.table);
   const requestedRecordId = searchParams.get("recordId")?.trim() ?? "";
+  const pushToast = useToastStore((store) => store.pushToast);
 
   const [activeTab, setActiveTab] = useState("all");
   const [query, setQuery] = useState("");
@@ -881,12 +760,18 @@ export default function MobileRuntimePage() {
       setAttachments([]);
       setActiveOverlay("detail");
       setError(null);
+      pushToast({ title: "レコードを作成しました", variant: "success" });
     } catch (nextError) {
-      throw (
+      const error =
         nextError instanceof Error
           ? nextError
-          : new Error("レコードの作成に失敗しました。")
-      );
+          : new Error("レコードの作成に失敗しました。");
+      pushToast({
+        title: "レコードの作成に失敗しました",
+        description: error.message,
+        variant: "error",
+      });
+      throw error;
     } finally {
       setIsSavingRecord(false);
     }
@@ -904,12 +789,18 @@ export default function MobileRuntimePage() {
       });
       setComments((current) => [...current, comment]);
       setError(null);
+      pushToast({ title: "コメントを追加しました", variant: "success" });
     } catch (nextError) {
-      setError(
+      const errorMessage =
         nextError instanceof Error
           ? nextError.message
-          : "コメントの追加に失敗しました。"
-      );
+          : "コメントの追加に失敗しました。";
+      setError(errorMessage);
+      pushToast({
+        title: "コメントの追加に失敗しました",
+        description: errorMessage,
+        variant: "error",
+      });
     } finally {
       setIsSubmittingComment(false);
     }
@@ -925,12 +816,18 @@ export default function MobileRuntimePage() {
       const attachment = await uploadAttachment(appCode, tableCode, selectedId, file);
       setAttachments((current) => [attachment, ...current]);
       setError(null);
+      pushToast({ title: "添付ファイルを追加しました", variant: "success" });
     } catch (nextError) {
-      setError(
+      const errorMessage =
         nextError instanceof Error
           ? nextError.message
-          : "添付ファイルの追加に失敗しました。"
-      );
+          : "添付ファイルの追加に失敗しました。";
+      setError(errorMessage);
+      pushToast({
+        title: "添付ファイルの追加に失敗しました",
+        description: errorMessage,
+        variant: "error",
+      });
     } finally {
       setIsUploadingAttachment(false);
     }
@@ -965,6 +862,9 @@ export default function MobileRuntimePage() {
       .toLowerCase()
       .includes(normalizedQuery);
   });
+  const emptyMessage = normalizedQuery
+    ? "検索条件に一致するレコードはありません。"
+    : "まだレコードがありません。新規レコードから作成できます。";
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -1032,7 +932,7 @@ export default function MobileRuntimePage() {
 
         {!isLoadingRecords && filteredRecords.length === 0 && (
           <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-            レコードが見つかりません。
+            {emptyMessage}
           </div>
         )}
 

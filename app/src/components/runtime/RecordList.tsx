@@ -48,6 +48,9 @@ export function RecordList({
 
     return haystack.includes(normalizedQuery);
   });
+  const emptyMessage = normalizedQuery
+    ? "検索条件に一致するレコードはありません。"
+    : "まだレコードがありません。新規レコードから作成できます。";
 
   return (
     <div className="flex w-full shrink-0 flex-col border-b border-outline-variant/20 bg-surface-container-low xl:w-80 xl:border-b-0 xl:border-r">
@@ -82,7 +85,7 @@ export function RecordList({
 
         {!isLoading && filteredRecords.length === 0 && (
           <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
-            レコードが見つかりません。
+            {emptyMessage}
           </div>
         )}
 

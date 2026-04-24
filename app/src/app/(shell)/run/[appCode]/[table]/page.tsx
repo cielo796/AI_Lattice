@@ -39,6 +39,7 @@ import {
   resolveRecordListReferences,
   type ReferenceRecordsByField,
 } from "@/lib/runtime-records";
+import { useToastStore } from "@/stores/toastStore";
 import type { ReferenceLabelsByField } from "@/lib/runtime-records";
 import type { RuntimeTableMeta } from "@/types/app";
 import type {
@@ -145,6 +146,7 @@ export default function RuntimeViewPage() {
   const appCode = getParam(params.appCode);
   const tableCode = getParam(params.table);
   const requestedRecordId = searchParams.get("recordId")?.trim() ?? "";
+  const pushToast = useToastStore((store) => store.pushToast);
 
   const [records, setRecords] = useState<AppRecord[]>([]);
   const [comments, setComments] = useState<RecordComment[]>([]);
@@ -490,12 +492,18 @@ export default function RuntimeViewPage() {
       });
       setComments((current) => [...current, comment]);
       setError(null);
+      pushToast({ title: "コメントを追加しました", variant: "success" });
     } catch (nextError) {
-      setError(
+      const errorMessage =
         nextError instanceof Error
           ? nextError.message
-          : "コメントの追加に失敗しました。"
-      );
+          : "コメントの追加に失敗しました。";
+      setError(errorMessage);
+      pushToast({
+        title: "コメントの追加に失敗しました",
+        description: errorMessage,
+        variant: "error",
+      });
     } finally {
       setIsSubmittingComment(false);
     }
@@ -518,12 +526,18 @@ export default function RuntimeViewPage() {
       setAttachments([]);
       setRecordPanelMode(null);
       setError(null);
+      pushToast({ title: "レコードを作成しました", variant: "success" });
     } catch (nextError) {
-      throw (
+      const error =
         nextError instanceof Error
           ? nextError
-          : new Error("レコードの作成に失敗しました。")
-      );
+          : new Error("レコードの作成に失敗しました。");
+      pushToast({
+        title: "レコードの作成に失敗しました",
+        description: error.message,
+        variant: "error",
+      });
+      throw error;
     } finally {
       setIsSavingRecord(false);
     }
@@ -547,12 +561,18 @@ export default function RuntimeViewPage() {
       );
       setRecordPanelMode(null);
       setError(null);
+      pushToast({ title: "レコードを更新しました", variant: "success" });
     } catch (nextError) {
-      throw (
+      const error =
         nextError instanceof Error
           ? nextError
-          : new Error("レコードの更新に失敗しました。")
-      );
+          : new Error("レコードの更新に失敗しました。");
+      pushToast({
+        title: "レコードの更新に失敗しました",
+        description: error.message,
+        variant: "error",
+      });
+      throw error;
     } finally {
       setIsSavingRecord(false);
     }
@@ -582,12 +602,18 @@ export default function RuntimeViewPage() {
       setAttachments([]);
       setRecordPanelMode(null);
       setError(null);
+      pushToast({ title: "レコードを削除しました", variant: "success" });
     } catch (nextError) {
-      setError(
+      const errorMessage =
         nextError instanceof Error
           ? nextError.message
-          : "レコードの削除に失敗しました。"
-      );
+          : "レコードの削除に失敗しました。";
+      setError(errorMessage);
+      pushToast({
+        title: "レコードの削除に失敗しました",
+        description: errorMessage,
+        variant: "error",
+      });
     } finally {
       setIsDeletingRecord(false);
     }
@@ -603,12 +629,18 @@ export default function RuntimeViewPage() {
       const attachment = await uploadAttachment(appCode, tableCode, selectedId, file);
       setAttachments((current) => [attachment, ...current]);
       setError(null);
+      pushToast({ title: "添付ファイルを追加しました", variant: "success" });
     } catch (nextError) {
-      setError(
+      const errorMessage =
         nextError instanceof Error
           ? nextError.message
-          : "添付ファイルの追加に失敗しました。"
-      );
+          : "添付ファイルの追加に失敗しました。";
+      setError(errorMessage);
+      pushToast({
+        title: "添付ファイルの追加に失敗しました",
+        description: errorMessage,
+        variant: "error",
+      });
     } finally {
       setIsUploadingAttachment(false);
     }
@@ -637,12 +669,18 @@ export default function RuntimeViewPage() {
         current.filter((currentAttachment) => currentAttachment.id !== attachmentId)
       );
       setError(null);
+      pushToast({ title: "添付ファイルを削除しました", variant: "success" });
     } catch (nextError) {
-      setError(
+      const errorMessage =
         nextError instanceof Error
           ? nextError.message
-          : "添付ファイルの削除に失敗しました。"
-      );
+          : "添付ファイルの削除に失敗しました。";
+      setError(errorMessage);
+      pushToast({
+        title: "添付ファイルの削除に失敗しました",
+        description: errorMessage,
+        variant: "error",
+      });
     } finally {
       setDeletingAttachmentId(null);
     }

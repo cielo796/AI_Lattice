@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, Inter } from "next/font/google";
 import { AuthBootstrap } from "@/components/shared/AuthBootstrap";
+import { ToastViewport } from "@/components/shared/ToastViewport";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -37,6 +38,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-surface text-on-surface font-body antialiased">
         <AuthBootstrap />
         {children}
+        <ToastViewport />
       </body>
     </html>
   );

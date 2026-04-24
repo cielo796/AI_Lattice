@@ -8,6 +8,7 @@ import { Icon } from "@/components/shared/Icon";
 import { TopBar } from "@/components/shared/TopBar";
 import { deleteApp, listApps } from "@/lib/api/apps";
 import { useAuthStore } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
 import type { App } from "@/types/app";
 
 const statusLabel: Record<App["status"], string> = {
@@ -24,6 +25,7 @@ function getAppHref(app: App) {
 
 export default function HomePage() {
   const userName = useAuthStore((store) => store.user?.name ?? "Marcus");
+  const pushToast = useToastStore((store) => store.pushToast);
   const [apps, setApps] = useState<App[]>([]);
   const [appsError, setAppsError] = useState<string | null>(null);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
@@ -76,10 +78,20 @@ export default function HomePage() {
       await deleteApp(app.id);
       setApps((current) => current.filter((currentApp) => currentApp.id !== app.id));
       setAppsError(null);
+      pushToast({
+        title: "アプリを削除しました",
+        description: app.name,
+        variant: "success",
+      });
     } catch (error) {
-      setAppsError(
-        error instanceof Error ? error.message : "アプリの削除に失敗しました"
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : "アプリの削除に失敗しました";
+      setAppsError(errorMessage);
+      pushToast({
+        title: "アプリの削除に失敗しました",
+        description: errorMessage,
+        variant: "error",
+      });
     } finally {
       setDeletingAppId(null);
     }
@@ -229,6 +241,12 @@ export default function HomePage() {
         {isLoadingApps && (
           <div className="mt-4 text-sm text-on-surface-variant">
             アプリを読み込んでいます...
+          </div>
+        )}
+
+        {!isLoadingApps && apps.length === 0 && !appsError && (
+          <div className="mt-4 rounded-lg border border-dashed border-outline-variant/40 px-4 py-6 text-sm text-on-surface-variant">
+            まだアプリがありません。AI で作成または新規作成から追加できます。
           </div>
         )}
 

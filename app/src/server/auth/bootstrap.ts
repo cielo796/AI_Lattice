@@ -1,5 +1,6 @@
 import { getPrismaClient } from "@/server/db/prisma";
 import { hashPassword } from "@/server/auth/crypto";
+import { isDemoAutoSeedEnabled } from "@/server/demo/seed-policy";
 
 const DEMO_PASSWORD = "demo";
 const DEMO_TENANT_ID = "t-001";
@@ -106,6 +107,10 @@ async function seedDemoAuthData() {
 }
 
 export async function ensureDemoAuthData() {
+  if (!isDemoAutoSeedEnabled()) {
+    return;
+  }
+
   if (!bootstrapPromise) {
     bootstrapPromise = seedDemoAuthData().catch((error) => {
       bootstrapPromise = null;

@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "check:mojibake": "node scripts/check-mojibake.mjs",
+    "quality": "npm run check:mojibake && npm run lint && npm test && npx tsc --noEmit --pretty false",
     "db:start": "docker compose up -d",
     "db:stop": "docker compose down",
     "db:generate": "prisma generate",
