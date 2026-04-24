@@ -3,6 +3,7 @@ import type { RuntimeTableMeta } from "@/types/app";
 import type {
   AppRecord,
   Attachment,
+  RecordBackReferenceGroup,
   RecordComment,
 } from "@/types/record";
 
@@ -46,6 +47,10 @@ function commentsPath(appCode: string, tableCode: string, recordId: string) {
 
 function attachmentsPath(appCode: string, tableCode: string, recordId: string) {
   return `${recordPath(appCode, tableCode, recordId)}/attachments`;
+}
+
+function backReferencesPath(appCode: string, tableCode: string, recordId: string) {
+  return `${recordPath(appCode, tableCode, recordId)}/back-references`;
 }
 
 function attachmentPath(
@@ -132,6 +137,16 @@ export async function listAttachments(
   recordId: string
 ) {
   return apiFetch<Attachment[]>(attachmentsPath(appCode, tableCode, recordId));
+}
+
+export async function listBackReferences(
+  appCode: string,
+  tableCode: string,
+  recordId: string
+) {
+  return apiFetch<RecordBackReferenceGroup[]>(
+    backReferencesPath(appCode, tableCode, recordId)
+  );
 }
 
 export async function createAttachment(

@@ -9,6 +9,10 @@ import { getPrismaClient } from "@/server/db/prisma";
 
 let bootstrapPromise: Promise<void> | null = null;
 
+function getDemoTenantId() {
+  return mockRecords[0]?.tenantId ?? mockComments[0]?.tenantId ?? mockAttachments[0]?.tenantId;
+}
+
 function toJsonObject(value: Record<string, unknown>) {
   return value as Prisma.InputJsonObject;
 }
@@ -19,8 +23,36 @@ export async function ensureDemoRecordData() {
       await ensureDemoBuilderData();
 
       const prisma = getPrismaClient();
+      const demoTenantId = getDemoTenantId();
+
+      if (!demoTenantId) {
+        return;
+      }
+
+      const existingRecord = await prisma.appRecord.findFirst({
+        where: { tenantId: demoTenantId },
+        select: { id: true },
+      });
+
+      if (existingRecord) {
+        return;
+      }
+
+      const existingTables = await prisma.appTable.findMany({
+        where: {
+          tenantId: demoTenantId,
+          id: { in: [...new Set(mockRecords.map((record) => record.tableId))] },
+        },
+        select: { id: true },
+      });
+      const existingTableIds = new Set(existingTables.map((table) => table.id));
+      const seededRecordIds = new Set<string>();
 
       for (const record of mockRecords) {
+        if (!existingTableIds.has(record.tableId)) {
+          continue;
+        }
+
         const existingRecord = await prisma.appRecord.findUnique({
           where: { id: record.id },
           select: { id: true },
@@ -43,9 +75,15 @@ export async function ensureDemoRecordData() {
             },
           });
         }
+
+        seededRecordIds.add(record.id);
       }
 
       for (const comment of mockComments) {
+        if (!seededRecordIds.has(comment.recordId)) {
+          continue;
+        }
+
         const existingComment = await prisma.recordComment.findUnique({
           where: { id: comment.id },
           select: { id: true },
@@ -67,6 +105,10 @@ export async function ensureDemoRecordData() {
       }
 
       for (const attachment of mockAttachments) {
+        if (!seededRecordIds.has(attachment.recordId)) {
+          continue;
+        }
+
         const existingAttachment = await prisma.attachment.findUnique({
           where: { id: attachment.id },
           select: { id: true },

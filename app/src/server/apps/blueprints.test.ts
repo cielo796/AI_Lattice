@@ -4,6 +4,7 @@ import {
   createAppFromBlueprint,
   generateBlueprintFromPrompt,
   normalizeGeneratedAppBlueprint,
+  SAMPLE_RECORDS_PER_TABLE,
 } from "@/server/apps/blueprints";
 
 vi.mock("@/server/apps/bootstrap", () => ({
@@ -169,6 +170,9 @@ describe("apps blueprints", () => {
       appField: {
         create: vi.fn().mockResolvedValue({ id: "fld-new" }),
       },
+      appRecord: {
+        create: vi.fn().mockResolvedValue({ id: "rec-new" }),
+      },
     };
     const prisma = {
       $transaction: vi.fn(async (callback: (innerTx: typeof tx) => unknown) =>
@@ -183,6 +187,21 @@ describe("apps blueprints", () => {
     expect(tx.app.create).toHaveBeenCalledOnce();
     expect(tx.appTable.create).toHaveBeenCalledOnce();
     expect(tx.appField.create).toHaveBeenCalledTimes(2);
+    expect(tx.appRecord.create).toHaveBeenCalledTimes(SAMPLE_RECORDS_PER_TABLE);
+    expect(tx.appRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          appId: expect.any(String),
+          tableId: expect.any(String),
+          status: "pending",
+          dataJson: expect.objectContaining({
+            id: "TICKETS-001",
+            subject: "交通費精算",
+            priority: "Critical",
+          }),
+        }),
+      })
+    );
     expect(createdApp.id).toBe("app-new");
     expect(createdApp.primaryTableCode).toBe("tickets");
     expect(createdApp.tableCount).toBe(1);

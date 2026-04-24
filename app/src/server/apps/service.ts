@@ -209,6 +209,47 @@ function toSettingsJson(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
+function getReferenceTableCode(settings: Record<string, unknown> | undefined) {
+  const referenceTableCode = settings?.referenceTableCode;
+  return typeof referenceTableCode === "string" ? referenceTableCode.trim() : "";
+}
+
+function getReferenceTableId(settings: Record<string, unknown> | undefined) {
+  const referenceTableId = settings?.referenceTableId;
+  if (typeof referenceTableId === "string" && referenceTableId.trim()) {
+    return referenceTableId.trim();
+  }
+
+  const legacyReferenceTableId = settings?.refTable;
+  return typeof legacyReferenceTableId === "string" ? legacyReferenceTableId.trim() : "";
+}
+
+function getReferenceDisplayFieldCode(settings: Record<string, unknown> | undefined) {
+  const displayFieldCode = settings?.displayFieldCode;
+  return typeof displayFieldCode === "string" ? displayFieldCode.trim() : "";
+}
+
+function getReferenceLookupFieldCodes(settings: Record<string, unknown> | undefined) {
+  const lookupFieldCodes = settings?.lookupFieldCodes;
+
+  if (!Array.isArray(lookupFieldCodes)) {
+    return [];
+  }
+
+  return lookupFieldCodes.filter(
+    (lookupFieldCode): lookupFieldCode is string =>
+      typeof lookupFieldCode === "string" && lookupFieldCode.trim().length > 0
+  );
+}
+
+function isMultiReference(settings: Record<string, unknown> | undefined) {
+  return settings?.multiple === true;
+}
+
+function shouldShowBackReference(settings: Record<string, unknown> | undefined) {
+  return settings?.showBackReference === true;
+}
+
 function toAppField(field: {
   id: string;
   tenantId: string;
@@ -383,6 +424,84 @@ async function nextFieldSortOrder(tableId: string) {
   });
 
   return field ? field.sortOrder + 1 : 0;
+}
+
+async function normalizeFieldSettings(
+  user: User,
+  appId: string,
+  fieldType: FieldType,
+  settingsJson: Record<string, unknown> | undefined
+) {
+  if (fieldType !== "master_ref") {
+    return settingsJson;
+  }
+
+  const referenceTableId = getReferenceTableId(settingsJson);
+  const referenceTableCode = getReferenceTableCode(settingsJson);
+
+  if (!referenceTableId && !referenceTableCode) {
+    throw new AppsServiceError("参照先テーブルが指定されていません", 400);
+  }
+
+  const prisma = getPrismaClient();
+  const referenceTable = await prisma.appTable.findFirst({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      ...(referenceTableId ? { id: referenceTableId } : { code: referenceTableCode }),
+    },
+    select: {
+      id: true,
+      code: true,
+    },
+  });
+
+  if (!referenceTable) {
+    throw new AppsServiceError("参照先テーブルが見つかりません", 400);
+  }
+
+  const referenceFields = await prisma.appField.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      tableId: referenceTable.id,
+    },
+    select: {
+      code: true,
+    },
+  });
+  const availableFieldCodes = new Set(referenceFields.map((field) => field.code));
+
+  const displayFieldCode = getReferenceDisplayFieldCode(settingsJson);
+  if (displayFieldCode && !availableFieldCodes.has(displayFieldCode)) {
+    throw new AppsServiceError("表示フィールドが参照先テーブルに存在しません", 400);
+  }
+
+  const lookupFieldCodes = getReferenceLookupFieldCodes(settingsJson);
+  const invalidLookupFieldCode = lookupFieldCodes.find(
+    (lookupFieldCode) => !availableFieldCodes.has(lookupFieldCode)
+  );
+  if (invalidLookupFieldCode) {
+    throw new AppsServiceError(
+      `Lookup フィールド "${invalidLookupFieldCode}" が参照先テーブルに存在しません`,
+      400
+    );
+  }
+
+  const normalizedLookupFieldCodes = lookupFieldCodes.filter(
+    (lookupFieldCode) => lookupFieldCode !== displayFieldCode
+  );
+
+  return {
+    referenceTableId: referenceTable.id,
+    referenceTableCode: referenceTable.code,
+    ...(displayFieldCode ? { displayFieldCode } : {}),
+    ...(normalizedLookupFieldCodes.length > 0
+      ? { lookupFieldCodes: normalizedLookupFieldCodes }
+      : {}),
+    ...(isMultiReference(settingsJson) ? { multiple: true } : {}),
+    ...(shouldShowBackReference(settingsJson) ? { showBackReference: true } : {}),
+  };
 }
 
 export async function listAppsForUser(user: User) {
@@ -576,14 +695,66 @@ export async function updateTableForApp(
   await ensureUniqueTableCode(user, appId, nextCode, existingTable.id);
 
   const prisma = getPrismaClient();
-  const table = await prisma.appTable.update({
-    where: { id: existingTable.id },
-    data: {
-      name: nextName,
-      code: nextCode,
-      isSystem: input.isSystem ?? existingTable.isSystem,
-      sortOrder: input.sortOrder ?? existingTable.sortOrder,
-    },
+  const table = await prisma.$transaction(async (tx) => {
+    const updatedTable = await tx.appTable.update({
+      where: { id: existingTable.id },
+      data: {
+        name: nextName,
+        code: nextCode,
+        isSystem: input.isSystem ?? existingTable.isSystem,
+        sortOrder: input.sortOrder ?? existingTable.sortOrder,
+      },
+    });
+
+    if (existingTable.code === nextCode) {
+      return updatedTable;
+    }
+
+    const referenceFields = await tx.appField.findMany({
+      where: {
+        tenantId: user.tenantId,
+        appId,
+        fieldType: "master_ref",
+      },
+      select: {
+        id: true,
+        settingsJson: true,
+      },
+    });
+
+    const updateOperations = referenceFields.flatMap((field) => {
+      const settings = toSettingsJson(field.settingsJson);
+      if (!settings) {
+        return [];
+      }
+
+      const referenceTableId = getReferenceTableId(settings);
+      const referenceTableCode = getReferenceTableCode(settings);
+
+      if (
+        referenceTableId !== existingTable.id &&
+        referenceTableCode !== existingTable.code
+      ) {
+        return [];
+      }
+
+      return [
+        tx.appField.update({
+          where: { id: field.id },
+          data: {
+            settingsJson: toJsonObject({
+              ...settings,
+              referenceTableId: existingTable.id,
+              referenceTableCode: nextCode,
+            }),
+          },
+        }),
+      ];
+    });
+
+    await Promise.all(updateOperations);
+
+    return updatedTable;
   });
 
   return toAppTable(table);
@@ -598,6 +769,33 @@ export async function deleteTableForApp(
 
   const existingTable = await getTableOrThrow(user, appId, tableId);
   const prisma = getPrismaClient();
+  const referenceFields = await prisma.appField.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      fieldType: "master_ref",
+    },
+    select: {
+      name: true,
+      settingsJson: true,
+    },
+  });
+
+  const blockingField = referenceFields.find((field) => {
+    const settings = toSettingsJson(field.settingsJson);
+    return (
+      getReferenceTableId(settings) === existingTable.id ||
+      getReferenceTableCode(settings) === existingTable.code
+    );
+  });
+
+  if (blockingField) {
+    throw new AppsServiceError(
+      `参照フィールド「${blockingField.name}」がこのテーブルを使用しているため削除できません`,
+      409
+    );
+  }
+
   await prisma.appTable.delete({
     where: { id: existingTable.id },
   });
@@ -654,6 +852,12 @@ export async function createFieldForTable(
   await ensureUniqueFieldCode(user, appId, tableId, code);
 
   const fieldType = assertFieldType(input.fieldType);
+  const settingsJson = await normalizeFieldSettings(
+    user,
+    appId,
+    fieldType,
+    input.settingsJson
+  );
   const prisma = getPrismaClient();
   const field = await prisma.appField.create({
     data: {
@@ -668,7 +872,7 @@ export async function createFieldForTable(
       uniqueFlag: input.uniqueFlag ?? false,
       defaultValue:
         input.defaultValue === undefined ? undefined : toJsonValue(input.defaultValue),
-      settingsJson: toJsonObject(input.settingsJson),
+      settingsJson: toJsonObject(settingsJson),
       sortOrder: input.sortOrder ?? (await nextFieldSortOrder(tableId)),
     },
   });
@@ -698,6 +902,22 @@ export async function updateFieldForTable(
   }
 
   await ensureUniqueFieldCode(user, appId, tableId, nextCode, existingField.id);
+  const nextFieldType = input.fieldType
+    ? assertFieldType(input.fieldType)
+    : existingField.fieldType;
+
+  if (
+    nextFieldType === "master_ref" &&
+    input.settingsJson === undefined &&
+    existingField.fieldType !== "master_ref"
+  ) {
+    throw new AppsServiceError("参照先テーブルが指定されていません", 400);
+  }
+
+  const nextSettingsJson =
+    input.settingsJson !== undefined
+      ? await normalizeFieldSettings(user, appId, nextFieldType, input.settingsJson)
+      : undefined;
 
   const prisma = getPrismaClient();
   const field = await prisma.appField.update({
@@ -705,16 +925,14 @@ export async function updateFieldForTable(
     data: {
       name: nextName,
       code: nextCode,
-      fieldType: input.fieldType
-        ? assertFieldType(input.fieldType)
-        : existingField.fieldType,
+      fieldType: nextFieldType,
       required: input.required ?? existingField.required,
       uniqueFlag: input.uniqueFlag ?? existingField.uniqueFlag,
       ...(input.defaultValue !== undefined
         ? { defaultValue: toJsonValue(input.defaultValue) }
         : {}),
       ...(input.settingsJson !== undefined
-        ? { settingsJson: toJsonObject(input.settingsJson) }
+        ? { settingsJson: toJsonObject(nextSettingsJson) }
         : {}),
       sortOrder: input.sortOrder ?? existingField.sortOrder,
     },

@@ -34,6 +34,15 @@ export interface Attachment {
   createdAt: string;
 }
 
+export interface RecordBackReferenceGroup {
+  fieldCode: string;
+  fieldName: string;
+  sourceTableId: string;
+  sourceTableCode: string;
+  sourceTableName: string;
+  records: AppRecord[];
+}
+
 export interface Approval {
   id: string;
   tenantId: string;

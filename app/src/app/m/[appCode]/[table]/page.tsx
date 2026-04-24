@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useEffect,
   useRef,
@@ -7,7 +8,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/shared/Badge";
 import { Icon } from "@/components/shared/Icon";
 import { Button } from "@/components/shared/Button";
@@ -18,16 +19,25 @@ import {
   createRecord,
   getRuntimeTableMeta,
   listAttachments,
+  listBackReferences,
   listComments,
   listRecords,
   uploadAttachment,
 } from "@/lib/api/records";
 import {
+  buildReferenceRecordHref,
   formatDateTime,
   formatFieldKey,
+  formatFieldValue,
   formatPriorityLabel,
   formatStatusLabel,
   getDisplayFields,
+  getRecordFieldValueText,
+  getReferenceDisplayFieldCode,
+  getReferenceLookupFieldCodes,
+  getReferenceRecordLabel,
+  getReferenceTableCode,
+  getReferenceValueIds,
   getPriorityVariant,
   getRecordCustomer,
   getRecordDescription,
@@ -36,9 +46,19 @@ import {
   getRecordSentiment,
   getRecordTitle,
   getStatusVariant,
+  type ReferenceFieldsByField,
+  resolveRecordListReferences,
+  resolveRecordReferences,
+  type ReferenceRecordsByField,
 } from "@/lib/runtime-records";
+import type { ReferenceLabelsByField } from "@/lib/runtime-records";
 import type { AppField, RuntimeTableMeta } from "@/types/app";
-import type { AppRecord, Attachment, RecordComment } from "@/types/record";
+import type {
+  AppRecord,
+  Attachment,
+  RecordBackReferenceGroup,
+  RecordComment,
+} from "@/types/record";
 
 const tabs = [
   { id: "all", label: "すべて" },
@@ -49,9 +69,16 @@ const tabs = [
 type MobileOverlay = "detail" | "create" | null;
 
 interface MobileRecordDetailViewProps {
+  appCode?: string;
+  runtimeBasePath?: string;
   error?: string | null;
   record: AppRecord;
   fieldDefinitions?: AppField[];
+  referenceLabelsByField?: ReferenceLabelsByField;
+  referenceRecordsByField?: ReferenceRecordsByField;
+  referenceFieldsByField?: ReferenceFieldsByField;
+  backReferenceGroups?: RecordBackReferenceGroup[];
+  isLoadingBackReferences?: boolean;
   comments: RecordComment[];
   attachments: Attachment[];
   isLoadingActivity?: boolean;
@@ -66,22 +93,17 @@ function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
-function formatFieldValue(value: unknown) {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  return JSON.stringify(value);
-}
-
 function MobileRecordDetailView({
+  appCode,
+  runtimeBasePath = "/m",
   error,
   record,
   fieldDefinitions = [],
+  referenceLabelsByField = {},
+  referenceRecordsByField = {},
+  referenceFieldsByField = {},
+  backReferenceGroups = [],
+  isLoadingBackReferences = false,
   comments,
   attachments,
   isLoadingActivity = false,
@@ -93,10 +115,140 @@ function MobileRecordDetailView({
 }: MobileRecordDetailViewProps) {
   const [commentText, setCommentText] = useState("");
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const resolvedRecord = resolveRecordReferences(
+    record,
+    fieldDefinitions,
+    referenceLabelsByField
+  );
 
-  const description = getRecordDescription(record);
-  const customer = getRecordCustomer(record) || "依頼者不明";
-  const fields = getDisplayFields(record);
+  const description = getRecordDescription(resolvedRecord);
+  const customer = getRecordCustomer(resolvedRecord) || "依頼者不明";
+  const fields = getDisplayFields(resolvedRecord);
+
+  function renderFieldContent(key: string, value: unknown) {
+    const fieldDefinition = fieldDefinitions.find((field) => field.code === key);
+    const rawValue = record.data[key];
+
+    if (appCode && fieldDefinition?.fieldType === "master_ref") {
+      const referenceTableCode = getReferenceTableCode(fieldDefinition);
+      const referenceRecordIds = getReferenceValueIds(rawValue);
+
+      if (referenceTableCode && referenceRecordIds.length > 0) {
+        return (
+          <div className="flex flex-wrap gap-2">
+            {referenceRecordIds.map((referenceRecordId) => (
+              <Link
+                key={referenceRecordId}
+                href={buildReferenceRecordHref(
+                  runtimeBasePath,
+                  appCode,
+                  referenceTableCode,
+                  referenceRecordId
+                )}
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 font-bold text-primary hover:text-emerald-300"
+              >
+                <span>
+                  {referenceLabelsByField[key]?.[referenceRecordId] ?? referenceRecordId}
+                </span>
+                <Icon name="arrow_outward" size="sm" />
+              </Link>
+            ))}
+          </div>
+        );
+      }
+    }
+
+    return formatFieldValue(value);
+  }
+
+  function renderLookupDetails(fieldDefinition: AppField) {
+    const lookupFieldCodes = getReferenceLookupFieldCodes(fieldDefinition);
+    const referenceRecordIds = getReferenceValueIds(record.data[fieldDefinition.code]);
+
+    if (lookupFieldCodes.length === 0 || referenceRecordIds.length === 0) {
+      return null;
+    }
+
+    const recordsById = referenceRecordsByField[fieldDefinition.code] ?? {};
+    const referenceFields = referenceFieldsByField[fieldDefinition.code] ?? [];
+    const lookupCards = referenceRecordIds
+      .map((referenceRecordId) => {
+        const referenceRecord = recordsById[referenceRecordId];
+        if (!referenceRecord) {
+          return null;
+        }
+
+        const lookupValues = lookupFieldCodes
+          .map((lookupFieldCode) => {
+            const text = getRecordFieldValueText(referenceRecord, lookupFieldCode);
+            if (!text) {
+              return null;
+            }
+
+            return {
+              fieldLabel: formatFieldKey(lookupFieldCode, referenceFields),
+              value: text,
+            };
+          })
+          .filter(
+            (
+              lookupValue
+            ): lookupValue is { fieldLabel: string; value: string } =>
+              lookupValue !== null
+          );
+
+        if (lookupValues.length === 0) {
+          return null;
+        }
+
+        return {
+          label:
+            referenceLabelsByField[fieldDefinition.code]?.[referenceRecordId] ??
+            getRecordTitle(referenceRecord),
+          values: lookupValues,
+        };
+      })
+      .filter(
+        (
+          lookupCard
+        ): lookupCard is {
+          label: string;
+          values: Array<{ fieldLabel: string; value: string }>;
+        } => lookupCard !== null
+      );
+
+    if (lookupCards.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-3 space-y-2">
+        {lookupCards.map((lookupCard) => (
+          <div
+            key={lookupCard.label}
+            className="rounded-lg bg-surface-container-high/60 p-3"
+          >
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-primary">
+              {lookupCard.label}
+            </div>
+            <div className="space-y-1">
+              {lookupCard.values.map((lookupValue) => (
+                <div
+                  key={`${lookupCard.label}-${lookupValue.fieldLabel}`}
+                  className="flex items-start justify-between gap-3 text-xs"
+                >
+                  <span className="text-on-surface-variant">
+                    {lookupValue.fieldLabel}
+                  </span>
+                  <span className="text-right text-on-surface">{lookupValue.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -134,15 +286,15 @@ function MobileRecordDetailView({
           </button>
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Badge variant={getStatusVariant(record.status)}>
-                {formatStatusLabel(record.status)}
+              <Badge variant={getStatusVariant(resolvedRecord.status)}>
+                {formatStatusLabel(resolvedRecord.status)}
               </Badge>
               <span className="text-[10px] font-mono text-on-surface-variant">
-                {getRecordIdentifier(record)}
+                {getRecordIdentifier(resolvedRecord)}
               </span>
             </div>
             <h1 className="text-lg font-bold leading-tight text-on-surface">
-              {getRecordTitle(record)}
+              {getRecordTitle(resolvedRecord)}
             </h1>
           </div>
         </div>
@@ -159,7 +311,7 @@ function MobileRecordDetailView({
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="text-sm font-bold text-on-surface">{customer}</span>
             <span className="text-[10px] text-on-surface-variant">
-              {formatDateTime(record.createdAt)}
+              {formatDateTime(resolvedRecord.createdAt)}
             </span>
           </div>
           <p className="text-sm leading-relaxed text-on-surface">
@@ -179,13 +331,78 @@ function MobileRecordDetailView({
                     {formatFieldKey(key, fieldDefinitions)}
                   </div>
                   <div className="text-sm text-on-surface">
-                    {formatFieldValue(value)}
+                    {renderFieldContent(key, value)}
                   </div>
+                  {(() => {
+                    const fieldDefinition = fieldDefinitions.find((field) => field.code === key);
+                    return fieldDefinition?.fieldType === "master_ref"
+                      ? renderLookupDetails(fieldDefinition)
+                      : null;
+                  })()}
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        <div className="mb-5">
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            逆参照
+          </div>
+          {isLoadingBackReferences && backReferenceGroups.length === 0 ? (
+            <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
+              逆参照を読み込んでいます...
+            </div>
+          ) : backReferenceGroups.length > 0 ? (
+            <div className="space-y-2">
+              {backReferenceGroups.map((group) => (
+                <div
+                  key={`${group.sourceTableId}:${group.fieldCode}`}
+                  className="rounded-xl bg-surface-container p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-bold text-on-surface">
+                        {group.sourceTableName}
+                      </div>
+                      <div className="text-[11px] text-on-surface-variant">
+                        {group.fieldName}
+                      </div>
+                    </div>
+                    <Badge variant="info">{group.records.length}</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {group.records.map((backReferenceRecord) => (
+                      <Link
+                        key={backReferenceRecord.id}
+                        href={buildReferenceRecordHref(
+                          runtimeBasePath,
+                          appCode ?? "",
+                          group.sourceTableCode,
+                          backReferenceRecord.id
+                        )}
+                        className="flex items-center justify-between gap-3 rounded-xl bg-surface-container-high/60 px-3 py-2 text-sm text-on-surface"
+                      >
+                        <span className="truncate font-bold">
+                          {getRecordTitle(backReferenceRecord)}
+                        </span>
+                        <Icon
+                          name="arrow_outward"
+                          size="sm"
+                          className="shrink-0 text-primary"
+                        />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+              逆参照はまだありません。
+            </div>
+          )}
+        </div>
 
         <div className="mb-5">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -306,8 +523,10 @@ function MobileRecordDetailView({
 
 export default function MobileRuntimePage() {
   const params = useParams<{ appCode: string; table: string }>();
+  const searchParams = useSearchParams();
   const appCode = getParam(params.appCode);
   const tableCode = getParam(params.table);
+  const requestedRecordId = searchParams.get("recordId")?.trim() ?? "";
 
   const [activeTab, setActiveTab] = useState("all");
   const [query, setQuery] = useState("");
@@ -323,10 +542,25 @@ export default function MobileRuntimePage() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<MobileOverlay>(null);
+  const [referenceLabelsByField, setReferenceLabelsByField] =
+    useState<ReferenceLabelsByField>({});
+  const [referenceRecordsByField, setReferenceRecordsByField] =
+    useState<ReferenceRecordsByField>({});
+  const [referenceFieldsByField, setReferenceFieldsByField] =
+    useState<ReferenceFieldsByField>({});
+  const [backReferenceGroups, setBackReferenceGroups] = useState<
+    RecordBackReferenceGroup[]
+  >([]);
+  const [isLoadingBackReferences, setIsLoadingBackReferences] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedRecord =
     records.find((record) => record.id === selectedId) ?? null;
+  const resolvedRecords = resolveRecordListReferences(
+    records,
+    tableMeta?.fields ?? [],
+    referenceLabelsByField
+  );
 
   useEffect(() => {
     if (!appCode || !tableCode) {
@@ -348,6 +582,26 @@ export default function MobileRuntimePage() {
         }
 
         setRecords(nextRecords);
+        setSelectedId((current) => {
+          if (
+            requestedRecordId &&
+            nextRecords.some((record) => record.id === requestedRecordId)
+          ) {
+            return requestedRecordId;
+          }
+
+          if (current && nextRecords.some((record) => record.id === current)) {
+            return current;
+          }
+
+          return nextRecords[0]?.id ?? null;
+        });
+        if (
+          requestedRecordId &&
+          nextRecords.some((record) => record.id === requestedRecordId)
+        ) {
+          setActiveOverlay("detail");
+        }
         setError(null);
       } catch (nextError) {
         if (cancelled) {
@@ -372,7 +626,7 @@ export default function MobileRuntimePage() {
     return () => {
       cancelled = true;
     };
-  }, [appCode, tableCode]);
+  }, [appCode, requestedRecordId, tableCode]);
 
   useEffect(() => {
     if (!appCode || !tableCode) {
@@ -468,6 +722,143 @@ export default function MobileRuntimePage() {
     };
   }, [activeOverlay, appCode, selectedId, tableCode]);
 
+  useEffect(() => {
+    if (!appCode || !tableMeta) {
+      setReferenceLabelsByField({});
+      setReferenceRecordsByField({});
+      setReferenceFieldsByField({});
+      return;
+    }
+
+    const currentTableMeta = tableMeta;
+    let cancelled = false;
+
+    async function loadReferenceLabels() {
+      const referenceFields = currentTableMeta.fields
+        .filter((field) => field.fieldType === "master_ref")
+        .map((field) => ({
+          fieldCode: field.code,
+          tableCode: getReferenceTableCode(field),
+          displayFieldCode: getReferenceDisplayFieldCode(field),
+        }))
+        .filter(
+          (field): field is {
+            fieldCode: string;
+            tableCode: string;
+            displayFieldCode: string;
+          } =>
+            Boolean(field.tableCode)
+        );
+
+      if (referenceFields.length === 0) {
+        setReferenceLabelsByField({});
+        setReferenceRecordsByField({});
+        setReferenceFieldsByField({});
+        return;
+      }
+
+      try {
+        const uniqueTableCodes = [
+          ...new Set(referenceFields.map((field) => field.tableCode)),
+        ];
+        const [recordsByTableCode, metaByTableCode] = await Promise.all([
+          Object.fromEntries(
+            await Promise.all(
+              uniqueTableCodes.map(async (referenceTableCode) => [
+                referenceTableCode,
+                await listRecords(appCode, referenceTableCode),
+              ])
+            )
+          ) as Record<string, AppRecord[]>,
+          Object.fromEntries(
+            await Promise.all(
+              uniqueTableCodes.map(async (referenceTableCode) => [
+                referenceTableCode,
+                await getRuntimeTableMeta(appCode, referenceTableCode),
+              ])
+            )
+          ) as Record<string, RuntimeTableMeta>,
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const nextReferenceLabels: ReferenceLabelsByField = {};
+        const nextReferenceRecords: ReferenceRecordsByField = {};
+        const nextReferenceFields: ReferenceFieldsByField = {};
+        for (const referenceField of referenceFields) {
+          const records = recordsByTableCode[referenceField.tableCode] ?? [];
+          nextReferenceLabels[referenceField.fieldCode] = Object.fromEntries(
+            records.map((record) => [
+              record.id,
+              getReferenceRecordLabel(record, referenceField.displayFieldCode),
+            ])
+          );
+          nextReferenceRecords[referenceField.fieldCode] = Object.fromEntries(
+            records.map((record) => [record.id, record])
+          );
+          nextReferenceFields[referenceField.fieldCode] =
+            metaByTableCode[referenceField.tableCode]?.fields ?? [];
+        }
+
+        setReferenceLabelsByField(nextReferenceLabels);
+        setReferenceRecordsByField(nextReferenceRecords);
+        setReferenceFieldsByField(nextReferenceFields);
+      } catch {
+        if (!cancelled) {
+          setReferenceLabelsByField({});
+          setReferenceRecordsByField({});
+          setReferenceFieldsByField({});
+        }
+      }
+    }
+
+    void loadReferenceLabels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appCode, tableMeta]);
+
+  useEffect(() => {
+    if (!appCode || !tableCode || !selectedId || activeOverlay !== "detail") {
+      setBackReferenceGroups([]);
+      setIsLoadingBackReferences(false);
+      return;
+    }
+
+    const currentRecordId = selectedId;
+    let cancelled = false;
+
+    async function loadBackReferences() {
+      try {
+        setIsLoadingBackReferences(true);
+        const nextGroups = await listBackReferences(appCode, tableCode, currentRecordId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setBackReferenceGroups(nextGroups);
+      } catch {
+        if (!cancelled) {
+          setBackReferenceGroups([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingBackReferences(false);
+        }
+      }
+    }
+
+    void loadBackReferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOverlay, appCode, selectedId, tableCode]);
+
   function openDetail(recordId: string) {
     setSelectedId(recordId);
     setActiveOverlay("detail");
@@ -546,7 +937,7 @@ export default function MobileRuntimePage() {
   }
 
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredRecords = records.filter((record) => {
+  const filteredRecords = resolvedRecords.filter((record) => {
     if (activeTab === "open" && !record.status.toLowerCase().includes("open")) {
       return false;
     }
@@ -729,9 +1120,16 @@ export default function MobileRuntimePage() {
 
       {activeOverlay === "detail" && selectedRecord && (
         <MobileRecordDetailView
+          appCode={appCode}
+          runtimeBasePath="/m"
           error={error}
           record={selectedRecord}
           fieldDefinitions={tableMeta?.fields}
+          referenceLabelsByField={referenceLabelsByField}
+          referenceRecordsByField={referenceRecordsByField}
+          referenceFieldsByField={referenceFieldsByField}
+          backReferenceGroups={backReferenceGroups}
+          isLoadingBackReferences={isLoadingBackReferences}
           comments={comments}
           attachments={attachments}
           isLoadingActivity={isLoadingActivity}
@@ -752,6 +1150,7 @@ export default function MobileRuntimePage() {
           )}
           <RecordCreatePanel
             key={`mobile-create-${tableMeta?.table.id ?? tableCode}`}
+            appCode={appCode}
             fields={tableMeta?.fields ?? []}
             tableName={tableMeta?.table.name}
             isSubmitting={isSavingRecord}
