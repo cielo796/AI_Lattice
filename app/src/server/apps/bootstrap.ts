@@ -6,6 +6,10 @@ import { getPrismaClient } from "@/server/db/prisma";
 
 let bootstrapPromise: Promise<void> | null = null;
 
+function getDemoTenantId() {
+  return mockApps[0]?.tenantId;
+}
+
 function toJsonObject(
   value: Record<string, unknown> | undefined
 ): Prisma.InputJsonObject | undefined {
@@ -22,6 +26,20 @@ export async function ensureDemoBuilderData() {
       await ensureDemoAuthData();
 
       const prisma = getPrismaClient();
+      const demoTenantId = getDemoTenantId();
+
+      if (!demoTenantId) {
+        return;
+      }
+
+      const existingApp = await prisma.app.findFirst({
+        where: { tenantId: demoTenantId },
+        select: { id: true },
+      });
+
+      if (existingApp) {
+        return;
+      }
 
       for (const app of mockApps) {
         const existingApp = await prisma.app.findUnique({

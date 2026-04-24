@@ -6,6 +6,7 @@ import type { AppField, FieldType, RuntimeTableMeta } from "@/types/app";
 import type {
   AppRecord,
   Attachment as RecordAttachment,
+  RecordBackReferenceGroup,
   RecordComment,
 } from "@/types/record";
 import type { User } from "@/types/user";
@@ -84,6 +85,54 @@ function toDataObject(value: Prisma.JsonValue): Record<string, unknown> {
   }
 
   return value as Record<string, unknown>;
+}
+
+function getReferenceTableCode(settings: Record<string, unknown> | undefined) {
+  const referenceTableCode = settings?.referenceTableCode;
+  return typeof referenceTableCode === "string" ? referenceTableCode.trim() : "";
+}
+
+function getReferenceTableId(settings: Record<string, unknown> | undefined) {
+  const referenceTableId = settings?.referenceTableId;
+  if (typeof referenceTableId === "string" && referenceTableId.trim()) {
+    return referenceTableId.trim();
+  }
+
+  const legacyReferenceTableId = settings?.refTable;
+  return typeof legacyReferenceTableId === "string" ? legacyReferenceTableId.trim() : "";
+}
+
+function isMultiReference(settings: Record<string, unknown> | undefined) {
+  return settings?.multiple === true;
+}
+
+function shouldShowBackReference(settings: Record<string, unknown> | undefined) {
+  return settings?.showBackReference === true;
+}
+
+function getReferenceRecordIds(value: unknown, allowMultiple: boolean) {
+  if (allowMultiple) {
+    if (!Array.isArray(value)) {
+      return null;
+    }
+
+    const ids = value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (ids.length !== value.length) {
+      return null;
+    }
+
+    return [...new Set(ids)];
+  }
+
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+
+  return [value.trim()];
 }
 
 function toRuntimeTable(table: {
@@ -287,6 +336,130 @@ async function getAttachmentOrThrow(
   return attachment;
 }
 
+async function validateReferenceFieldsForRecord(
+  user: User,
+  appId: string,
+  tableId: string,
+  data: Record<string, unknown>
+) {
+  const nextData = { ...data };
+  const prisma = getPrismaClient();
+  const referenceFields = await prisma.appField.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+      fieldType: "master_ref",
+    },
+    select: {
+      code: true,
+      name: true,
+      settingsJson: true,
+    },
+  });
+
+  if (referenceFields.length === 0) {
+    return data;
+  }
+
+  const tableCache = new Map<string, { id: string; code: string; name: string }>();
+  const recordExistsCache = new Map<string, boolean>();
+
+  for (const field of referenceFields) {
+    const rawValue = nextData[field.code];
+
+    if (rawValue === undefined || rawValue === null) {
+      continue;
+    }
+
+    const settings = toSettingsJson(field.settingsJson);
+    const allowMultiple = isMultiReference(settings);
+    const referenceRecordIds = getReferenceRecordIds(rawValue, allowMultiple);
+
+    if (!referenceRecordIds) {
+      throw new RecordsServiceError(
+        allowMultiple
+          ? `Field "${field.name}" must reference record ids`
+          : `Field "${field.name}" must reference a record id`,
+        400
+      );
+    }
+    const referenceTableId = getReferenceTableId(settings);
+    const referenceTableCode = getReferenceTableCode(settings);
+
+    if (!referenceTableId && !referenceTableCode) {
+      throw new RecordsServiceError(
+        `Field "${field.name}" is missing a reference table configuration`,
+        400
+      );
+    }
+
+    const tableCacheKey = referenceTableId
+      ? `id:${referenceTableId}`
+      : `code:${referenceTableCode}`;
+    let referenceTable = tableCache.get(tableCacheKey);
+
+    if (!referenceTable) {
+      const matchedTable = await prisma.appTable.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          appId,
+          ...(referenceTableId
+            ? { id: referenceTableId }
+            : { code: referenceTableCode }),
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      });
+
+      if (!matchedTable) {
+        throw new RecordsServiceError(
+          `Referenced table for field "${field.name}" was not found`,
+          400
+        );
+      }
+
+      referenceTable = matchedTable;
+      tableCache.set(tableCacheKey, matchedTable);
+    }
+
+    for (const referenceRecordId of referenceRecordIds) {
+      const recordCacheKey = `${referenceTable.id}:${referenceRecordId}`;
+      let referenceRecordExists = recordExistsCache.get(recordCacheKey);
+
+      if (referenceRecordExists === undefined) {
+        referenceRecordExists = Boolean(
+          await prisma.appRecord.findFirst({
+            where: {
+              id: referenceRecordId,
+              tenantId: user.tenantId,
+              appId,
+              tableId: referenceTable.id,
+              deletedAt: null,
+            },
+            select: { id: true },
+          })
+        );
+        recordExistsCache.set(recordCacheKey, referenceRecordExists);
+      }
+
+      if (!referenceRecordExists) {
+        throw new RecordsServiceError(
+          `Field "${field.name}" must reference an existing ${referenceTable.name} record`,
+          400
+        );
+      }
+    }
+
+    nextData[field.code] = allowMultiple ? referenceRecordIds : referenceRecordIds[0];
+  }
+
+  return nextData;
+}
+
 export async function listRecordsForTable(
   user: User,
   appCode: string,
@@ -341,7 +514,12 @@ export async function createRecordForTable(
 ) {
   await ensureDemoRecordData();
   const { app, table } = await getTableByCodeOrThrow(user, appCode, tableCode);
-  const data = assertRecordData(input.data);
+  const data = await validateReferenceFieldsForRecord(
+    user,
+    app.id,
+    table.id,
+    assertRecordData(input.data)
+  );
   const prisma = getPrismaClient();
   const record = await prisma.appRecord.create({
     data: {
@@ -370,6 +548,100 @@ export async function getRecordForTable(
   return toAppRecord(record);
 }
 
+export async function listBackReferencesForRecord(
+  user: User,
+  appCode: string,
+  tableCode: string,
+  recordId: string
+): Promise<RecordBackReferenceGroup[]> {
+  await ensureDemoRecordData();
+  const { app, table, record } = await getRecordOrThrow(user, appCode, tableCode, recordId);
+  const prisma = getPrismaClient();
+  const referenceFields = await prisma.appField.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId: app.id,
+      fieldType: "master_ref",
+    },
+    select: {
+      code: true,
+      name: true,
+      settingsJson: true,
+      table: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  const activeReferenceFields = referenceFields.filter((field) => {
+    const settings = toSettingsJson(field.settingsJson);
+
+    if (!shouldShowBackReference(settings)) {
+      return false;
+    }
+
+    return (
+      getReferenceTableId(settings) === table.id ||
+      getReferenceTableCode(settings) === table.code
+    );
+  });
+
+  if (activeReferenceFields.length === 0) {
+    return [];
+  }
+
+  const recordsByTableId = Object.fromEntries(
+    await Promise.all(
+      [...new Set(activeReferenceFields.map((field) => field.table.id))].map(
+        async (sourceTableId) => [
+          sourceTableId,
+          await prisma.appRecord.findMany({
+            where: {
+              tenantId: user.tenantId,
+              appId: app.id,
+              tableId: sourceTableId,
+              deletedAt: null,
+            },
+            orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+          }),
+        ]
+      )
+    )
+  ) as Record<string, Array<Parameters<typeof toAppRecord>[0]>>;
+
+  return activeReferenceFields
+    .map((field) => {
+      const settings = toSettingsJson(field.settingsJson);
+      const matchedRecords = (recordsByTableId[field.table.id] ?? []).filter((sourceRecord) => {
+        const rawValue = toDataObject(sourceRecord.dataJson)[field.code];
+        const referenceRecordIds = getReferenceRecordIds(
+          rawValue,
+          isMultiReference(settings)
+        );
+
+        return referenceRecordIds?.includes(record.id) ?? false;
+      });
+
+      if (matchedRecords.length === 0) {
+        return null;
+      }
+
+      return {
+        fieldCode: field.code,
+        fieldName: field.name,
+        sourceTableId: field.table.id,
+        sourceTableCode: field.table.code,
+        sourceTableName: field.table.name,
+        records: matchedRecords.map((matchedRecord) => toAppRecord(matchedRecord)),
+      } satisfies RecordBackReferenceGroup;
+    })
+    .filter((group): group is RecordBackReferenceGroup => group !== null);
+}
+
 export async function updateRecordForTable(
   user: User,
   appCode: string,
@@ -378,12 +650,26 @@ export async function updateRecordForTable(
   input: UpdateRecordInput
 ) {
   await ensureDemoRecordData();
-  const { record } = await getRecordOrThrow(user, appCode, tableCode, recordId);
+  const { app, table, record } = await getRecordOrThrow(
+    user,
+    appCode,
+    tableCode,
+    recordId
+  );
   const prisma = getPrismaClient();
-  const nextData =
+  const nextDataObject =
     input.data !== undefined
-      ? toJsonObject(assertRecordData(input.data))
-      : toJsonObject(toDataObject(record.dataJson));
+      ? assertRecordData(input.data)
+      : toDataObject(record.dataJson);
+  const nextData =
+    toJsonObject(
+      await validateReferenceFieldsForRecord(
+        user,
+        app.id,
+        table.id,
+        nextDataObject
+      )
+    );
   const nextStatus =
     input.status !== undefined ? assertNonEmpty(input.status, "Status") : record.status;
 

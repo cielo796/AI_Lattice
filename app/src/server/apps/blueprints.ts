@@ -2,6 +2,7 @@ import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
 import { getPrismaClient } from "@/server/db/prisma";
 import { getOpenAIClient } from "@/server/openai/client";
 import { AppsServiceError } from "@/server/apps/service";
+import type { Prisma } from "@prisma/client";
 import type { App } from "@/types/app";
 import type {
   GeneratedAppBlueprint,
@@ -13,6 +14,7 @@ import type { User } from "@/types/user";
 
 const MAX_TABLES = 3;
 const MAX_FIELDS_PER_TABLE = 10;
+const SAMPLE_RECORDS_PER_TABLE = 3;
 const GENERATED_BLUEPRINT_FIELD_TYPES: GeneratedBlueprintFieldType[] = [
   "text",
   "textarea",
@@ -118,6 +120,136 @@ function normalizeIdentifier(value: string, separator: "-" | "_") {
     .replace(/[^a-z0-9]+/g, separator)
     .replace(new RegExp(`\\${separator}+`, "g"), separator)
     .replace(new RegExp(`^\\${separator}|\\${separator}$`, "g"), "");
+}
+
+function getSampleRecordCode(tableCode: string, recordIndex: number) {
+  const prefix = normalizeIdentifier(tableCode, "_").toUpperCase() || "RECORD";
+  return `${prefix}-${String(recordIndex + 1).padStart(3, "0")}`;
+}
+
+function getStringSampleValue(
+  blueprint: GeneratedAppBlueprint,
+  table: GeneratedBlueprintTable,
+  field: GeneratedBlueprintField,
+  recordIndex: number
+) {
+  const code = field.code.toLowerCase();
+  const values = {
+    people: ["田中 太郎", "佐藤 花子", "鈴木 一郎"],
+    departments: ["営業部", "開発部", "管理部"],
+    companies: ["Acme 株式会社", "Nexus Systems", "GlobalTech 株式会社"],
+    items: ["交通費精算", "会議用備品購入", "顧客訪問出張費"],
+  };
+
+  if (code === "id" || code.endsWith("_id") || code.endsWith("-id")) {
+    return getSampleRecordCode(table.code, recordIndex);
+  }
+
+  if (
+    code.includes("applicant") ||
+    code.includes("requester") ||
+    code.includes("employee") ||
+    code.includes("user")
+  ) {
+    return values.people[recordIndex % values.people.length];
+  }
+
+  if (code.includes("department") || code.includes("team")) {
+    return values.departments[recordIndex % values.departments.length];
+  }
+
+  if (code.includes("customer") || code.includes("client") || code.includes("company")) {
+    return values.companies[recordIndex % values.companies.length];
+  }
+
+  if (
+    code.includes("item") ||
+    code.includes("title") ||
+    code.includes("subject") ||
+    code.includes("name")
+  ) {
+    return values.items[recordIndex % values.items.length];
+  }
+
+  if (code.includes("email")) {
+    return `sample${recordIndex + 1}@example.com`;
+  }
+
+  if (code.includes("phone") || code.includes("tel")) {
+    return `03-0000-000${recordIndex + 1}`;
+  }
+
+  return `${blueprint.name} ${field.name} ${recordIndex + 1}`;
+}
+
+function getSampleDateValue(recordIndex: number) {
+  const day = 22 + recordIndex;
+  return `2026-04-${String(day).padStart(2, "0")}`;
+}
+
+function getSampleFieldValue(
+  blueprint: GeneratedAppBlueprint,
+  table: GeneratedBlueprintTable,
+  field: GeneratedBlueprintField,
+  recordIndex: number
+) {
+  switch (field.fieldType) {
+    case "text":
+      return getStringSampleValue(blueprint, table, field, recordIndex);
+    case "textarea":
+      return `${table.name}のサンプルレコードです。内容確認、承認、履歴確認の動作テストに利用できます。`;
+    case "number":
+      return [12800, 3540, 89000][recordIndex % 3];
+    case "date":
+      return getSampleDateValue(recordIndex);
+    case "datetime":
+      return `${getSampleDateValue(recordIndex)}T09:00:00.000Z`;
+    case "boolean":
+      return recordIndex % 2 === 0;
+    case "select":
+      return field.options?.[recordIndex % field.options.length] ?? "";
+    default:
+      return "";
+  }
+}
+
+function buildSampleRecordData(
+  blueprint: GeneratedAppBlueprint,
+  table: GeneratedBlueprintTable,
+  recordIndex: number
+) {
+  const data = Object.fromEntries(
+    table.fields.map((field) => [
+      field.code,
+      getSampleFieldValue(blueprint, table, field, recordIndex),
+    ])
+  ) as Record<string, unknown>;
+
+  if (!("id" in data) && !("code" in data) && !("ticket_id" in data)) {
+    data.id = getSampleRecordCode(table.code, recordIndex);
+  }
+
+  if (!("title" in data) && !("subject" in data) && !("name" in data)) {
+    data.title = `${table.name} サンプル ${recordIndex + 1}`;
+  }
+
+  return data;
+}
+
+function getSampleRecordStatus(data: Record<string, unknown>, recordIndex: number) {
+  for (const key of ["status", "approval_status", "state"]) {
+    const value = data[key];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return ["pending", "active", "approved"][recordIndex % 3];
+}
+
+function toJsonObject(value: Record<string, unknown>) {
+  return value as Prisma.InputJsonObject;
 }
 
 function assertObject(value: unknown, message: string): Record<string, unknown> {
@@ -516,6 +648,23 @@ export async function createAppFromBlueprint(
           },
         });
       }
+
+      for (let recordIndex = 0; recordIndex < SAMPLE_RECORDS_PER_TABLE; recordIndex += 1) {
+        const data = buildSampleRecordData(blueprint, table, recordIndex);
+
+        await tx.appRecord.create({
+          data: {
+            id: crypto.randomUUID(),
+            tenantId: user.tenantId,
+            appId,
+            tableId,
+            status: getSampleRecordStatus(data, recordIndex),
+            dataJson: toJsonObject(data),
+            createdById: user.id,
+            updatedById: user.id,
+          },
+        });
+      }
     }
 
     return {
@@ -531,4 +680,5 @@ export {
   MAX_FIELDS_PER_TABLE,
   MAX_TABLES,
   OPENAI_MODEL,
+  SAMPLE_RECORDS_PER_TABLE,
 };

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -10,6 +10,13 @@ import { Icon } from "@/components/shared/Icon";
 import { Input } from "@/components/shared/Input";
 import { TopBar } from "@/components/shared/TopBar";
 import { cn } from "@/lib/cn";
+import {
+  getReferenceDisplayFieldCode,
+  getReferenceLookupFieldCodes,
+  getReferenceTableId,
+  isMultiReferenceField,
+  shouldShowBackReference,
+} from "@/lib/runtime-records";
 import {
   createField,
   createTable,
@@ -35,6 +42,11 @@ type FieldFormState = {
   required: boolean;
   uniqueFlag: boolean;
   optionsText: string;
+  referenceTableId: string;
+  displayFieldCode: string;
+  lookupFieldCodes: string[];
+  multiple: boolean;
+  showBackReference: boolean;
 };
 type BadgeVariant = "default" | "success" | "warning" | "error" | "info" | "ai";
 
@@ -46,6 +58,11 @@ const EMPTY_FIELD_FORM: FieldFormState = {
   required: false,
   uniqueFlag: false,
   optionsText: "",
+  referenceTableId: "",
+  displayFieldCode: "",
+  lookupFieldCodes: [],
+  multiple: false,
+  showBackReference: false,
 };
 
 const FIELD_TYPES: FieldType[] = [
@@ -72,7 +89,7 @@ const FIELD_META: Record<FieldType, { label: string; variant: BadgeVariant }> = 
   boolean: { label: "真偽値", variant: "default" },
   select: { label: "選択式", variant: "warning" },
   user_ref: { label: "ユーザー参照", variant: "info" },
-  master_ref: { label: "マスター参照", variant: "info" },
+  master_ref: { label: "他テーブル参照", variant: "info" },
   file: { label: "ファイル", variant: "default" },
   ai_generated: { label: "AI 生成", variant: "ai" },
   calculated: { label: "計算式", variant: "warning" },
@@ -117,8 +134,14 @@ export default function TableDesignerPage() {
   const [isSavingTable, setIsSavingTable] = useState(false);
   const [isSavingField, setIsSavingField] = useState(false);
   const [isDeletingApp, setIsDeletingApp] = useState(false);
+  const [referenceTableFields, setReferenceTableFields] = useState<AppField[]>([]);
+  const [isLoadingReferenceTableFields, setIsLoadingReferenceTableFields] =
+    useState(false);
 
   const activeTable = tables.find((table) => table.id === activeTableId) ?? null;
+  const referenceTableOptions = tables.filter((table) => table.id !== activeTableId);
+  const activeReferenceTable =
+    tables.find((table) => table.id === fieldForm.referenceTableId) ?? null;
 
   useEffect(() => {
     if (!appId) {
@@ -191,6 +214,71 @@ export default function TableDesignerPage() {
     };
   }, [activeTableId, appId]);
 
+  useEffect(() => {
+    if (!appId || fieldForm.fieldType !== "master_ref" || !fieldForm.referenceTableId) {
+      setReferenceTableFields([]);
+      setIsLoadingReferenceTableFields(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadReferenceFields() {
+      try {
+        setIsLoadingReferenceTableFields(true);
+        const nextFields = sortByOrder(
+          await listFields(appId, fieldForm.referenceTableId)
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setReferenceTableFields(nextFields);
+        setFieldForm((current) => {
+          const availableCodes = new Set(nextFields.map((field) => field.code));
+          const nextDisplayFieldCode = availableCodes.has(current.displayFieldCode)
+            ? current.displayFieldCode
+            : "";
+          const nextLookupFieldCodes = current.lookupFieldCodes.filter((lookupFieldCode) =>
+            availableCodes.has(lookupFieldCode)
+          );
+
+          if (
+            nextDisplayFieldCode === current.displayFieldCode &&
+            nextLookupFieldCodes.length === current.lookupFieldCodes.length
+          ) {
+            return current;
+          }
+
+          return {
+            ...current,
+            displayFieldCode: nextDisplayFieldCode,
+            lookupFieldCodes: nextLookupFieldCodes,
+          };
+        });
+      } catch (nextError) {
+        if (!cancelled) {
+          setReferenceTableFields([]);
+          setError(
+            nextError instanceof Error
+              ? nextError.message
+              : "参照先フィールドの読み込みに失敗しました。"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingReferenceTableFields(false);
+        }
+      }
+    }
+
+    void loadReferenceFields();
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, fieldForm.fieldType, fieldForm.referenceTableId]);
+
   function resetTableForm() {
     setEditingTableId(null);
     setTableForm(EMPTY_TABLE_FORM);
@@ -260,6 +348,13 @@ export default function TableDesignerPage() {
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
+    const referenceTable = tables.find((table) => table.id === fieldForm.referenceTableId);
+
+    if (fieldForm.fieldType === "master_ref" && !referenceTable) {
+      setError("参照先テーブルを選択してください。");
+      setIsSavingField(false);
+      return;
+    }
 
     try {
       if (editingFieldId) {
@@ -269,7 +364,22 @@ export default function TableDesignerPage() {
           fieldType: fieldForm.fieldType,
           required: fieldForm.required,
           uniqueFlag: fieldForm.uniqueFlag,
-          settingsJson: fieldForm.fieldType === "select" ? { options } : {},
+          settingsJson:
+            fieldForm.fieldType === "select"
+              ? { options }
+              : fieldForm.fieldType === "master_ref" && referenceTable
+                ? {
+                    referenceTableId: referenceTable.id,
+                    referenceTableCode: referenceTable.code,
+                    displayFieldCode: fieldForm.displayFieldCode || undefined,
+                    lookupFieldCodes:
+                      fieldForm.lookupFieldCodes.length > 0
+                        ? fieldForm.lookupFieldCodes
+                        : undefined,
+                    multiple: fieldForm.multiple,
+                    showBackReference: fieldForm.showBackReference,
+                  }
+                : {},
         };
         const updated = await updateField(appId, activeTableId, editingFieldId, payload);
         setFields((current) =>
@@ -282,7 +392,22 @@ export default function TableDesignerPage() {
           fieldType: fieldForm.fieldType,
           required: fieldForm.required,
           uniqueFlag: fieldForm.uniqueFlag,
-          settingsJson: fieldForm.fieldType === "select" ? { options } : undefined,
+          settingsJson:
+            fieldForm.fieldType === "select"
+              ? { options }
+              : fieldForm.fieldType === "master_ref" && referenceTable
+                ? {
+                    referenceTableId: referenceTable.id,
+                    referenceTableCode: referenceTable.code,
+                    displayFieldCode: fieldForm.displayFieldCode || undefined,
+                    lookupFieldCodes:
+                      fieldForm.lookupFieldCodes.length > 0
+                        ? fieldForm.lookupFieldCodes
+                        : undefined,
+                    multiple: fieldForm.multiple,
+                    showBackReference: fieldForm.showBackReference,
+                  }
+                : undefined,
         };
         const created = await createField(appId, activeTableId, payload);
         setFields((current) => sortByOrder([...current, created]));
@@ -501,7 +626,39 @@ export default function TableDesignerPage() {
                   <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
                     フィールド型
                   </label>
-                  <select value={fieldForm.fieldType} onChange={(event) => setFieldForm((current) => ({ ...current, fieldType: event.target.value as FieldType }))} disabled={!activeTable || isSavingField} className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <select
+                    value={fieldForm.fieldType}
+                    onChange={(event) =>
+                      setFieldForm((current) => ({
+                        ...current,
+                        fieldType: event.target.value as FieldType,
+                        optionsText:
+                          event.target.value === "select" ? current.optionsText : "",
+                        referenceTableId:
+                          event.target.value === "master_ref"
+                            ? current.referenceTableId
+                            : "",
+                        displayFieldCode:
+                          event.target.value === "master_ref"
+                            ? current.displayFieldCode
+                            : "",
+                        lookupFieldCodes:
+                          event.target.value === "master_ref"
+                            ? current.lookupFieldCodes
+                            : [],
+                        multiple:
+                          event.target.value === "master_ref"
+                            ? current.multiple
+                            : false,
+                        showBackReference:
+                          event.target.value === "master_ref"
+                            ? current.showBackReference
+                            : false,
+                      }))
+                    }
+                    disabled={!activeTable || isSavingField}
+                    className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  >
                     {FIELD_TYPES.map((fieldType) => (
                       <option key={fieldType} value={fieldType}>
                         {FIELD_META[fieldType].label}
@@ -511,10 +668,126 @@ export default function TableDesignerPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
-                    選択肢
+                    {fieldForm.fieldType === "master_ref" ? "参照先テーブル" : "選択肢"}
                   </label>
-                  <Input value={fieldForm.optionsText} onChange={(event) => setFieldForm((current) => ({ ...current, optionsText: event.target.value }))} placeholder="選択肢 A, 選択肢 B" disabled={!activeTable || isSavingField || fieldForm.fieldType !== "select"} />
+                  {fieldForm.fieldType === "master_ref" ? (
+                    <select
+                      value={fieldForm.referenceTableId}
+                      onChange={(event) =>
+                        setFieldForm((current) => ({
+                          ...current,
+                          referenceTableId: event.target.value,
+                          displayFieldCode: "",
+                          lookupFieldCodes: [],
+                        }))
+                      }
+                      disabled={
+                        !activeTable || isSavingField || referenceTableOptions.length === 0
+                      }
+                      className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      <option value="">
+                        {referenceTableOptions.length > 0
+                          ? "参照先テーブルを選択"
+                          : "参照可能なテーブルがありません"}
+                      </option>
+                      {referenceTableOptions.map((table) => (
+                        <option key={table.id} value={table.id}>
+                          {table.name} ({table.code})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      value={fieldForm.optionsText}
+                      onChange={(event) =>
+                        setFieldForm((current) => ({
+                          ...current,
+                          optionsText: event.target.value,
+                        }))
+                      }
+                      placeholder="選択肢 A, 選択肢 B"
+                      disabled={
+                        !activeTable || isSavingField || fieldForm.fieldType !== "select"
+                      }
+                    />
+                  )}
                 </div>
+                {fieldForm.fieldType === "master_ref" && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                        表示フィールド
+                      </label>
+                      <select
+                        value={fieldForm.displayFieldCode}
+                        onChange={(event) =>
+                          setFieldForm((current) => ({
+                            ...current,
+                            displayFieldCode: event.target.value,
+                            lookupFieldCodes: current.lookupFieldCodes.filter(
+                              (lookupFieldCode) => lookupFieldCode !== event.target.value
+                            ),
+                          }))
+                        }
+                        disabled={
+                          !activeTable ||
+                          isSavingField ||
+                          !activeReferenceTable ||
+                          isLoadingReferenceTableFields
+                        }
+                        className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="">
+                          {activeReferenceTable
+                            ? "自動判定を使う"
+                            : "参照先テーブルを選択してください"}
+                        </option>
+                        {referenceTableFields.map((field) => (
+                          <option key={field.id} value={field.code}>
+                            {field.name} ({field.code})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                        Lookup フィールド
+                      </label>
+                      <select
+                        multiple
+                        value={fieldForm.lookupFieldCodes}
+                        onChange={(event) =>
+                          setFieldForm((current) => ({
+                            ...current,
+                            lookupFieldCodes: Array.from(
+                              event.target.selectedOptions,
+                              (option) => option.value
+                            ),
+                          }))
+                        }
+                        disabled={
+                          !activeTable ||
+                          isSavingField ||
+                          !activeReferenceTable ||
+                          isLoadingReferenceTableFields
+                        }
+                        className="min-h-[124px] w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        {referenceTableFields
+                          .filter((field) => field.code !== fieldForm.displayFieldCode)
+                          .map((field) => (
+                            <option key={field.id} value={field.code}>
+                              {field.name} ({field.code})
+                            </option>
+                          ))}
+                      </select>
+                      <div className="text-[11px] text-on-surface-variant">
+                        参照先レコードから詳細に展開する項目です。
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
@@ -525,6 +798,40 @@ export default function TableDesignerPage() {
                   <input type="checkbox" checked={fieldForm.uniqueFlag} onChange={(event) => setFieldForm((current) => ({ ...current, uniqueFlag: event.target.checked }))} disabled={!activeTable || isSavingField} className="h-4 w-4" />
                   一意
                 </label>
+                {fieldForm.fieldType === "master_ref" && (
+                  <>
+                    <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
+                      <input
+                        type="checkbox"
+                        checked={fieldForm.multiple}
+                        onChange={(event) =>
+                          setFieldForm((current) => ({
+                            ...current,
+                            multiple: event.target.checked,
+                          }))
+                        }
+                        disabled={!activeTable || isSavingField}
+                        className="h-4 w-4"
+                      />
+                      複数参照
+                    </label>
+                    <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
+                      <input
+                        type="checkbox"
+                        checked={fieldForm.showBackReference}
+                        onChange={(event) =>
+                          setFieldForm((current) => ({
+                            ...current,
+                            showBackReference: event.target.checked,
+                          }))
+                        }
+                        disabled={!activeTable || isSavingField}
+                        className="h-4 w-4"
+                      />
+                      逆参照を表示
+                    </label>
+                  </>
+                )}
               </div>
               <div className="mt-6">
                 <Button type="submit" disabled={!activeTable || isSavingField}>
@@ -598,6 +905,11 @@ export default function TableDesignerPage() {
                           required: field.required,
                           uniqueFlag: field.uniqueFlag,
                           optionsText: getFieldOptions(field).join(", "),
+                          referenceTableId: getReferenceTableId(field),
+                          displayFieldCode: getReferenceDisplayFieldCode(field),
+                          lookupFieldCodes: getReferenceLookupFieldCodes(field),
+                          multiple: isMultiReferenceField(field),
+                          showBackReference: shouldShowBackReference(field),
                         });
                       }}
                     >

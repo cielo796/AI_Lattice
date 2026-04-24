@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { AISidebar } from "@/components/ai/AISidebar";
 import { RecordCreatePanel } from "@/components/runtime/RecordCreatePanel";
 import { RecordDetail } from "@/components/runtime/RecordDetail";
@@ -16,6 +16,7 @@ import {
   deleteRecord,
   getRuntimeTableMeta,
   listAttachments,
+  listBackReferences,
   listComments,
   listRecords,
   updateRecord,
@@ -25,15 +26,27 @@ import {
   formatRelativeTime,
   formatPriorityLabel,
   formatStatusLabel,
+  getReferenceDisplayFieldCode,
+  getReferenceRecordLabel,
+  getReferenceTableCode,
   getPriorityVariant,
   getRecordCustomer,
   getRecordDescription,
   getRecordPriority,
   getRecordSentiment,
   getRecordTitle,
+  type ReferenceFieldsByField,
+  resolveRecordListReferences,
+  type ReferenceRecordsByField,
 } from "@/lib/runtime-records";
+import type { ReferenceLabelsByField } from "@/lib/runtime-records";
 import type { RuntimeTableMeta } from "@/types/app";
-import type { AppRecord, Attachment, RecordComment } from "@/types/record";
+import type {
+  AppRecord,
+  Attachment,
+  RecordBackReferenceGroup,
+  RecordComment,
+} from "@/types/record";
 
 type RecommendedAction = {
   icon: string;
@@ -128,8 +141,10 @@ function buildSimilarRecords(records: AppRecord[], selected: AppRecord | null) {
 
 export default function RuntimeViewPage() {
   const params = useParams<{ appCode: string; table: string }>();
+  const searchParams = useSearchParams();
   const appCode = getParam(params.appCode);
   const tableCode = getParam(params.table);
+  const requestedRecordId = searchParams.get("recordId")?.trim() ?? "";
 
   const [records, setRecords] = useState<AppRecord[]>([]);
   const [comments, setComments] = useState<RecordComment[]>([]);
@@ -147,11 +162,28 @@ export default function RuntimeViewPage() {
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(
     null
   );
+  const [referenceLabelsByField, setReferenceLabelsByField] =
+    useState<ReferenceLabelsByField>({});
+  const [referenceRecordsByField, setReferenceRecordsByField] =
+    useState<ReferenceRecordsByField>({});
+  const [referenceFieldsByField, setReferenceFieldsByField] =
+    useState<ReferenceFieldsByField>({});
+  const [backReferenceGroups, setBackReferenceGroups] = useState<
+    RecordBackReferenceGroup[]
+  >([]);
+  const [isLoadingBackReferences, setIsLoadingBackReferences] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const selectedRecord =
     records.find((record) => record.id === selectedId) ?? null;
+  const resolvedRecords = resolveRecordListReferences(
+    records,
+    tableMeta?.fields ?? [],
+    referenceLabelsByField
+  );
+  const resolvedSelectedRecord =
+    resolvedRecords.find((record) => record.id === selectedId) ?? null;
 
   useEffect(() => {
     if (!appCode || !tableCode) {
@@ -174,6 +206,13 @@ export default function RuntimeViewPage() {
 
         setRecords(nextRecords);
         setSelectedId((current) => {
+          if (
+            requestedRecordId &&
+            nextRecords.some((record) => record.id === requestedRecordId)
+          ) {
+            return requestedRecordId;
+          }
+
           if (current && nextRecords.some((record) => record.id === current)) {
             return current;
           }
@@ -207,7 +246,7 @@ export default function RuntimeViewPage() {
     return () => {
       cancelled = true;
     };
-  }, [appCode, refreshKey, tableCode]);
+  }, [appCode, refreshKey, requestedRecordId, tableCode]);
 
   useEffect(() => {
     if (!appCode || !tableCode) {
@@ -250,7 +289,143 @@ export default function RuntimeViewPage() {
     return () => {
       cancelled = true;
     };
-  }, [appCode, refreshKey, tableCode]);
+  }, [appCode, refreshKey, requestedRecordId, tableCode]);
+
+  useEffect(() => {
+    if (!appCode || !tableMeta) {
+      setReferenceLabelsByField({});
+      setReferenceRecordsByField({});
+      setReferenceFieldsByField({});
+      return;
+    }
+
+    const currentTableMeta = tableMeta;
+    let cancelled = false;
+
+    async function loadReferenceLabels() {
+      const referenceFields = currentTableMeta.fields
+        .filter((field) => field.fieldType === "master_ref")
+        .map((field) => ({
+          fieldCode: field.code,
+          tableCode: getReferenceTableCode(field),
+          displayFieldCode: getReferenceDisplayFieldCode(field),
+        }))
+        .filter(
+          (field): field is {
+            fieldCode: string;
+            tableCode: string;
+            displayFieldCode: string;
+          } =>
+            Boolean(field.tableCode)
+        );
+
+      if (referenceFields.length === 0) {
+        setReferenceLabelsByField({});
+        setReferenceRecordsByField({});
+        setReferenceFieldsByField({});
+        return;
+      }
+
+      try {
+        const uniqueTableCodes = [
+          ...new Set(referenceFields.map((field) => field.tableCode)),
+        ];
+        const [recordsByTableCode, metaByTableCode] = await Promise.all([
+          Object.fromEntries(
+            await Promise.all(
+              uniqueTableCodes.map(async (referenceTableCode) => [
+                referenceTableCode,
+                await listRecords(appCode, referenceTableCode),
+              ])
+            )
+          ) as Record<string, AppRecord[]>,
+          Object.fromEntries(
+            await Promise.all(
+              uniqueTableCodes.map(async (referenceTableCode) => [
+                referenceTableCode,
+                await getRuntimeTableMeta(appCode, referenceTableCode),
+              ])
+            )
+          ) as Record<string, RuntimeTableMeta>,
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const nextReferenceLabels: ReferenceLabelsByField = {};
+        const nextReferenceRecords: ReferenceRecordsByField = {};
+        const nextReferenceFields: ReferenceFieldsByField = {};
+        for (const referenceField of referenceFields) {
+          const records = recordsByTableCode[referenceField.tableCode] ?? [];
+          nextReferenceLabels[referenceField.fieldCode] = Object.fromEntries(
+            records.map((record) => [
+              record.id,
+              getReferenceRecordLabel(record, referenceField.displayFieldCode),
+            ])
+          );
+          nextReferenceRecords[referenceField.fieldCode] = Object.fromEntries(
+            records.map((record) => [record.id, record])
+          );
+          nextReferenceFields[referenceField.fieldCode] =
+            metaByTableCode[referenceField.tableCode]?.fields ?? [];
+        }
+
+        setReferenceLabelsByField(nextReferenceLabels);
+        setReferenceRecordsByField(nextReferenceRecords);
+        setReferenceFieldsByField(nextReferenceFields);
+      } catch {
+        if (!cancelled) {
+          setReferenceLabelsByField({});
+          setReferenceRecordsByField({});
+          setReferenceFieldsByField({});
+        }
+      }
+    }
+
+    void loadReferenceLabels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appCode, refreshKey, tableMeta]);
+
+  useEffect(() => {
+    if (!appCode || !tableCode || !selectedId) {
+      setBackReferenceGroups([]);
+      setIsLoadingBackReferences(false);
+      return;
+    }
+
+    const currentRecordId = selectedId;
+    let cancelled = false;
+
+    async function loadBackReferences() {
+      try {
+        setIsLoadingBackReferences(true);
+        const nextGroups = await listBackReferences(appCode, tableCode, currentRecordId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setBackReferenceGroups(nextGroups);
+      } catch {
+        if (!cancelled) {
+          setBackReferenceGroups([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingBackReferences(false);
+        }
+      }
+    }
+
+    void loadBackReferences();
+    return () => {
+      cancelled = true;
+    };
+  }, [appCode, refreshKey, selectedId, tableCode]);
 
   useEffect(() => {
     if (!appCode || !tableCode || !selectedId) {
@@ -473,8 +648,11 @@ export default function RuntimeViewPage() {
     }
   }
 
-  const recommendedActions = buildRecommendedActions(selectedRecord);
-  const similarRecords = buildSimilarRecords(records, selectedRecord);
+  const recommendedActions = buildRecommendedActions(resolvedSelectedRecord);
+  const similarRecords = buildSimilarRecords(
+    resolvedRecords,
+    resolvedSelectedRecord
+  );
   const shouldRenderRecordPanel =
     recordPanelMode === "create" ||
     (recordPanelMode === "edit" && selectedRecord !== null);
@@ -512,7 +690,7 @@ export default function RuntimeViewPage() {
       <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
         <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
           <RecordList
-            records={records}
+            records={resolvedRecords}
             selectedId={selectedId ?? undefined}
             isLoading={isLoadingRecords}
             onSelect={(record) => setSelectedId(record.id)}
@@ -532,6 +710,7 @@ export default function RuntimeViewPage() {
                     ? `edit-${selectedRecord?.id ?? "none"}`
                     : "create"
                 }
+                appCode={appCode}
                 fields={tableMeta?.fields ?? []}
                 mode={recordPanelMode ?? "create"}
                 initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
@@ -545,8 +724,15 @@ export default function RuntimeViewPage() {
             )}
 
             <RecordDetail
+              appCode={appCode}
+              runtimeBasePath="/run"
               record={selectedRecord}
               fieldDefinitions={tableMeta?.fields}
+              referenceLabelsByField={referenceLabelsByField}
+              referenceRecordsByField={referenceRecordsByField}
+              referenceFieldsByField={referenceFieldsByField}
+              backReferenceGroups={backReferenceGroups}
+              isLoadingBackReferences={isLoadingBackReferences}
               comments={comments}
               attachments={attachments}
               isLoadingActivity={isLoadingActivity}
@@ -569,7 +755,7 @@ export default function RuntimeViewPage() {
               実行サマリー
             </div>
             <p className="text-xs leading-relaxed text-on-surface">
-              {buildSummary(selectedRecord)}
+              {buildSummary(resolvedSelectedRecord)}
             </p>
           </div>
 
