@@ -10,9 +10,11 @@ import {
 } from "@/server/records/service";
 import {
   parseJsonBody,
+  recordRouteFailure,
   requireAuthenticatedUser,
   toRouteErrorResponse,
 } from "@/app/api/_helpers";
+import type { User } from "@/types/user";
 
 type RouteContext = {
   params: Promise<{ appCode: string; table: string; recordId: string }>;
@@ -82,12 +84,16 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function POST(request: Request, context: RouteContext) {
   let uploadedFilePath: string | null = null;
+  let user: User | null = null;
+  let appCode = "";
+  let table = "";
+  let recordId = "";
+  let input: CreateAttachmentInput | undefined;
 
   try {
-    const user = await requireAuthenticatedUser();
-    const { appCode, table, recordId } = await context.params;
+    user = await requireAuthenticatedUser();
+    ({ appCode, table, recordId } = await context.params);
     const contentType = request.headers.get("content-type") ?? "";
-    let input: CreateAttachmentInput;
 
     if (contentType.includes("multipart/form-data")) {
       await getRecordForTable(user, appCode, table, recordId);
@@ -110,6 +116,16 @@ export async function POST(request: Request, context: RouteContext) {
     if (uploadedFilePath) {
       await unlink(uploadedFilePath).catch(() => undefined);
     }
+    await recordRouteFailure(
+      user,
+      {
+        actionType: "ATTACHMENT_CREATE",
+        resourceType: "attachment",
+        resourceName: input?.fileName,
+        detailJson: { appCode, tableCode: table, recordId, input },
+      },
+      error
+    );
     return toRouteErrorResponse(error);
   }
 }

@@ -75,6 +75,25 @@ export async function findUserById(userId: string) {
   return user ? toPublicUser(user) : null;
 }
 
+export async function findUserByEmailForAudit(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  await ensureDemoAuthData();
+
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findFirst({
+    where: {
+      email: normalizedEmail,
+    },
+  });
+
+  return user ? toPublicUser(user) : null;
+}
+
 export async function getAuthenticatedUser(): Promise<User | null> {
   const session = await getCurrentSession();
 

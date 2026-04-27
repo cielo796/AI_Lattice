@@ -17,6 +17,7 @@ const requiredTables = [
   "app_records",
   "record_comments",
   "attachments",
+  "audit_logs",
 ];
 
 const demoAutoSeedEnabled = process.env.DEMO_AUTO_SEED !== "false";

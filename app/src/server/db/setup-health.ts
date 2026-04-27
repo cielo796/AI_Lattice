@@ -14,6 +14,7 @@ export const REQUIRED_DATABASE_TABLES = [
   "app_records",
   "record_comments",
   "attachments",
+  "audit_logs",
 ] as const;
 
 const DEMO_TENANT_ID = "t-001";

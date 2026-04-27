@@ -14,6 +14,10 @@ vi.mock("@/server/db/prisma", () => ({
   getPrismaClient,
 }));
 
+vi.mock("@/server/audit/service", () => ({
+  recordAuditLog: vi.fn(),
+}));
+
 vi.mock("@/server/apps/bootstrap", () => ({
   ensureDemoBuilderData: vi.fn().mockResolvedValue(undefined),
 }));
