@@ -7,9 +7,11 @@ import {
 } from "@/server/apps/service";
 import {
   parseJsonBody,
+  recordRouteFailure,
   requireAuthenticatedUser,
   toRouteErrorResponse,
 } from "@/app/api/_helpers";
+import type { User } from "@/types/user";
 
 type RouteContext = {
   params: Promise<{ appId: string; tableId: string; fieldId: string }>;
@@ -27,10 +29,16 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function PUT(request: Request, context: RouteContext) {
+  let user: User | null = null;
+  let appId = "";
+  let tableId = "";
+  let fieldId = "";
+  let input: UpdateFieldInput | undefined;
+
   try {
-    const user = await requireAuthenticatedUser();
-    const { appId, tableId, fieldId } = await context.params;
-    const input = await parseJsonBody<UpdateFieldInput>(request);
+    user = await requireAuthenticatedUser();
+    ({ appId, tableId, fieldId } = await context.params);
+    input = await parseJsonBody<UpdateFieldInput>(request);
     const field = await updateFieldForTable(
       user,
       appId,
@@ -40,17 +48,43 @@ export async function PUT(request: Request, context: RouteContext) {
     );
     return NextResponse.json(field);
   } catch (error) {
+    await recordRouteFailure(
+      user,
+      {
+        actionType: "FIELD_UPDATE",
+        resourceType: "field",
+        resourceId: fieldId,
+        resourceName: input?.name,
+        detailJson: { appId, tableId, input },
+      },
+      error
+    );
     return toRouteErrorResponse(error);
   }
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
+  let user: User | null = null;
+  let appId = "";
+  let tableId = "";
+  let fieldId = "";
+
   try {
-    const user = await requireAuthenticatedUser();
-    const { appId, tableId, fieldId } = await context.params;
+    user = await requireAuthenticatedUser();
+    ({ appId, tableId, fieldId } = await context.params);
     await deleteFieldForTable(user, appId, tableId, fieldId);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
+    await recordRouteFailure(
+      user,
+      {
+        actionType: "FIELD_DELETE",
+        resourceType: "field",
+        resourceId: fieldId,
+        detailJson: { appId, tableId },
+      },
+      error
+    );
     return toRouteErrorResponse(error);
   }
 }

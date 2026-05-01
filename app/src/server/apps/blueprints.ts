@@ -1,4 +1,5 @@
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
+import { recordAuditLog } from "@/server/audit/service";
 import { getPrismaClient } from "@/server/db/prisma";
 import { getOpenAIClient } from "@/server/openai/client";
 import { AppsServiceError } from "@/server/apps/service";
@@ -587,7 +588,7 @@ export async function createAppFromBlueprint(
   await ensureDemoBuilderData();
   const blueprint = normalizeGeneratedAppBlueprint(input);
 
-  return prisma.$transaction(async (tx) => {
+  const createdAppSummary = await prisma.$transaction(async (tx) => {
     const duplicateApp = await tx.app.findFirst({
       where: {
         tenantId: user.tenantId,
@@ -673,6 +674,23 @@ export async function createAppFromBlueprint(
       tableCount: blueprint.tables.length,
     };
   });
+
+  await recordAuditLog(user, {
+    actionType: "APP_CREATE",
+    resourceType: "app",
+    resourceId: createdAppSummary.id,
+    resourceName: createdAppSummary.name,
+    detailJson: {
+      source: "ai_blueprint",
+      code: createdAppSummary.code,
+      tableCount: createdAppSummary.tableCount,
+      primaryTableCode: createdAppSummary.primaryTableCode,
+      aiInsight: blueprint.aiInsight,
+    },
+    aiInvolvement: "assisted",
+  });
+
+  return createdAppSummary;
 }
 
 export {

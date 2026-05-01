@@ -284,6 +284,7 @@ export function RecordDetail({
               type="button"
               variant="danger"
               size="sm"
+              data-testid="delete-record-button"
               onClick={() => void onDeleteRecord?.()}
               disabled={!onDeleteRecord || isDeletingRecord}
             >

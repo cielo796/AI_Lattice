@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/server/auth/service";
+import { recordAuditFailure, type RecordAuditLogInput } from "@/server/audit/service";
 import { AppsServiceError } from "@/server/apps/service";
+import {
+  isDatabaseSetupError,
+  toDatabaseSetupErrorBody,
+} from "@/server/db/setup-errors";
+import type { User } from "@/types/user";
 
 export async function requireAuthenticatedUser() {
   const user = await getAuthenticatedUser();
@@ -28,8 +34,24 @@ export function toRouteErrorResponse(error: unknown) {
     );
   }
 
+  if (isDatabaseSetupError(error)) {
+    return NextResponse.json(toDatabaseSetupErrorBody(error), { status: 503 });
+  }
+
   return NextResponse.json(
     { message: "サーバー内部エラーが発生しました" },
     { status: 500 }
   );
+}
+
+export async function recordRouteFailure(
+  user: User | null | undefined,
+  input: Omit<RecordAuditLogInput, "result">,
+  error: unknown
+) {
+  if (!user) {
+    return;
+  }
+
+  await recordAuditFailure(user, input, error);
 }

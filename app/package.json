@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
     "check:mojibake": "node scripts/check-mojibake.mjs",
     "quality": "npm run check:mojibake && npm run lint && npm test && npx tsc --noEmit --pretty false",
     "db:start": "docker compose up -d",
@@ -15,6 +17,7 @@
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
+    "db:health": "node scripts/check-db-health.mjs",
     "db:studio": "prisma studio"
   },
   "dependencies": {
@@ -32,6 +35,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -14,6 +14,10 @@ vi.mock("@/server/db/prisma", () => ({
   getPrismaClient,
 }));
 
+vi.mock("@/server/audit/service", () => ({
+  recordAuditLog: vi.fn(),
+}));
+
 vi.mock("@/server/records/bootstrap", () => ({
   ensureDemoRecordData: vi.fn().mockResolvedValue(undefined),
 }));
@@ -25,6 +29,19 @@ const user: User = {
   name: "Owner",
   status: "active",
   createdAt: "2026-04-24T00:00:00.000Z",
+};
+
+const customerReferenceField = {
+  code: "customer",
+  name: "Customer",
+  fieldType: "master_ref",
+  required: false,
+  uniqueFlag: false,
+  defaultValue: null,
+  settingsJson: {
+    referenceTableId: "tbl_customers",
+    referenceTableCode: "customers",
+  },
 };
 
 describe("records service master_ref validation", () => {
@@ -60,12 +77,7 @@ describe("records service master_ref validation", () => {
       appField: {
         findMany: vi.fn().mockResolvedValue([
           {
-            code: "customer",
-            name: "Customer",
-            settingsJson: {
-              referenceTableId: "tbl_customers",
-              referenceTableCode: "customers",
-            },
+            ...customerReferenceField,
           },
         ]),
       },
@@ -121,12 +133,7 @@ describe("records service master_ref validation", () => {
       appField: {
         findMany: vi.fn().mockResolvedValue([
           {
-            code: "customer",
-            name: "Customer",
-            settingsJson: {
-              referenceTableId: "tbl_customers",
-              referenceTableCode: "customers",
-            },
+            ...customerReferenceField,
           },
         ]),
       },
@@ -228,6 +235,10 @@ describe("records service master_ref validation", () => {
           {
             code: "customers",
             name: "Customers",
+            fieldType: "master_ref",
+            required: false,
+            uniqueFlag: false,
+            defaultValue: null,
             settingsJson: {
               referenceTableId: "tbl_customers",
               referenceTableCode: "customers",
@@ -376,5 +387,383 @@ describe("records service master_ref validation", () => {
         ],
       }),
     ]);
+  });
+});
+
+describe("records service schema validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("applies default values before creating a record", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "app_1",
+          tenantId: "tenant_1",
+          code: "support-desk",
+        }),
+      },
+      appTable: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "tbl_tickets",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          code: "tickets",
+          name: "Tickets",
+        }),
+      },
+      appField: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            code: "subject",
+            name: "Subject",
+            fieldType: "text",
+            required: true,
+            uniqueFlag: false,
+            defaultValue: null,
+            settingsJson: null,
+          },
+          {
+            code: "priority",
+            name: "Priority",
+            fieldType: "select",
+            required: false,
+            uniqueFlag: false,
+            defaultValue: "Medium",
+            settingsJson: { options: ["Low", "Medium", "High"] },
+          },
+          {
+            code: "score",
+            name: "Score",
+            fieldType: "number",
+            required: false,
+            uniqueFlag: false,
+            defaultValue: 10,
+            settingsJson: null,
+          },
+        ]),
+      },
+      appRecord: {
+        create: vi.fn().mockResolvedValue({
+          id: "rec_1",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          tableId: "tbl_tickets",
+          status: "active",
+          dataJson: {
+            subject: "Defaulted ticket",
+            priority: "Medium",
+            score: 10,
+          },
+          createdById: "user_1",
+          updatedById: "user_1",
+          createdAt: new Date("2026-04-24T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T00:00:00.000Z"),
+          deletedAt: null,
+        }),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    const record = await createRecordForTable(user, "support-desk", "tickets", {
+      status: "active",
+      data: {
+        subject: "Defaulted ticket",
+      },
+    });
+
+    expect(record.data).toEqual({
+      subject: "Defaulted ticket",
+      priority: "Medium",
+      score: 10,
+    });
+    expect(prisma.appRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          dataJson: {
+            subject: "Defaulted ticket",
+            priority: "Medium",
+            score: 10,
+          },
+        }),
+      })
+    );
+  });
+
+  it("rejects missing required fields", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "app_1",
+          tenantId: "tenant_1",
+          code: "support-desk",
+        }),
+      },
+      appTable: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "tbl_tickets",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          code: "tickets",
+          name: "Tickets",
+        }),
+      },
+      appField: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            code: "subject",
+            name: "Subject",
+            fieldType: "text",
+            required: true,
+            uniqueFlag: false,
+            defaultValue: null,
+            settingsJson: null,
+          },
+        ]),
+      },
+      appRecord: {
+        create: vi.fn(),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    await expect(
+      createRecordForTable(user, "support-desk", "tickets", {
+        status: "active",
+        data: {},
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Field "Subject" is required',
+    });
+
+    expect(prisma.appRecord.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid select values", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "app_1",
+          tenantId: "tenant_1",
+          code: "support-desk",
+        }),
+      },
+      appTable: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "tbl_tickets",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          code: "tickets",
+          name: "Tickets",
+        }),
+      },
+      appField: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            code: "priority",
+            name: "Priority",
+            fieldType: "select",
+            required: true,
+            uniqueFlag: false,
+            defaultValue: null,
+            settingsJson: { options: ["Low", "High"] },
+          },
+          {
+            code: "score",
+            name: "Score",
+            fieldType: "number",
+            required: false,
+            uniqueFlag: false,
+            defaultValue: null,
+            settingsJson: null,
+          },
+        ]),
+      },
+      appRecord: {
+        create: vi.fn(),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    await expect(
+      createRecordForTable(user, "support-desk", "tickets", {
+        status: "active",
+        data: {
+          priority: "Medium",
+          score: "10",
+        },
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Field "Priority" must be one of: Low, High',
+    });
+
+    expect(prisma.appRecord.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate unique field values", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "app_1",
+          tenantId: "tenant_1",
+          code: "support-desk",
+        }),
+      },
+      appTable: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "tbl_tickets",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          code: "tickets",
+          name: "Tickets",
+        }),
+      },
+      appField: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            code: "ticket_id",
+            name: "Ticket ID",
+            fieldType: "text",
+            required: true,
+            uniqueFlag: true,
+            defaultValue: null,
+            settingsJson: null,
+          },
+        ]),
+      },
+      appRecord: {
+        findFirst: vi.fn().mockResolvedValue({ id: "rec_existing" }),
+        create: vi.fn(),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    await expect(
+      createRecordForTable(user, "support-desk", "tickets", {
+        status: "active",
+        data: {
+          ticket_id: "TCK-001",
+        },
+      })
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'Field "Ticket ID" must be unique',
+    });
+
+    expect(prisma.appRecord.create).not.toHaveBeenCalled();
+    expect(prisma.appRecord.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          dataJson: {
+            path: ["ticket_id"],
+            equals: "TCK-001",
+          },
+        }),
+      })
+    );
+  });
+
+  it("excludes the current record from unique checks during update", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "app_1",
+          tenantId: "tenant_1",
+          code: "support-desk",
+        }),
+      },
+      appTable: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "tbl_tickets",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          code: "tickets",
+          name: "Tickets",
+        }),
+      },
+      appField: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            code: "ticket_id",
+            name: "Ticket ID",
+            fieldType: "text",
+            required: true,
+            uniqueFlag: true,
+            defaultValue: null,
+            settingsJson: null,
+          },
+        ]),
+      },
+      appRecord: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce({
+            id: "rec_1",
+            tenantId: "tenant_1",
+            appId: "app_1",
+            tableId: "tbl_tickets",
+            status: "active",
+            dataJson: {
+              ticket_id: "TCK-001",
+            },
+            createdById: "user_1",
+            updatedById: "user_1",
+            createdAt: new Date("2026-04-24T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-24T00:00:00.000Z"),
+            deletedAt: null,
+          })
+          .mockResolvedValueOnce(null),
+        update: vi.fn().mockResolvedValue({
+          id: "rec_1",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          tableId: "tbl_tickets",
+          status: "active",
+          dataJson: {
+            ticket_id: "TCK-001",
+          },
+          createdById: "user_1",
+          updatedById: "user_1",
+          createdAt: new Date("2026-04-24T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T01:00:00.000Z"),
+          deletedAt: null,
+        }),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    const record = await updateRecordForTable(
+      user,
+      "support-desk",
+      "tickets",
+      "rec_1",
+      {
+        status: "active",
+        data: {
+          ticket_id: "TCK-001",
+        },
+      }
+    );
+
+    expect(record.data.ticket_id).toBe("TCK-001");
+    expect(prisma.appRecord.findFirst).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          NOT: { id: "rec_1" },
+          dataJson: {
+            path: ["ticket_id"],
+            equals: "TCK-001",
+          },
+        }),
+      })
+    );
   });
 });

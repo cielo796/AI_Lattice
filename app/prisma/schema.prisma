@@ -48,6 +48,7 @@ model Tenant {
 
   users User[]
   apps  App[]
+  auditLogs AuditLog[]
 
   @@map("tenants")
 }
@@ -228,4 +229,29 @@ model Attachment {
   @@index([recordId, createdAt])
   @@index([uploadedById])
   @@map("attachments")
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  actorId       String   @map("actor_id")
+  actorName     String   @map("actor_name")
+  actionType    String   @map("action_type")
+  resourceType  String   @map("resource_type")
+  resourceId    String?  @map("resource_id")
+  resourceName  String?  @map("resource_name")
+  detailJson    Json?    @map("detail_json")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  result        String   @default("success")
+  aiInvolvement String   @default("none") @map("ai_involvement")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, actionType, createdAt])
+  @@index([tenantId, resourceType, resourceId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
 }

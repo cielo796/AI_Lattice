@@ -11,6 +11,10 @@ vi.mock("@/server/apps/bootstrap", () => ({
   ensureDemoBuilderData: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/server/audit/service", () => ({
+  recordAuditLog: vi.fn(),
+}));
+
 const user = {
   id: "u-001",
   tenantId: "t-001",

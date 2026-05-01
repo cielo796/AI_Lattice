@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { AppsServiceError } from "@/server/apps/service";
+import { recordAuditLog } from "@/server/audit/service";
 import { getPrismaClient } from "@/server/db/prisma";
 import { ensureDemoRecordData } from "@/server/records/bootstrap";
 import type { AppField, FieldType, RuntimeTableMeta } from "@/types/app";
@@ -42,6 +43,16 @@ export interface CreateAttachmentInput {
   mimeType: string;
   fileSize: number;
 }
+
+type RecordValidationField = {
+  code: string;
+  name: string;
+  fieldType: FieldType;
+  required: boolean;
+  uniqueFlag: boolean;
+  defaultValue: Prisma.JsonValue | null;
+  settingsJson: Prisma.JsonValue | null;
+};
 
 function assertNonEmpty(value: string | undefined, fieldName: string) {
   if (!value || !value.trim()) {
@@ -108,6 +119,18 @@ function isMultiReference(settings: Record<string, unknown> | undefined) {
 
 function shouldShowBackReference(settings: Record<string, unknown> | undefined) {
   return settings?.showBackReference === true;
+}
+
+function getSelectOptions(settings: Record<string, unknown> | undefined) {
+  const options = settings?.options;
+
+  if (!Array.isArray(options)) {
+    return [];
+  }
+
+  return options.filter(
+    (option): option is string => typeof option === "string" && option.trim().length > 0
+  );
 }
 
 function getReferenceRecordIds(value: unknown, allowMultiple: boolean) {
@@ -251,6 +274,262 @@ function toAttachment(attachment: {
   };
 }
 
+function fieldLabel(field: Pick<RecordValidationField, "code" | "name">) {
+  return field.name.trim() || field.code;
+}
+
+function isMissingRequiredValue(value: unknown) {
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length === 0;
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter((item) => item !== undefined && item !== null).length === 0;
+  }
+
+  return false;
+}
+
+function shouldValidateOptionalValue(value: unknown) {
+  return value !== undefined && value !== null;
+}
+
+function cloneDefaultValue(value: Prisma.JsonValue) {
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== "object") {
+    return value;
+  }
+
+  return JSON.parse(JSON.stringify(value)) as Prisma.JsonValue;
+}
+
+function applyFieldDefaults(
+  fields: RecordValidationField[],
+  data: Record<string, unknown>
+) {
+  const nextData = { ...data };
+
+  for (const field of fields) {
+    if (nextData[field.code] !== undefined || field.defaultValue === null) {
+      continue;
+    }
+
+    nextData[field.code] = cloneDefaultValue(field.defaultValue);
+  }
+
+  return nextData;
+}
+
+function assertStringFieldValue(field: RecordValidationField, value: unknown) {
+  if (typeof value !== "string") {
+    throw new RecordsServiceError(`Field "${fieldLabel(field)}" must be a string`, 400);
+  }
+}
+
+function assertStringOrStringArrayFieldValue(
+  field: RecordValidationField,
+  value: unknown
+) {
+  if (typeof value === "string") {
+    return;
+  }
+
+  if (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === "string" && item.trim().length > 0)
+  ) {
+    return;
+  }
+
+  throw new RecordsServiceError(
+    `Field "${fieldLabel(field)}" must be a string or string array`,
+    400
+  );
+}
+
+function assertScalarFieldValue(field: RecordValidationField, value: unknown) {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return;
+  }
+
+  throw new RecordsServiceError(
+    `Field "${fieldLabel(field)}" must be a scalar value`,
+    400
+  );
+}
+
+function isValidDateOnly(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    return false;
+  }
+
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function validateFieldValue(field: RecordValidationField, value: unknown) {
+  if (!shouldValidateOptionalValue(value)) {
+    return;
+  }
+
+  const settings = toSettingsJson(field.settingsJson);
+
+  switch (field.fieldType) {
+    case "text":
+    case "textarea":
+      assertStringFieldValue(field, value);
+      return;
+    case "number":
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new RecordsServiceError(
+          `Field "${fieldLabel(field)}" must be a finite number`,
+          400
+        );
+      }
+      return;
+    case "date":
+      if (typeof value !== "string" || !isValidDateOnly(value)) {
+        throw new RecordsServiceError(
+          `Field "${fieldLabel(field)}" must be a valid date in YYYY-MM-DD format`,
+          400
+        );
+      }
+      return;
+    case "datetime":
+      if (
+        typeof value !== "string" ||
+        !value.trim() ||
+        Number.isNaN(Date.parse(value))
+      ) {
+        throw new RecordsServiceError(
+          `Field "${fieldLabel(field)}" must be a valid datetime`,
+          400
+        );
+      }
+      return;
+    case "boolean":
+      if (typeof value !== "boolean") {
+        throw new RecordsServiceError(`Field "${fieldLabel(field)}" must be a boolean`, 400);
+      }
+      return;
+    case "select": {
+      assertStringFieldValue(field, value);
+      const selectedValue = value as string;
+      const options = getSelectOptions(settings);
+
+      if (options.length > 0 && !options.includes(selectedValue)) {
+        throw new RecordsServiceError(
+          `Field "${fieldLabel(field)}" must be one of: ${options.join(", ")}`,
+          400
+        );
+      }
+      return;
+    }
+    case "user_ref":
+    case "file":
+      assertStringOrStringArrayFieldValue(field, value);
+      return;
+    case "master_ref":
+      return;
+    case "ai_generated":
+    case "calculated":
+      assertScalarFieldValue(field, value);
+      return;
+    default:
+      return;
+  }
+}
+
+function validateRequiredAndTypedFields(
+  fields: RecordValidationField[],
+  data: Record<string, unknown>
+) {
+  for (const field of fields) {
+    const value = data[field.code];
+
+    if (field.required && isMissingRequiredValue(value)) {
+      throw new RecordsServiceError(`Field "${fieldLabel(field)}" is required`, 400);
+    }
+
+    validateFieldValue(field, value);
+  }
+}
+
+function shouldCheckUniqueValue(value: unknown) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+
+  return true;
+}
+
+async function validateUniqueFieldsForRecord(
+  user: User,
+  appId: string,
+  tableId: string,
+  fields: RecordValidationField[],
+  data: Record<string, unknown>,
+  excludeRecordId?: string
+) {
+  const uniqueFields = fields.filter((field) => field.uniqueFlag);
+
+  if (uniqueFields.length === 0) {
+    return;
+  }
+
+  const prisma = getPrismaClient();
+
+  for (const field of uniqueFields) {
+    const value = data[field.code];
+
+    if (!shouldCheckUniqueValue(value)) {
+      continue;
+    }
+
+    const duplicate = await prisma.appRecord.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        appId,
+        tableId,
+        deletedAt: null,
+        ...(excludeRecordId ? { NOT: { id: excludeRecordId } } : {}),
+        dataJson: {
+          path: [field.code],
+          equals: value as Prisma.InputJsonValue,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      throw new RecordsServiceError(`Field "${fieldLabel(field)}" must be unique`, 409);
+    }
+  }
+}
+
 async function getAppByCodeOrThrow(user: User, appCode: string) {
   const normalizedCode = assertNonEmpty(appCode, "App code");
   const prisma = getPrismaClient();
@@ -340,23 +619,12 @@ async function validateReferenceFieldsForRecord(
   user: User,
   appId: string,
   tableId: string,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  fields: RecordValidationField[]
 ) {
   const nextData = { ...data };
   const prisma = getPrismaClient();
-  const referenceFields = await prisma.appField.findMany({
-    where: {
-      tenantId: user.tenantId,
-      appId,
-      tableId,
-      fieldType: "master_ref",
-    },
-    select: {
-      code: true,
-      name: true,
-      settingsJson: true,
-    },
-  });
+  const referenceFields = fields.filter((field) => field.fieldType === "master_ref");
 
   if (referenceFields.length === 0) {
     return data;
@@ -460,6 +728,54 @@ async function validateReferenceFieldsForRecord(
   return nextData;
 }
 
+async function validateRecordDataForTable(
+  user: User,
+  appId: string,
+  tableId: string,
+  data: Record<string, unknown>,
+  excludeRecordId?: string
+) {
+  const prisma = getPrismaClient();
+  const fields = (await prisma.appField.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+    },
+    select: {
+      code: true,
+      name: true,
+      fieldType: true,
+      required: true,
+      uniqueFlag: true,
+      defaultValue: true,
+      settingsJson: true,
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  })) as RecordValidationField[];
+  const dataWithDefaults = applyFieldDefaults(fields, data);
+
+  validateRequiredAndTypedFields(fields, dataWithDefaults);
+  const dataWithReferences = await validateReferenceFieldsForRecord(
+    user,
+    appId,
+    tableId,
+    dataWithDefaults,
+    fields
+  );
+
+  await validateUniqueFieldsForRecord(
+    user,
+    appId,
+    tableId,
+    fields,
+    dataWithReferences,
+    excludeRecordId
+  );
+
+  return dataWithReferences;
+}
+
 export async function listRecordsForTable(
   user: User,
   appCode: string,
@@ -514,7 +830,7 @@ export async function createRecordForTable(
 ) {
   await ensureDemoRecordData();
   const { app, table } = await getTableByCodeOrThrow(user, appCode, tableCode);
-  const data = await validateReferenceFieldsForRecord(
+  const data = await validateRecordDataForTable(
     user,
     app.id,
     table.id,
@@ -531,6 +847,21 @@ export async function createRecordForTable(
       dataJson: toJsonObject(data),
       createdById: user.id,
       updatedById: user.id,
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "RECORD_CREATE",
+    resourceType: "record",
+    resourceId: record.id,
+    resourceName: table.name,
+    detailJson: {
+      appId: app.id,
+      appCode: app.code,
+      tableId: table.id,
+      tableCode: table.code,
+      status: record.status,
+      data,
     },
   });
 
@@ -663,11 +994,12 @@ export async function updateRecordForTable(
       : toDataObject(record.dataJson);
   const nextData =
     toJsonObject(
-      await validateReferenceFieldsForRecord(
+      await validateRecordDataForTable(
         user,
         app.id,
         table.id,
-        nextDataObject
+        nextDataObject,
+        record.id
       )
     );
   const nextStatus =
@@ -683,6 +1015,27 @@ export async function updateRecordForTable(
     },
   });
 
+  await recordAuditLog(user, {
+    actionType: "RECORD_UPDATE",
+    resourceType: "record",
+    resourceId: updatedRecord.id,
+    resourceName: table.name,
+    detailJson: {
+      appId: app.id,
+      appCode: app.code,
+      tableId: table.id,
+      tableCode: table.code,
+      before: {
+        status: record.status,
+        data: toDataObject(record.dataJson),
+      },
+      after: {
+        status: updatedRecord.status,
+        data: toDataObject(updatedRecord.dataJson),
+      },
+    },
+  });
+
   return toAppRecord(updatedRecord);
 }
 
@@ -693,13 +1046,33 @@ export async function deleteRecordForTable(
   recordId: string
 ) {
   await ensureDemoRecordData();
-  const { record } = await getRecordOrThrow(user, appCode, tableCode, recordId);
+  const { app, table, record } = await getRecordOrThrow(
+    user,
+    appCode,
+    tableCode,
+    recordId
+  );
   const prisma = getPrismaClient();
   await prisma.appRecord.update({
     where: { id: record.id },
     data: {
       deletedAt: new Date(),
       updatedById: user.id,
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "RECORD_DELETE",
+    resourceType: "record",
+    resourceId: record.id,
+    resourceName: table.name,
+    detailJson: {
+      appId: app.id,
+      appCode: app.code,
+      tableId: table.id,
+      tableCode: table.code,
+      status: record.status,
+      data: toDataObject(record.dataJson),
     },
   });
 }
@@ -742,6 +1115,19 @@ export async function createCommentForRecord(
       commentText: assertNonEmpty(input.commentText, "Comment text"),
       createdById: user.id,
       isSystem: input.isSystem ?? false,
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "COMMENT_CREATE",
+    resourceType: "comment",
+    resourceId: comment.id,
+    resourceName: record.id,
+    detailJson: {
+      recordId: record.id,
+      appCode,
+      tableCode,
+      isSystem: comment.isSystem,
     },
   });
 
@@ -791,6 +1177,21 @@ export async function createAttachmentForRecord(
     },
   });
 
+  await recordAuditLog(user, {
+    actionType: "ATTACHMENT_CREATE",
+    resourceType: "attachment",
+    resourceId: attachment.id,
+    resourceName: attachment.fileName,
+    detailJson: {
+      recordId: record.id,
+      appCode,
+      tableCode,
+      storagePath: attachment.storagePath,
+      mimeType: attachment.mimeType,
+      fileSize: attachment.fileSize,
+    },
+  });
+
   return toAttachment(attachment);
 }
 
@@ -812,6 +1213,21 @@ export async function deleteAttachmentForRecord(
   const prisma = getPrismaClient();
   await prisma.attachment.delete({
     where: { id: attachment.id },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "ATTACHMENT_DELETE",
+    resourceType: "attachment",
+    resourceId: attachment.id,
+    resourceName: attachment.fileName,
+    detailJson: {
+      recordId: attachment.recordId,
+      appCode,
+      tableCode,
+      storagePath: attachment.storagePath,
+      mimeType: attachment.mimeType,
+      fileSize: attachment.fileSize,
+    },
   });
 
   return toAttachment(attachment);

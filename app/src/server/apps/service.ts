@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { recordAuditLog } from "@/server/audit/service";
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
 import { getPrismaClient } from "@/server/db/prisma";
 import type { App, AppField, AppTable, FieldType } from "@/types/app";
@@ -562,6 +563,19 @@ export async function createAppForUser(user: User, input: CreateAppInput) {
     },
   });
 
+  await recordAuditLog(user, {
+    actionType: "APP_CREATE",
+    resourceType: "app",
+    resourceId: app.id,
+    resourceName: app.name,
+    detailJson: {
+      code: app.code,
+      status: app.status,
+      icon: app.icon,
+      description: app.description,
+    },
+  });
+
   return toApp(app);
 }
 
@@ -604,6 +618,29 @@ export async function updateAppForUser(
     },
   });
 
+  await recordAuditLog(user, {
+    actionType: "APP_UPDATE",
+    resourceType: "app",
+    resourceId: app.id,
+    resourceName: app.name,
+    detailJson: {
+      before: {
+        name: existingApp.name,
+        code: existingApp.code,
+        status: existingApp.status,
+        icon: existingApp.icon,
+        description: existingApp.description,
+      },
+      after: {
+        name: app.name,
+        code: app.code,
+        status: app.status,
+        icon: app.icon,
+        description: app.description,
+      },
+    },
+  });
+
   return toApp(app);
 }
 
@@ -614,6 +651,17 @@ export async function deleteAppForUser(user: User, appId: string) {
   const prisma = getPrismaClient();
   await prisma.app.delete({
     where: { id: existingApp.id },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "APP_DELETE",
+    resourceType: "app",
+    resourceId: existingApp.id,
+    resourceName: existingApp.name,
+    detailJson: {
+      code: existingApp.code,
+      status: existingApp.status,
+    },
   });
 }
 
@@ -645,7 +693,7 @@ export async function createTableForApp(
   input: CreateTableInput
 ) {
   await ensureDemoBuilderData();
-  await getAppOrThrow(user, appId);
+  const app = await getAppOrThrow(user, appId);
 
   const name = assertNonEmpty(input.name, "Table name");
   const code = normalizeIdentifier(input.code ?? name, "-");
@@ -666,6 +714,21 @@ export async function createTableForApp(
       code,
       isSystem: input.isSystem ?? false,
       sortOrder: input.sortOrder ?? (await nextTableSortOrder(appId)),
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "TABLE_CREATE",
+    resourceType: "table",
+    resourceId: table.id,
+    resourceName: table.name,
+    detailJson: {
+      appId: app.id,
+      appName: app.name,
+      appCode: app.code,
+      code: table.code,
+      isSystem: table.isSystem,
+      sortOrder: table.sortOrder,
     },
   });
 
@@ -757,6 +820,28 @@ export async function updateTableForApp(
     return updatedTable;
   });
 
+  await recordAuditLog(user, {
+    actionType: "TABLE_UPDATE",
+    resourceType: "table",
+    resourceId: table.id,
+    resourceName: table.name,
+    detailJson: {
+      appId,
+      before: {
+        name: existingTable.name,
+        code: existingTable.code,
+        isSystem: existingTable.isSystem,
+        sortOrder: existingTable.sortOrder,
+      },
+      after: {
+        name: table.name,
+        code: table.code,
+        isSystem: table.isSystem,
+        sortOrder: table.sortOrder,
+      },
+    },
+  });
+
   return toAppTable(table);
 }
 
@@ -799,6 +884,19 @@ export async function deleteTableForApp(
   await prisma.appTable.delete({
     where: { id: existingTable.id },
   });
+
+  await recordAuditLog(user, {
+    actionType: "TABLE_DELETE",
+    resourceType: "table",
+    resourceId: existingTable.id,
+    resourceName: existingTable.name,
+    detailJson: {
+      appId,
+      code: existingTable.code,
+      isSystem: existingTable.isSystem,
+      sortOrder: existingTable.sortOrder,
+    },
+  });
 }
 
 export async function listFieldsForTable(
@@ -840,7 +938,7 @@ export async function createFieldForTable(
   input: CreateFieldInput
 ) {
   await ensureDemoBuilderData();
-  await getTableOrThrow(user, appId, tableId);
+  const table = await getTableOrThrow(user, appId, tableId);
 
   const name = assertNonEmpty(input.name, "Field name");
   const code = normalizeIdentifier(input.code ?? name, "_");
@@ -874,6 +972,24 @@ export async function createFieldForTable(
         input.defaultValue === undefined ? undefined : toJsonValue(input.defaultValue),
       settingsJson: toJsonObject(settingsJson),
       sortOrder: input.sortOrder ?? (await nextFieldSortOrder(tableId)),
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "FIELD_CREATE",
+    resourceType: "field",
+    resourceId: field.id,
+    resourceName: field.name,
+    detailJson: {
+      appId,
+      tableId: table.id,
+      tableName: table.name,
+      tableCode: table.code,
+      code: field.code,
+      fieldType: field.fieldType,
+      required: field.required,
+      uniqueFlag: field.uniqueFlag,
+      settingsJson: toSettingsJson(field.settingsJson),
     },
   });
 
@@ -938,6 +1054,37 @@ export async function updateFieldForTable(
     },
   });
 
+  await recordAuditLog(user, {
+    actionType: "FIELD_UPDATE",
+    resourceType: "field",
+    resourceId: field.id,
+    resourceName: field.name,
+    detailJson: {
+      appId,
+      tableId,
+      before: {
+        name: existingField.name,
+        code: existingField.code,
+        fieldType: existingField.fieldType,
+        required: existingField.required,
+        uniqueFlag: existingField.uniqueFlag,
+        defaultValue: existingField.defaultValue,
+        settingsJson: toSettingsJson(existingField.settingsJson),
+        sortOrder: existingField.sortOrder,
+      },
+      after: {
+        name: field.name,
+        code: field.code,
+        fieldType: field.fieldType,
+        required: field.required,
+        uniqueFlag: field.uniqueFlag,
+        defaultValue: field.defaultValue,
+        settingsJson: toSettingsJson(field.settingsJson),
+        sortOrder: field.sortOrder,
+      },
+    },
+  });
+
   return toAppField(field as typeof field & { fieldType: FieldType });
 }
 
@@ -953,5 +1100,21 @@ export async function deleteFieldForTable(
   const prisma = getPrismaClient();
   await prisma.appField.delete({
     where: { id: existingField.id },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "FIELD_DELETE",
+    resourceType: "field",
+    resourceId: existingField.id,
+    resourceName: existingField.name,
+    detailJson: {
+      appId,
+      tableId,
+      code: existingField.code,
+      fieldType: existingField.fieldType,
+      required: existingField.required,
+      uniqueFlag: existingField.uniqueFlag,
+      settingsJson: toSettingsJson(existingField.settingsJson),
+    },
   });
 }

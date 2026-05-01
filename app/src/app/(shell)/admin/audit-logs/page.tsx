@@ -1,219 +1,398 @@
 "use client";
 
-import { useState } from "react";
-import { TopBar } from "@/components/shared/TopBar";
+import { useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
-import { Badge } from "@/components/shared/Badge";
-import { mockAuditLogs } from "@/data/mock-audit-logs";
-import type { AuditLog } from "@/types/audit";
+import { TopBar } from "@/components/shared/TopBar";
 import { cn } from "@/lib/cn";
+import { listAuditLogs } from "@/lib/api/audit";
+import type { AuditLog } from "@/types/audit";
 
-const actionTypeVariant: { [key: string]: "info" | "ai" | "warning" | "default" } = {
-  SCHEMA_UPDATE: "info",
-  NODE_SCALING: "ai",
-  ACCESS_DENIED: "warning",
-  AUTH_LOGIN: "default",
-  API_KEY_ROT: "warning",
-};
+type BadgeVariant = "default" | "success" | "warning" | "error" | "info" | "ai";
 
-const actionTypeLabel: Record<string, string> = {
-  SCHEMA_UPDATE: "スキーマ更新",
-  NODE_SCALING: "ノード増強",
-  ACCESS_DENIED: "アクセス拒否",
+const ACTION_LABELS: Record<string, string> = {
+  APP_CREATE: "アプリ作成",
+  APP_UPDATE: "アプリ更新",
+  APP_DELETE: "アプリ削除",
+  TABLE_CREATE: "テーブル作成",
+  TABLE_UPDATE: "テーブル更新",
+  TABLE_DELETE: "テーブル削除",
+  FIELD_CREATE: "フィールド作成",
+  FIELD_UPDATE: "フィールド更新",
+  FIELD_DELETE: "フィールド削除",
+  RECORD_CREATE: "レコード作成",
+  RECORD_UPDATE: "レコード更新",
+  RECORD_DELETE: "レコード削除",
+  COMMENT_CREATE: "コメント追加",
+  ATTACHMENT_CREATE: "添付追加",
+  ATTACHMENT_DELETE: "添付削除",
+  APP_GENERATE: "AI 生成",
   AUTH_LOGIN: "ログイン",
-  API_KEY_ROT: "API キー更新",
+  AUTH_LOGOUT: "ログアウト",
 };
+
+const RESOURCE_LABELS: Record<string, string> = {
+  app: "アプリ",
+  table: "テーブル",
+  field: "フィールド",
+  record: "レコード",
+  comment: "コメント",
+  attachment: "添付",
+  auth: "認証",
+  ai: "AI",
+};
+
+function getResultVariant(result: AuditLog["result"]): BadgeVariant {
+  if (result === "denied") {
+    return "warning";
+  }
+
+  if (result === "error") {
+    return "error";
+  }
+
+  return "success";
+}
+
+function getResultLabel(result: AuditLog["result"]) {
+  if (result === "denied") {
+    return "拒否";
+  }
+
+  if (result === "error") {
+    return "失敗";
+  }
+
+  return "成功";
+}
+
+function getActionVariant(log: AuditLog): BadgeVariant {
+  if (log.result === "denied" || log.result === "error") {
+    return getResultVariant(log.result);
+  }
+
+  const actionType = log.actionType;
+
+  if (actionType.includes("DELETE")) {
+    return "error";
+  }
+
+  if (actionType.includes("CREATE")) {
+    return "success";
+  }
+
+  if (actionType.includes("UPDATE")) {
+    return "info";
+  }
+
+  if (actionType.startsWith("AUTH")) {
+    return "default";
+  }
+
+  return "warning";
+}
+
+function formatAction(actionType: string) {
+  return ACTION_LABELS[actionType] ?? actionType;
+}
+
+function formatResource(resourceType: string) {
+  return RESOURCE_LABELS[resourceType] ?? resourceType;
+}
+
+function formatTimestamp(value: string) {
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(value));
+}
+
+function getDetailSummary(log: AuditLog) {
+  const detail = log.detailJson;
+
+  if (!detail) {
+    return log.resourceName ?? log.resourceId ?? "-";
+  }
+
+  if (typeof detail.tableCode === "string") {
+    return detail.tableCode;
+  }
+
+  if (typeof detail.code === "string") {
+    return detail.code;
+  }
+
+  if (typeof detail.status === "string") {
+    return detail.status;
+  }
+
+  return log.resourceName ?? log.resourceId ?? "-";
+}
 
 export default function AuditLogsPage() {
-  const [selected, setSelected] = useState<AuditLog>(mockAuditLogs[0]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLogs() {
+      try {
+        setIsLoading(true);
+        const nextLogs = await listAuditLogs({ limit: 100 });
+
+        if (cancelled) {
+          return;
+        }
+
+        setLogs(nextLogs);
+        setSelectedId((current) =>
+          current && nextLogs.some((log) => log.id === current)
+            ? current
+            : (nextLogs[0]?.id ?? null)
+        );
+        setError(null);
+      } catch (nextError) {
+        if (!cancelled) {
+          setLogs([]);
+          setSelectedId(null);
+          setError(
+            nextError instanceof Error
+              ? nextError.message
+              : "監査ログの読み込みに失敗しました。"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadLogs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
+  const selected = useMemo(
+    () => logs.find((log) => log.id === selectedId) ?? null,
+    [logs, selectedId]
+  );
+  const aiLogCount = logs.filter(
+    (log) => log.aiInvolvement && log.aiInvolvement !== "none"
+  ).length;
+  const mutationCount = logs.filter((log) =>
+    /CREATE|UPDATE|DELETE/.test(log.actionType)
+  ).length;
 
   return (
     <>
       <TopBar
-        breadcrumbs={[{ label: "管理パネル" }, { label: "監査ログ" }]}
+        breadcrumbs={[{ label: "管理" }, { label: "監査ログ" }]}
         actions={
-          <>
-            <Button variant="ghost" size="md">
-              <Icon name="monitoring" size="sm" />
-              システム状態
-            </Button>
-            <Button variant="primary" size="md">
-              <Icon name="rocket_launch" size="sm" />
-              デプロイ
-            </Button>
-          </>
+          <Button
+            variant="ghost"
+            size="md"
+            onClick={() => setRefreshKey((current) => current + 1)}
+            disabled={isLoading}
+          >
+            <Icon name="sync" size="sm" />
+            {isLoading ? "更新中..." : "更新"}
+          </Button>
         }
       />
 
-      <main className="pt-16 px-10 py-10 max-w-[1800px] mx-auto">
-        {/* Filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {[
-            { label: "期間", value: "直近24時間", icon: "calendar_today" },
-            { label: "ユーザー", value: "すべて", icon: "person" },
-            { label: "アクション種別", value: "すべて", icon: "filter_alt" },
-            {
-              label: "関与",
-              value: "AI自動実行",
-              icon: "auto_awesome",
-              highlight: true,
-            },
-          ].map((filter) => (
-            <div
-              key={filter.label}
-              className="bg-surface-container rounded-lg p-4"
-            >
-              <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-                {filter.label}
-              </div>
-              <button className="flex items-center justify-between w-full text-sm font-bold text-white">
-                <span
-                  className={filter.highlight ? "text-primary" : "text-white"}
-                >
-                  {filter.value}
-                </span>
-                <Icon
-                  name={filter.highlight ? "check_circle" : "expand_more"}
-                  size="sm"
-                  className={filter.highlight ? "text-primary" : "text-on-surface-variant"}
-                  filled={filter.highlight}
-                />
-              </button>
+      <main className="mx-auto max-w-[1800px] px-4 py-10 pt-24 md:px-10">
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="rounded-lg bg-surface-container p-4">
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              表示件数
             </div>
-          ))}
+            <div className="font-headline text-2xl font-bold text-white">
+              {logs.length}
+            </div>
+          </div>
+          <div className="rounded-lg bg-surface-container p-4">
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              変更操作
+            </div>
+            <div className="font-headline text-2xl font-bold text-white">
+              {mutationCount}
+            </div>
+          </div>
+          <div className="rounded-lg bg-surface-container p-4">
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              AI 関与
+            </div>
+            <div className="font-headline text-2xl font-bold text-primary">
+              {aiLogCount}
+            </div>
+          </div>
         </div>
 
-        {/* Log table + detail panel */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
-          {/* Table */}
-          <div className="bg-surface-container rounded-xl overflow-hidden">
-            <div className="grid grid-cols-[140px_120px_140px_1fr] gap-4 px-6 py-4 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
-              <div>タイムスタンプ</div>
+        {error && (
+          <div className="mb-6 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
+          <div className="overflow-hidden rounded-xl bg-surface-container">
+            <div className="hidden grid-cols-[140px_180px_150px_1fr] gap-4 px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant md:grid">
+              <div>時刻</div>
               <div>ユーザー</div>
-              <div>アクション</div>
-              <div>対象リソース</div>
+              <div>操作</div>
+              <div>対象</div>
             </div>
-            <div>
-              {mockAuditLogs.map((log) => (
+
+            {isLoading && logs.length === 0 ? (
+              <div className="px-6 py-10 text-sm text-on-surface-variant">
+                監査ログを読み込んでいます...
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="px-6 py-10 text-sm text-on-surface-variant">
+                監査ログはまだありません。
+              </div>
+            ) : (
+              logs.map((log) => (
                 <button
                   key={log.id}
-                  onClick={() => setSelected(log)}
+                  type="button"
+                  onClick={() => setSelectedId(log.id)}
                   className={cn(
-                    "w-full grid grid-cols-[140px_120px_140px_1fr] gap-4 px-6 py-4 items-center text-left transition-colors",
-                    selected.id === log.id
+                    "grid w-full grid-cols-1 gap-2 px-4 py-4 text-left transition-colors md:grid-cols-[140px_180px_150px_1fr] md:gap-4 md:px-6 md:items-center",
+                    selected?.id === log.id
                       ? "bg-surface-container-high"
                       : "hover:bg-surface-container-high/50"
                   )}
                 >
-                  <div className="text-xs font-mono text-on-surface-variant">
-                    {log.createdAt.slice(0, 19).replace("T", " ")}
+                  <div className="font-mono text-xs text-on-surface-variant">
+                    {formatTimestamp(log.createdAt)}
                   </div>
-                  <div className="text-xs font-bold text-on-surface">
+                  <div className="truncate text-sm font-semibold text-on-surface">
                     {log.actorName}
                   </div>
                   <div>
-                    <Badge
-                      variant={actionTypeVariant[log.actionType] ?? "default"}
-                      className="text-[9px]"
-                    >
-                      {actionTypeLabel[log.actionType] ?? log.actionType}
-                    </Badge>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge
+                        variant={getActionVariant(log)}
+                        className="text-[9px]"
+                      >
+                        {formatAction(log.actionType)}
+                      </Badge>
+                      <Badge
+                        variant={getResultVariant(log.result ?? "success")}
+                        className="text-[9px]"
+                      >
+                        {getResultLabel(log.result ?? "success")}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="text-xs font-mono text-on-surface-variant truncate">
-                    {log.resourceName}
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-semibold text-on-surface">
+                      {log.resourceName ?? log.resourceId ?? "-"}
+                    </div>
+                    <div className="truncate font-mono text-[11px] text-on-surface-variant">
+                      {formatResource(log.resourceType)} / {getDetailSummary(log)}
+                    </div>
                   </div>
                 </button>
-              ))}
-            </div>
-            <div className="px-6 py-4 flex items-center justify-between">
-              <span className="text-xs text-on-surface-variant">
-                1～25件 / 全1,422件
-              </span>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 text-xs bg-surface-container-high rounded text-on-surface-variant">
-                  前へ
-                </button>
-                <button className="px-3 py-1 text-xs bg-surface-container-high rounded text-on-surface-variant">
-                  次へ
-                </button>
-              </div>
-            </div>
+              ))
+            )}
           </div>
 
-          {/* Detail panel */}
-          <aside className="bg-surface-container rounded-xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="font-headline font-bold text-white">イベント詳細</div>
-              <span className="text-[10px] font-mono text-on-surface-variant">
-                ID: {selected.id}
-              </span>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Icon name="edit_note" size="sm" className="text-blue-400" />
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
-                  操作
-                </span>
-              </div>
-              <div className="text-lg font-headline font-bold text-white">
-                {actionTypeLabel[selected.actionType] ?? selected.actionType}
-              </div>
-              <p className="text-xs text-on-surface-variant mt-2 leading-relaxed">
-                {String(selected.detailJson?.changes ?? selected.detailJson?.reason ?? "システムに対して主要な更新が実行されました。")}
-              </p>
-            </div>
-
-            {selected.aiInvolvement && selected.aiInvolvement !== "none" && (
-              <div className="bg-emerald-950/30 border border-primary/20 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon name="auto_awesome" size="sm" className="text-primary" filled />
-                  <span className="text-[10px] font-bold text-primary uppercase tracking-widest">
-                    AIインサイト
+          <aside className="rounded-xl bg-surface-container p-6">
+            {selected ? (
+              <div className="space-y-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      イベント詳細
+                    </div>
+                    <h2 className="font-headline text-xl font-bold text-white">
+                      {formatAction(selected.actionType)}
+                    </h2>
+                  </div>
+                  <span className="font-mono text-[10px] text-on-surface-variant">
+                    {selected.id}
                   </span>
                 </div>
-                <p className="text-xs text-on-surface">
-                  <span className="text-primary font-bold">自動実行</span> ・
-                  このアクションは Core Auditor AI により事前検証済みです。リスクスコア：
-                  <span className="text-primary font-bold"> 0.02（低）</span>
-                </p>
-                <button className="text-[11px] text-primary font-bold mt-2 flex items-center gap-1">
-                  検証ログを表示 <Icon name="arrow_forward" size="sm" />
-                </button>
-              </div>
-            )}
 
-            <div>
-              <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-                生データ
-              </div>
-              <pre className="bg-surface-container-low rounded-lg p-3 text-[10px] font-mono text-on-surface-variant overflow-x-auto whitespace-pre-wrap">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg bg-surface-container-high p-3">
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      ユーザー
+                    </div>
+                    <div className="truncate text-on-surface">{selected.actorName}</div>
+                  </div>
+                  <div className="rounded-lg bg-surface-container-high p-3">
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      結果
+                    </div>
+                    <Badge variant={getResultVariant(selected.result ?? "success")}>
+                      {getResultLabel(selected.result ?? "success")}
+                    </Badge>
+                  </div>
+                  <div className="rounded-lg bg-surface-container-high p-3">
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      対象
+                    </div>
+                    <div className="truncate text-on-surface">
+                      {formatResource(selected.resourceType)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-surface-container-high p-3">
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      AI
+                    </div>
+                    <Badge
+                      variant={
+                        selected.aiInvolvement &&
+                        selected.aiInvolvement !== "none"
+                          ? "ai"
+                          : "default"
+                      }
+                    >
+                      {selected.aiInvolvement ?? "none"}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    メタデータ
+                  </div>
+                  <pre className="max-h-[520px] overflow-auto rounded-lg bg-surface-container-low p-3 text-[10px] text-on-surface-variant">
 {JSON.stringify(
   {
-    event: selected.actionType,
-    actor: {
-      uid: selected.actorId,
-      role: "admin",
-      ip: selected.ipAddress ?? "10.0.1.56",
-    },
-    resource: selected.resourceName,
-    changes: selected.detailJson,
-    ai_check: {
-      validated: true,
-      validation_score: "very_high",
-    },
+    actionType: selected.actionType,
+    resourceType: selected.resourceType,
+    resourceId: selected.resourceId,
+    resourceName: selected.resourceName,
+    actorId: selected.actorId,
+    createdAt: selected.createdAt,
+    detailJson: selected.detailJson,
   },
   null,
   2
 )}
-              </pre>
-            </div>
-
-            <Button variant="primary" size="md" className="w-full justify-center">
-              <Icon name="download" size="sm" />
-              イベントをJSONでエクスポート
-            </Button>
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-on-surface-variant">
+                表示するイベントを選択してください。
+              </div>
+            )}
           </aside>
         </div>
       </main>

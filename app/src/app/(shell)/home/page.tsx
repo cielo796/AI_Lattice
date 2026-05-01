@@ -186,6 +186,7 @@ export default function HomePage() {
           {apps.map((app) => (
             <div
               key={app.id}
+              data-testid={`app-card-${app.id}`}
               className="rounded-xl bg-surface-container p-6 transition-colors hover:bg-surface-container-high"
             >
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -226,6 +227,7 @@ export default function HomePage() {
                     type="button"
                     size="sm"
                     variant="danger"
+                    data-testid={`delete-app-${app.id}`}
                     disabled={deletingAppId === app.id}
                     onClick={() => void handleDeleteApp(app)}
                   >
