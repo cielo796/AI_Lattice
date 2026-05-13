@@ -3,6 +3,8 @@ import { AppsServiceError } from "@/server/apps/service";
 import { recordAuditLog } from "@/server/audit/service";
 import { getPrismaClient } from "@/server/db/prisma";
 import { ensureDemoRecordData } from "@/server/records/bootstrap";
+import { runApprovalWorkflowsForRecord } from "@/server/workflows/service";
+import { getRecordTitle } from "@/lib/runtime-records";
 import type { AppField, FieldType, RuntimeTableMeta } from "@/types/app";
 import type {
   AppRecord,
@@ -865,7 +867,20 @@ export async function createRecordForTable(
     },
   });
 
-  return toAppRecord(record);
+  const appRecord = toAppRecord(record);
+
+  await runApprovalWorkflowsForRecord(user, {
+    appId: app.id,
+    appCode: app.code,
+    tableId: table.id,
+    tableCode: table.code,
+    tableName: table.name,
+    recordId: record.id,
+    recordTitle: getRecordTitle(appRecord),
+    triggerTypes: ["create"],
+  });
+
+  return appRecord;
 }
 
 export async function getRecordForTable(
@@ -1036,7 +1051,25 @@ export async function updateRecordForTable(
     },
   });
 
-  return toAppRecord(updatedRecord);
+  const appRecord = toAppRecord(updatedRecord);
+  const triggerTypes: Array<"update" | "status_change"> = ["update"];
+
+  if (record.status !== updatedRecord.status) {
+    triggerTypes.push("status_change");
+  }
+
+  await runApprovalWorkflowsForRecord(user, {
+    appId: app.id,
+    appCode: app.code,
+    tableId: table.id,
+    tableCode: table.code,
+    tableName: table.name,
+    recordId: updatedRecord.id,
+    recordTitle: getRecordTitle(appRecord),
+    triggerTypes,
+  });
+
+  return appRecord;
 }
 
 export async function deleteRecordForTable(

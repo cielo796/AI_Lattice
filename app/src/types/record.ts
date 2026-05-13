@@ -46,11 +46,25 @@ export interface RecordBackReferenceGroup {
 export interface Approval {
   id: string;
   tenantId: string;
+  appId: string;
+  tableId: string;
   recordId: string;
-  workflowId: string;
+  workflowId?: string;
   approverId: string;
+  requestedBy: string;
+  actedBy?: string;
   status: "pending" | "approved" | "rejected";
+  title: string;
+  description?: string;
   commentText?: string;
   actedAt?: string;
   createdAt: string;
+  updatedAt: string;
+  appName?: string;
+  tableName?: string;
+  workflowName?: string;
+  recordTitle?: string;
+  requesterName?: string;
+  approverName?: string;
+  actorName?: string;
 }

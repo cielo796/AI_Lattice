@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import ReactFlow, {
   Background,
   BackgroundVariant,
+  type Edge,
+  type Node,
   useNodesState,
   useEdgesState,
 } from "reactflow";
@@ -14,8 +16,22 @@ import { ConditionNode } from "./nodes/ConditionNode";
 import { ApprovalNode } from "./nodes/ApprovalNode";
 import { NotificationNode } from "./nodes/NotificationNode";
 import { mockWorkflowNodes, mockWorkflowEdges } from "@/data/mock-workflows";
+import type { WorkflowNodeData } from "@/types/workflow";
 
-export function WorkflowCanvas() {
+interface WorkflowCanvasProps {
+  nodes?: Node<WorkflowNodeData>[];
+  edges?: Edge[];
+  onChange?: (definition: {
+    nodes: Node<WorkflowNodeData>[];
+    edges: Edge[];
+  }) => void;
+}
+
+export function WorkflowCanvas({
+  nodes = mockWorkflowNodes,
+  edges = mockWorkflowEdges,
+  onChange,
+}: WorkflowCanvasProps) {
   const nodeTypes = useMemo(
     () => ({
       triggerNode: TriggerNode,
@@ -26,13 +42,22 @@ export function WorkflowCanvas() {
     []
   );
 
-  const [nodes, , onNodesChange] = useNodesState(mockWorkflowNodes);
-  const [edges, , onEdgesChange] = useEdgesState(mockWorkflowEdges);
+  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(nodes);
+  const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(edges);
+
+  useEffect(() => {
+    setFlowNodes(nodes);
+    setFlowEdges(edges);
+  }, [edges, nodes, setFlowEdges, setFlowNodes]);
+
+  useEffect(() => {
+    onChange?.({ nodes: flowNodes, edges: flowEdges });
+  }, [flowEdges, flowNodes, onChange]);
 
   return (
     <ReactFlow
-      nodes={nodes}
-      edges={edges}
+      nodes={flowNodes}
+      edges={flowEdges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       nodeTypes={nodeTypes}

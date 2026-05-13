@@ -1027,18 +1027,18 @@ stitch/
 
 Current implementation snapshot:
 
-- Working API routes: auth login/logout/me and apps/tables/fields CRUD Route Handlers
-- DB-backed today: auth, session, apps, tables, fields
-- Still pending: records, comments, attachments, workflow execution, approvals persistence, AI runtime persistence, publish/versioning, audit persistence
+- Working API routes: auth login/logout/me, apps/tables/fields CRUD, runtime records/comments/attachments, audit logs, and AI app blueprint generation
+- DB-backed today: auth, session, apps, tables, fields, records, comments, attachments, and audit logs
+- Still pending: workflow persistence/execution, approvals persistence, Runtime AI persistence, Model Gateway abstraction, publish/versioning, RBAC, settings/admin screens, and broader E2E coverage
 
-ただし、現状の多くは **UIモック + mockデータ** であり、以下は未実装または限定実装である:
+ただし、Workflow / Approvals / 一部 AI / Governance 領域はまだ **UIモック + mockデータ** または限定実装であり、以下は未実装または限定実装である:
 
-- バックエンド API
-- DB 永続化
-- 認証・認可の本実装
-- Model Gateway 経由の AI 実行
+- Workflow / Approvals のバックエンド API と DB 永続化
+- App / Table レベルの RBAC
+- Model Gateway 経由の AI 実行と AI 実行ログ
+- Runtime AI（レコード要約 / 次アクション / 返信案）の実行系
 - Publish / Versioning
-- 監査ログの実記録
+- `/apps/:id/settings`、`/admin/users`、`/admin/roles`、`/admin/ai-logs` などの管理画面
 
 ### Implementation Strategy
 
@@ -1189,24 +1189,25 @@ Current implementation snapshot:
 - 主要ユースケースの E2E が通る
 - UI モック依存が主要導線から排除される
 
-### Immediate Next Steps
+### Completed Foundation Steps
 
-直近は以下の順で着手する:
+以下は現在の実装で完了済み:
 
-1. API client と共通 fetch 層を作る
-2. 認証を本実装に置き換える
-3. apps / tables / fields の CRUD を実装する
-4. records / comments / attachments の CRUD を実装する
-5. workflow 保存と approvals を実装する
-6. AI app builder と runtime AI を実接続する
+1. API client と共通 fetch 層
+2. DB-backed auth / session
+3. apps / tables / fields の Prisma-backed CRUD
+4. records / comments / attachments の Prisma-backed CRUD
+5. Prompt to App の OpenAI 接続と app blueprint 保存
+6. audit logs の DB 永続化と `/admin/audit-logs` 接続
 
 ### Updated Immediate Next Steps
 
-1. records / comments / attachments を Prisma に移行する
-2. workflow / approvals を DB-backed にする
-3. AI app builder と runtime AI を Model Gateway 前提で実装する
-4. publish / versioning / audit persistence を追加する
-5. E2E テストを追加して主要ユースケースを固定する
+1. workflow / approvals を DB-backed にする
+2. Workflow 実行から承認待ちを生成し、承認 / 却下で record status を更新する
+3. AI app builder と runtime AI を Model Gateway 前提に差し替える
+4. AI 実行ログ、プロンプトテンプレート版管理、Human-in-the-Loop 承認導線を追加する
+5. publish / versioning / RBAC / app settings を追加する
+6. E2E テストを追加して主要ユースケース（AI app builder → record CRUD → workflow approval → audit）を固定する
 
 ## Implementation Update (2026-04-14)
 
@@ -1218,6 +1219,19 @@ Current implementation snapshot:
 - Replaced mock auth with DB-backed auth using PostgreSQL users, `scrypt` password hashes, and session records stored in the `sessions` table.
 - Replaced in-memory `apps / tables / fields` CRUD with Prisma-backed services.
 - Added bootstrap logic for demo auth data and demo builder metadata so the current UI works after DB startup and migration.
+
+## Implementation Update (2026-05-13)
+
+### Completed since 2026-04-14
+
+- Added Prisma-backed runtime data models and migrations for `app_records`, `record_comments`, `attachments`, and `audit_logs`.
+- Added runtime Route Handlers and API client calls for records, comments, attachments, back-references, and table metadata.
+- Added record data validation for required fields, field types, select options, unique fields, and master references.
+- Added file attachment upload storage under `public/uploads/records/...` with DB metadata persistence.
+- Added audit log persistence for auth, builder CRUD, runtime record/comment/attachment operations, AI app creation, and route failures where user context is available.
+- Connected `/admin/audit-logs` to the DB-backed audit API.
+- Connected `/apps/new/ai` to OpenAI-backed blueprint generation and blueprint-to-app persistence.
+- Added focused unit/integration coverage and one Playwright runtime smoke test for app creation, record CRUD, comments, attachments, and app deletion.
 
 ### Current login flow
 
@@ -1232,9 +1246,11 @@ Current implementation snapshot:
 ### Current implementation status
 
 - DB-backed and working:
-  auth, session, apps, tables, fields
+  auth, session, apps, tables, fields, records, comments, attachments, audit logs
+- Partially implemented:
+  AI app builder is OpenAI-backed, but still calls OpenAI directly instead of a Model Gateway and does not persist full AI execution logs or prompt template versions.
 - Not DB-backed yet or not implemented:
-  records, comments, attachments, workflow execution, approvals, publish/versioning, audit persistence, AI runtime persistence
+  workflow persistence/execution, approvals, Runtime AI execution/persistence, Model Gateway, publish/versioning, RBAC, app settings, admin users/roles/AI logs, broader E2E coverage
 
 ### Definition of Done
 

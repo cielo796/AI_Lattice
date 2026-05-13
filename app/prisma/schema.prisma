@@ -22,6 +22,25 @@ enum AppStatus {
   archived
 }
 
+enum WorkflowTriggerType {
+  create
+  update
+  schedule
+  webhook
+  status_change
+}
+
+enum WorkflowStatus {
+  draft
+  active
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
 enum FieldType {
   text
   textarea
@@ -46,9 +65,11 @@ model Tenant {
   createdAt DateTime     @default(now()) @map("created_at")
   updatedAt DateTime     @updatedAt @map("updated_at")
 
-  users User[]
-  apps  App[]
+  users     User[]
+  apps      App[]
   auditLogs AuditLog[]
+  workflows Workflow[]
+  approvals Approval[]
 
   @@map("tenants")
 }
@@ -65,13 +86,17 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sessions    Session[]
-  createdApps App[]     @relation("AppCreatedBy")
-  createdRecords AppRecord[] @relation("AppRecordCreatedBy")
-  updatedRecords AppRecord[] @relation("AppRecordUpdatedBy")
-  recordComments RecordComment[] @relation("RecordCommentCreatedBy")
-  uploadedAttachments Attachment[] @relation("AttachmentUploadedBy")
+  tenant              Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions            Session[]
+  createdApps         App[]           @relation("AppCreatedBy")
+  createdRecords      AppRecord[]     @relation("AppRecordCreatedBy")
+  updatedRecords      AppRecord[]     @relation("AppRecordUpdatedBy")
+  recordComments      RecordComment[] @relation("RecordCommentCreatedBy")
+  uploadedAttachments Attachment[]    @relation("AttachmentUploadedBy")
+  createdWorkflows    Workflow[]      @relation("WorkflowCreatedBy")
+  requestedApprovals  Approval[]      @relation("ApprovalRequestedBy")
+  assignedApprovals   Approval[]      @relation("ApprovalApprover")
+  actedApprovals      Approval[]      @relation("ApprovalActedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -106,11 +131,13 @@ model App {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy User       @relation("AppCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User        @relation("AppCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   tables    AppTable[]
   fields    AppField[]
   records   AppRecord[]
+  workflows Workflow[]
+  approvals Approval[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -129,9 +156,10 @@ model AppTable {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  app    App        @relation(fields: [appId], references: [id], onDelete: Cascade)
-  fields AppField[]
-  records AppRecord[]
+  app       App         @relation(fields: [appId], references: [id], onDelete: Cascade)
+  fields    AppField[]
+  records   AppRecord[]
+  approvals Approval[]
 
   @@unique([appId, code])
   @@index([tenantId])
@@ -140,20 +168,20 @@ model AppTable {
 }
 
 model AppField {
-  id          String    @id @default(cuid())
-  tenantId    String    @map("tenant_id")
-  appId       String    @map("app_id")
-  tableId     String    @map("table_id")
-  name        String
-  code        String
-  fieldType   FieldType @map("field_type")
-  required    Boolean   @default(false)
-  uniqueFlag  Boolean   @default(false) @map("unique_flag")
-  defaultValue Json?    @map("default_value")
-  settingsJson Json?    @map("settings_json")
-  sortOrder   Int       @default(0) @map("sort_order")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id           String    @id @default(cuid())
+  tenantId     String    @map("tenant_id")
+  appId        String    @map("app_id")
+  tableId      String    @map("table_id")
+  name         String
+  code         String
+  fieldType    FieldType @map("field_type")
+  required     Boolean   @default(false)
+  uniqueFlag   Boolean   @default(false) @map("unique_flag")
+  defaultValue Json?     @map("default_value")
+  settingsJson Json?     @map("settings_json")
+  sortOrder    Int       @default(0) @map("sort_order")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   app   App      @relation(fields: [appId], references: [id], onDelete: Cascade)
   table AppTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
@@ -166,24 +194,25 @@ model AppField {
 }
 
 model AppRecord {
-  id          String   @id @default(cuid())
-  tenantId    String   @map("tenant_id")
-  appId       String   @map("app_id")
-  tableId     String   @map("table_id")
-  status      String   @default("active")
-  dataJson    Json     @map("data_json")
-  createdById String   @map("created_by_id")
-  updatedById String   @map("updated_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id")
+  appId       String    @map("app_id")
+  tableId     String    @map("table_id")
+  status      String    @default("active")
+  dataJson    Json      @map("data_json")
+  createdById String    @map("created_by_id")
+  updatedById String    @map("updated_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  app         App       @relation(fields: [appId], references: [id], onDelete: Cascade)
-  table       AppTable  @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  createdBy   User      @relation("AppRecordCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy   User      @relation("AppRecordUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  app         App             @relation(fields: [appId], references: [id], onDelete: Cascade)
+  table       AppTable        @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  createdBy   User            @relation("AppRecordCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   User            @relation("AppRecordUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   comments    RecordComment[]
   attachments Attachment[]
+  approvals   Approval[]
 
   @@index([tenantId])
   @@index([appId, tableId, updatedAt])
@@ -202,8 +231,8 @@ model RecordComment {
   isSystem    Boolean  @default(false) @map("is_system")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  record      AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  createdBy   User      @relation("RecordCommentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  record    AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("RecordCommentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
   @@index([recordId, createdAt])
@@ -222,13 +251,72 @@ model Attachment {
   uploadedById String   @map("uploaded_by_id")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  record       AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  uploadedBy   User      @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  record     AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  uploadedBy User      @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
   @@index([recordId, createdAt])
   @@index([uploadedById])
   @@map("attachments")
+}
+
+model Workflow {
+  id             String              @id @default(cuid())
+  tenantId       String              @map("tenant_id")
+  appId          String              @map("app_id")
+  name           String
+  triggerType    WorkflowTriggerType @map("trigger_type")
+  status         WorkflowStatus      @default(draft)
+  definitionJson Json                @map("definition_json")
+  createdById    String              @map("created_by_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  app       App        @relation(fields: [appId], references: [id], onDelete: Cascade)
+  createdBy User       @relation("WorkflowCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvals Approval[]
+
+  @@index([tenantId])
+  @@index([appId, status])
+  @@index([createdById])
+  @@map("workflows")
+}
+
+model Approval {
+  id            String         @id @default(cuid())
+  tenantId      String         @map("tenant_id")
+  appId         String         @map("app_id")
+  tableId       String         @map("table_id")
+  recordId      String         @map("record_id")
+  workflowId    String?        @map("workflow_id")
+  approverId    String         @map("approver_id")
+  requestedById String         @map("requested_by_id")
+  actedById     String?        @map("acted_by_id")
+  status        ApprovalStatus @default(pending)
+  title         String
+  description   String?
+  commentText   String?        @map("comment_text")
+  actedAt       DateTime?      @map("acted_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  app         App       @relation(fields: [appId], references: [id], onDelete: Cascade)
+  table       AppTable  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  record      AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  workflow    Workflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  approver    User      @relation("ApprovalApprover", fields: [approverId], references: [id], onDelete: Restrict)
+  requestedBy User      @relation("ApprovalRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  actedBy     User?     @relation("ApprovalActedBy", fields: [actedById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status, createdAt])
+  @@index([appId, status])
+  @@index([recordId, status])
+  @@index([workflowId])
+  @@index([approverId, status])
+  @@index([requestedById])
+  @@map("approvals")
 }
 
 model AuditLog {

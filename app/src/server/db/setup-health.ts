@@ -14,6 +14,8 @@ export const REQUIRED_DATABASE_TABLES = [
   "app_records",
   "record_comments",
   "attachments",
+  "workflows",
+  "approvals",
   "audit_logs",
 ] as const;
 
@@ -79,7 +81,13 @@ function createBaseHealth(): DatabaseSetupHealth {
   };
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(error: unknown): string {
+  if (error instanceof AggregateError) {
+    return [error.message, ...error.errors.map(errorMessage)]
+      .filter(Boolean)
+      .join("; ");
+  }
+
   return error instanceof Error ? error.message : String(error);
 }
 

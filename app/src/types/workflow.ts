@@ -15,6 +15,23 @@ export interface WorkflowNodeData {
   isAIProposed?: boolean;
 }
 
+export interface WorkflowDefinition {
+  nodes: Array<{
+    id: string;
+    type?: string;
+    position?: { x: number; y: number };
+    data: WorkflowNodeData;
+    [key: string]: unknown;
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    label?: string;
+    [key: string]: unknown;
+  }>;
+}
+
 export interface Workflow {
   id: string;
   tenantId: string;
@@ -22,7 +39,10 @@ export interface Workflow {
   name: string;
   triggerType: "create" | "update" | "schedule" | "webhook" | "status_change";
   status: "draft" | "active";
-  definitionJson: Record<string, unknown>;
+  definitionJson: WorkflowDefinition;
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
+  approvalCount?: number;
+  pendingApprovalCount?: number;
 }

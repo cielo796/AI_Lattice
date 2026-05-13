@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api/client";
 import type { RuntimeTableMeta } from "@/types/app";
 import type {
+  Approval,
   AppRecord,
   Attachment,
   RecordBackReferenceGroup,
@@ -51,6 +52,10 @@ function attachmentsPath(appCode: string, tableCode: string, recordId: string) {
 
 function backReferencesPath(appCode: string, tableCode: string, recordId: string) {
   return `${recordPath(appCode, tableCode, recordId)}/back-references`;
+}
+
+function approvalsPath(appCode: string, tableCode: string, recordId: string) {
+  return `${recordPath(appCode, tableCode, recordId)}/approvals`;
 }
 
 function attachmentPath(
@@ -147,6 +152,14 @@ export async function listBackReferences(
   return apiFetch<RecordBackReferenceGroup[]>(
     backReferencesPath(appCode, tableCode, recordId)
   );
+}
+
+export async function listRecordApprovals(
+  appCode: string,
+  tableCode: string,
+  recordId: string
+) {
+  return apiFetch<Approval[]>(approvalsPath(appCode, tableCode, recordId));
 }
 
 export async function createAttachment(
