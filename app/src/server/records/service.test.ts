@@ -18,6 +18,10 @@ vi.mock("@/server/audit/service", () => ({
   recordAuditLog: vi.fn(),
 }));
 
+vi.mock("@/server/workflows/service", () => ({
+  runApprovalWorkflowsForRecord: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("@/server/records/bootstrap", () => ({
   ensureDemoRecordData: vi.fn().mockResolvedValue(undefined),
 }));

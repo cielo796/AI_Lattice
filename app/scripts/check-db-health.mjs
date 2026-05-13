@@ -17,6 +17,8 @@ const requiredTables = [
   "app_records",
   "record_comments",
   "attachments",
+  "workflows",
+  "approvals",
   "audit_logs",
 ];
 
@@ -26,6 +28,15 @@ const connectionString = process.env.DATABASE_URL?.trim() ?? "";
 function fail(payload) {
   console.error(JSON.stringify({ status: "error", ...payload }, null, 2));
   process.exit(1);
+}
+
+function describeError(error) {
+  if (error instanceof AggregateError) {
+    const messages = error.errors.map(describeError).filter(Boolean);
+    return [error.message, ...messages].filter(Boolean).join("; ");
+  }
+
+  return error instanceof Error ? error.message : String(error);
 }
 
 if (!connectionString) {
@@ -143,7 +154,7 @@ try {
 } catch (error) {
   fail({
     message: "Database health check failed.",
-    error: error instanceof Error ? error.message : String(error),
+    error: describeError(error),
   });
 } finally {
   await client.end().catch(() => undefined);
