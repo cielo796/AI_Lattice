@@ -32,6 +32,7 @@ import type {
 import type { AppField } from "@/types/app";
 import type {
   AppRecord,
+  Approval,
   Attachment,
   RecordBackReferenceGroup,
   RecordComment,
@@ -49,7 +50,9 @@ interface RecordDetailProps {
   isLoadingBackReferences?: boolean;
   comments: RecordComment[];
   attachments: Attachment[];
+  approvals?: Approval[];
   isLoadingActivity?: boolean;
+  isLoadingApprovals?: boolean;
   isSubmittingComment?: boolean;
   isUploadingAttachment?: boolean;
   isDeletingRecord?: boolean;
@@ -59,6 +62,30 @@ interface RecordDetailProps {
   onEditRecord?: () => void;
   onDeleteRecord?: () => Promise<void>;
   onDeleteAttachment?: (attachmentId: string) => Promise<void>;
+}
+
+function getApprovalStatusLabel(status: Approval["status"]) {
+  const labels: Record<Approval["status"], string> = {
+    pending: "承認待ち",
+    approved: "承認済み",
+    rejected: "却下",
+  };
+
+  return labels[status];
+}
+
+function getApprovalStatusVariant(
+  status: Approval["status"]
+): "default" | "success" | "warning" | "error" | "info" | "ai" {
+  if (status === "approved") {
+    return "success";
+  }
+
+  if (status === "rejected") {
+    return "error";
+  }
+
+  return "info";
 }
 
 export function RecordDetail({
@@ -73,7 +100,9 @@ export function RecordDetail({
   isLoadingBackReferences = false,
   comments,
   attachments,
+  approvals = [],
   isLoadingActivity = false,
+  isLoadingApprovals = false,
   isSubmittingComment = false,
   isUploadingAttachment = false,
   isDeletingRecord = false,
@@ -339,6 +368,76 @@ export function RecordDetail({
             </div>
           </div>
         )}
+
+        <div className="mb-6" data-testid="record-approvals">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              承認状況
+            </div>
+            {approvals.some((approval) => approval.status === "pending") && (
+              <Link
+                href="/admin/approvals"
+                className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20"
+              >
+                承認キューを開く
+                <Icon name="arrow_outward" size="sm" />
+              </Link>
+            )}
+          </div>
+
+          {isLoadingApprovals ? (
+            <div className="rounded-lg bg-surface-container p-3 text-sm text-on-surface-variant">
+              承認情報を読み込み中...
+            </div>
+          ) : approvals.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+              このレコードにはまだ承認依頼がありません。
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {approvals.map((approval) => (
+                <div
+                  key={approval.id}
+                  className="rounded-lg bg-surface-container p-3"
+                >
+                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-bold text-on-surface">
+                        {approval.title}
+                      </div>
+                      <div className="text-xs text-on-surface-variant">
+                        {approval.workflowName ?? "手動承認"} /{" "}
+                        {approval.approverName ?? approval.approverId}
+                      </div>
+                    </div>
+                    <Badge variant={getApprovalStatusVariant(approval.status)}>
+                      {getApprovalStatusLabel(approval.status)}
+                    </Badge>
+                  </div>
+                  {approval.description && (
+                    <div className="mb-2 text-xs text-on-surface-variant">
+                      {approval.description}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-on-surface-variant">
+                    <span>依頼日時 {formatDateTime(approval.createdAt)}</span>
+                    {approval.actedAt && (
+                      <span>
+                        {formatDateTime(approval.actedAt)} に{" "}
+                        {approval.actorName ?? approval.actedBy} が判断
+                      </span>
+                    )}
+                  </div>
+                  {approval.commentText && (
+                    <div className="mt-2 rounded bg-surface-container-high/60 p-2 text-xs text-on-surface">
+                      {approval.commentText}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <RecordActivitySections
           appCode={appCode}

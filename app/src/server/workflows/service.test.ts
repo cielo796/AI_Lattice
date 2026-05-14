@@ -136,6 +136,15 @@ describe("workflows service", () => {
         findFirst: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(approvalRecord()),
       },
+      appRecord: {
+        update: vi.fn().mockResolvedValue({
+          id: "rec_1",
+          status: "pending_approval",
+        }),
+      },
+      recordComment: {
+        create: vi.fn().mockResolvedValue({ id: "comment_1" }),
+      },
     };
 
     getPrismaClient.mockReturnValue(prisma);
@@ -167,6 +176,21 @@ describe("workflows service", () => {
         }),
       })
     );
+    expect(prisma.appRecord.update).toHaveBeenCalledWith({
+      where: { id: "rec_1" },
+      data: {
+        status: "pending_approval",
+        updatedById: "user_1",
+      },
+    });
+    expect(prisma.recordComment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recordId: "rec_1",
+          isSystem: true,
+        }),
+      })
+    );
     expect(approvals[0]).toEqual(
       expect.objectContaining({
         id: "appr_1",
@@ -181,6 +205,24 @@ describe("workflows service", () => {
   });
 
   it("updates approval decision and record status together", async () => {
+    const definitionWithCustomStatuses = {
+      ...DEFAULT_WORKFLOW_DEFINITION,
+      nodes: DEFAULT_WORKFLOW_DEFINITION.nodes.map((node) =>
+        node.data.nodeType === "approval"
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                config: {
+                  ...node.data.config,
+                  approvedStatus: "ready_to_publish",
+                  rejectedStatus: "changes_requested",
+                },
+              },
+            }
+          : node
+      ),
+    };
     const approvedApproval = approvalRecord({
       status: "approved",
       commentText: "確認しました。",
@@ -205,7 +247,13 @@ describe("workflows service", () => {
           approvalRecord({
             record: {
               id: "rec_1",
+              status: "pending_approval",
               dataJson: { title: "問い合わせ" },
+            },
+            workflow: {
+              id: "wf_1",
+              name: "標準承認フロー",
+              definitionJson: definitionWithCustomStatuses,
             },
           })
         ),
@@ -232,7 +280,7 @@ describe("workflows service", () => {
     expect(tx.appRecord.update).toHaveBeenCalledWith({
       where: { id: "rec_1" },
       data: {
-        status: "approved",
+        status: "ready_to_publish",
         updatedById: "user_1",
       },
     });

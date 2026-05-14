@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback } from "react";
 import ReactFlow, {
+  applyEdgeChanges,
+  applyNodeChanges,
   Background,
   BackgroundVariant,
   type Edge,
+  type EdgeChange,
   type Node,
-  useNodesState,
-  useEdgesState,
+  type NodeChange,
+  type NodeTypes,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -27,40 +30,45 @@ interface WorkflowCanvasProps {
   }) => void;
 }
 
+const NODE_TYPES: NodeTypes = {
+  triggerNode: TriggerNode,
+  conditionNode: ConditionNode,
+  approvalNode: ApprovalNode,
+  notificationNode: NotificationNode,
+};
+
 export function WorkflowCanvas({
   nodes = mockWorkflowNodes,
   edges = mockWorkflowEdges,
   onChange,
 }: WorkflowCanvasProps) {
-  const nodeTypes = useMemo(
-    () => ({
-      triggerNode: TriggerNode,
-      conditionNode: ConditionNode,
-      approvalNode: ApprovalNode,
-      notificationNode: NotificationNode,
-    }),
-    []
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      onChange?.({
+        nodes: applyNodeChanges(changes, nodes),
+        edges,
+      });
+    },
+    [edges, nodes, onChange]
   );
 
-  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(nodes);
-  const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(edges);
-
-  useEffect(() => {
-    setFlowNodes(nodes);
-    setFlowEdges(edges);
-  }, [edges, nodes, setFlowEdges, setFlowNodes]);
-
-  useEffect(() => {
-    onChange?.({ nodes: flowNodes, edges: flowEdges });
-  }, [flowEdges, flowNodes, onChange]);
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      onChange?.({
+        nodes,
+        edges: applyEdgeChanges(changes, edges),
+      });
+    },
+    [edges, nodes, onChange]
+  );
 
   return (
     <ReactFlow
-      nodes={flowNodes}
-      edges={flowEdges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      nodeTypes={nodeTypes}
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={handleNodesChange}
+      onEdgesChange={handleEdgesChange}
+      nodeTypes={NODE_TYPES}
       fitView
       fitViewOptions={{ padding: 0.3 }}
       proOptions={{ hideAttribution: true }}

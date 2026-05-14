@@ -37,6 +37,7 @@ export function Button({
     <button
       className={cn(
         "rounded-lg font-bold inline-flex items-center justify-center gap-2",
+        "disabled:cursor-not-allowed disabled:opacity-50",
         variants[variant],
         sizes[size],
         className
