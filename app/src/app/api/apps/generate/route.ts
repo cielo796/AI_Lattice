@@ -19,7 +19,11 @@ export async function POST(request: Request) {
   try {
     user = await requireAuthenticatedUser();
     input = await parseJsonBody<GenerateBlueprintInput>(request);
-    const blueprint = await generateBlueprintFromPrompt(input.prompt ?? "");
+    const blueprint = await generateBlueprintFromPrompt(
+      input.prompt ?? "",
+      undefined,
+      user.tenantId
+    );
     return NextResponse.json(blueprint);
   } catch (error) {
     await recordRouteFailure(

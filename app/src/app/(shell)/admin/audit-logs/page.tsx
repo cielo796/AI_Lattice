@@ -28,6 +28,8 @@ const ACTION_LABELS: Record<string, string> = {
   ATTACHMENT_CREATE: "添付追加",
   ATTACHMENT_DELETE: "添付削除",
   APP_GENERATE: "AI 生成",
+  OPENAI_API_KEY_UPDATE: "OpenAI キー更新",
+  OPENAI_API_KEY_CLEAR: "OpenAI キー削除",
   AUTH_LOGIN: "ログイン",
   AUTH_LOGOUT: "ログアウト",
 };
@@ -41,6 +43,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   attachment: "添付",
   auth: "認証",
   ai: "AI",
+  ai_settings: "AI 設定",
 };
 
 function getResultVariant(result: AuditLog["result"]): BadgeVariant {

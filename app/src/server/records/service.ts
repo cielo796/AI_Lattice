@@ -869,7 +869,7 @@ export async function createRecordForTable(
 
   const appRecord = toAppRecord(record);
 
-  await runApprovalWorkflowsForRecord(user, {
+  const approvals = await runApprovalWorkflowsForRecord(user, {
     appId: app.id,
     appCode: app.code,
     tableId: table.id,
@@ -879,6 +879,14 @@ export async function createRecordForTable(
     recordTitle: getRecordTitle(appRecord),
     triggerTypes: ["create"],
   });
+
+  if (approvals.length > 0) {
+    const governedRecord = await prisma.appRecord.findUnique({
+      where: { id: record.id },
+    });
+
+    return governedRecord ? toAppRecord(governedRecord) : appRecord;
+  }
 
   return appRecord;
 }
@@ -1058,7 +1066,7 @@ export async function updateRecordForTable(
     triggerTypes.push("status_change");
   }
 
-  await runApprovalWorkflowsForRecord(user, {
+  const approvals = await runApprovalWorkflowsForRecord(user, {
     appId: app.id,
     appCode: app.code,
     tableId: table.id,
@@ -1068,6 +1076,14 @@ export async function updateRecordForTable(
     recordTitle: getRecordTitle(appRecord),
     triggerTypes,
   });
+
+  if (approvals.length > 0) {
+    const governedRecord = await prisma.appRecord.findUnique({
+      where: { id: updatedRecord.id },
+    });
+
+    return governedRecord ? toAppRecord(governedRecord) : appRecord;
+  }
 
   return appRecord;
 }

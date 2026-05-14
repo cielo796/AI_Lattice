@@ -7,11 +7,13 @@ import { cn } from "@/lib/cn";
 import {
   formatRelativeTime,
   formatPriorityLabel,
+  formatStatusLabel,
   getPriorityVariant,
   getRecordDescription,
   getRecordIdentifier,
   getRecordPriority,
   getRecordTitle,
+  getStatusVariant,
 } from "@/lib/runtime-records";
 import type { AppRecord } from "@/types/record";
 
@@ -111,6 +113,12 @@ export function RecordList({
                   <span className="text-[10px] font-mono font-bold text-on-surface-variant">
                     {getRecordIdentifier(record)}
                   </span>
+                  <Badge
+                    variant={getStatusVariant(record.status)}
+                    className="text-[9px]"
+                  >
+                    {formatStatusLabel(record.status)}
+                  </Badge>
                   {priority && (
                     <Badge
                       variant={getPriorityVariant(priority)}
