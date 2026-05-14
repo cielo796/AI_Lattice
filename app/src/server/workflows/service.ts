@@ -71,6 +71,18 @@ const WORKFLOW_STATUSES: Workflow["status"][] = ["draft", "active"];
 const APPROVAL_STATUSES: Approval["status"][] = ["pending", "approved", "rejected"];
 const DEFAULT_APPROVAL_LIMIT = 100;
 const MAX_APPROVAL_LIMIT = 500;
+const DEFAULT_PENDING_APPROVAL_STATUS = "pending_approval";
+const DEFAULT_APPROVED_RECORD_STATUS = "approved";
+const DEFAULT_REJECTED_RECORD_STATUS = "rejected";
+
+interface ApprovalNodeConfig {
+  approverId?: string;
+  titleTemplate?: string;
+  description?: string;
+  pendingStatus: string;
+  approvedStatus: string;
+  rejectedStatus: string;
+}
 
 const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
   nodes: [
@@ -79,8 +91,8 @@ const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
       type: "triggerNode",
       position: { x: 150, y: 200 },
       data: {
-        label: "レコード更新時",
-        description: "重要な更新を検知",
+        label: "Record changed",
+        description: "Detect record changes that require governance.",
         nodeType: "trigger",
       },
     },
@@ -89,8 +101,8 @@ const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
       type: "conditionNode",
       position: { x: 500, y: 200 },
       data: {
-        label: "承認が必要な場合",
-        description: "ステータス変更または高優先度レコード",
+        label: "Approval required",
+        description: "Route important record changes through an approval gate.",
         nodeType: "condition",
       },
     },
@@ -99,9 +111,16 @@ const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
       type: "approvalNode",
       position: { x: 850, y: 120 },
       data: {
-        label: "マネージャー承認",
-        description: "レコード更新前に承認待ちを作成",
+        label: "Manager approval",
+        description: "Create a pending approval before the record moves forward.",
         nodeType: "approval",
+        config: {
+          titleTemplate: "{{recordTitle}} approval",
+          description: "Review this record before it can move forward.",
+          pendingStatus: DEFAULT_PENDING_APPROVAL_STATUS,
+          approvedStatus: DEFAULT_APPROVED_RECORD_STATUS,
+          rejectedStatus: DEFAULT_REJECTED_RECORD_STATUS,
+        },
         isAIProposed: true,
       },
     },
@@ -110,8 +129,8 @@ const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
       type: "notificationNode",
       position: { x: 850, y: 300 },
       data: {
-        label: "通知を送信",
-        description: "承認結果を関係者へ通知",
+        label: "Notify stakeholders",
+        description: "Notify related users after the approval decision.",
         nodeType: "notification",
       },
     },
@@ -128,7 +147,7 @@ const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
       id: "wf-edge-2",
       source: "wf-node-2",
       target: "wf-node-3",
-      label: "はい",
+      label: "yes",
       animated: true,
       style: { stroke: "#10b981", strokeWidth: 2 },
     },
@@ -136,7 +155,7 @@ const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
       id: "wf-edge-3",
       source: "wf-node-2",
       target: "wf-node-4",
-      label: "いいえ",
+      label: "no",
       style: { stroke: "#475569", strokeWidth: 2, strokeDasharray: "8 4" },
     },
   ],
@@ -210,6 +229,41 @@ function toDataObject(value: Prisma.JsonValue): Record<string, unknown> {
 
 function cloneWorkflowDefinition(value: WorkflowDefinition) {
   return JSON.parse(JSON.stringify(value)) as WorkflowDefinition;
+}
+
+function getConfigString(
+  config: Record<string, unknown> | undefined,
+  key: string
+) {
+  const value = config?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function getApprovalNodeConfig(
+  node: WorkflowDefinition["nodes"][number] | undefined
+): ApprovalNodeConfig {
+  const config = node?.data.config;
+
+  return {
+    approverId: getConfigString(config, "approverId"),
+    titleTemplate: getConfigString(config, "titleTemplate"),
+    description: getConfigString(config, "description") ?? node?.data.description,
+    pendingStatus:
+      getConfigString(config, "pendingStatus") ?? DEFAULT_PENDING_APPROVAL_STATUS,
+    approvedStatus:
+      getConfigString(config, "approvedStatus") ?? DEFAULT_APPROVED_RECORD_STATUS,
+    rejectedStatus:
+      getConfigString(config, "rejectedStatus") ?? DEFAULT_REJECTED_RECORD_STATUS,
+  };
+}
+
+function buildDecisionComment(
+  status: "approved" | "rejected",
+  recordStatus: string,
+  commentText: string | undefined
+) {
+  const note = commentText ? ` Reviewer note: ${commentText}` : "";
+  return `Approval ${status}. Record status changed to ${recordStatus}.${note}`;
 }
 
 function normalizeWorkflowDefinition(value: unknown): WorkflowDefinition {
@@ -447,10 +501,6 @@ function findApprovalNode(definitionJson: Prisma.JsonValue) {
   return definition.nodes.find((node) => node.data.nodeType === "approval");
 }
 
-function hasApprovalNode(definitionJson: Prisma.JsonValue) {
-  return Boolean(findApprovalNode(definitionJson));
-}
-
 async function getAppOrThrow(user: User, appId: string) {
   const prisma = getPrismaClient();
   const app = await prisma.app.findFirst({
@@ -565,7 +615,7 @@ async function ensureDefaultWorkflow(user: User, appId: string) {
       id: crypto.randomUUID(),
       tenantId: user.tenantId,
       appId,
-      name: "標準承認フロー",
+      name: "Default approval workflow",
       triggerType: "update",
       status: "active",
       definitionJson: toJsonObject(DEFAULT_WORKFLOW_DEFINITION),
@@ -634,6 +684,53 @@ async function createApprovalFromWorkflow(
   });
 
   return toApproval(approval);
+}
+
+async function markRecordPendingApproval(
+  user: User,
+  input: {
+    appId: string;
+    tableId: string;
+    recordId: string;
+    recordTitle: string;
+    approvalIds: string[];
+    workflowIds: string[];
+    pendingStatus: string;
+  }
+) {
+  const prisma = getPrismaClient();
+  const updatedRecord = await prisma.appRecord.update({
+    where: { id: input.recordId },
+    data: {
+      status: input.pendingStatus,
+      updatedById: user.id,
+    },
+  });
+
+  await prisma.recordComment.create({
+    data: {
+      id: crypto.randomUUID(),
+      tenantId: user.tenantId,
+      recordId: input.recordId,
+      commentText: `Approval requested. Record status changed to ${input.pendingStatus}.`,
+      createdById: user.id,
+      isSystem: true,
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "RECORD_PENDING_APPROVAL",
+    resourceType: "record",
+    resourceId: input.recordId,
+    resourceName: input.recordTitle,
+    detailJson: {
+      appId: input.appId,
+      tableId: input.tableId,
+      status: updatedRecord.status,
+      approvalIds: input.approvalIds,
+      workflowIds: input.workflowIds,
+    },
+  });
 }
 
 export async function listWorkflowsForApp(user: User, appId: string) {
@@ -816,6 +913,8 @@ export async function runApprovalWorkflowsForRecord(
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
   });
   const approvals: Approval[] = [];
+  const workflowIds: string[] = [];
+  let pendingStatus = DEFAULT_PENDING_APPROVAL_STATUS;
 
   for (const workflow of workflows) {
     const approvalNode = findApprovalNode(workflow.definitionJson);
@@ -838,18 +937,35 @@ export async function runApprovalWorkflowsForRecord(
       continue;
     }
 
+    const approvalConfig = getApprovalNodeConfig(approvalNode);
+
     approvals.push(
       await createApprovalFromWorkflow(user, {
         appId: input.appId,
         tableId: input.tableId,
         recordId: input.recordId,
         workflowId: workflow.id,
-        title: `${input.recordTitle} の承認`,
+        approverId: approvalConfig.approverId,
+        title: `${input.recordTitle} approval`,
         description:
-          approvalNode.data.description ??
-          `${input.tableName} レコードの更新に承認が必要です。`,
+          approvalConfig.description ??
+          `Approval is required for this ${input.tableName} record.`,
       })
     );
+    workflowIds.push(workflow.id);
+    pendingStatus = approvalConfig.pendingStatus;
+  }
+
+  if (approvals.length > 0) {
+    await markRecordPendingApproval(user, {
+      appId: input.appId,
+      tableId: input.tableId,
+      recordId: input.recordId,
+      recordTitle: input.recordTitle,
+      approvalIds: approvals.map((approval) => approval.id),
+      workflowIds,
+      pendingStatus,
+    });
   }
 
   return approvals;
@@ -870,19 +986,35 @@ export async function createApprovalForRecord(
     ? await getWorkflowOrThrow(user, app.id, input.workflowId)
     : null;
 
-  if (workflow && !hasApprovalNode(workflow.definitionJson)) {
+  const approvalNode = workflow ? findApprovalNode(workflow.definitionJson) : undefined;
+
+  if (workflow && !approvalNode) {
     throw new WorkflowsServiceError("Workflow does not contain an approval node", 400);
   }
 
-  return createApprovalFromWorkflow(user, {
+  const approvalConfig = getApprovalNodeConfig(approvalNode);
+
+  const approval = await createApprovalFromWorkflow(user, {
     appId: app.id,
     tableId: table.id,
     recordId: record.id,
     workflowId: workflow?.id,
-    approverId: input.approverId,
-    title: input.title?.trim() || `${getRecordTitleFromData(record)} の承認`,
+    approverId: input.approverId ?? approvalConfig.approverId,
+    title: input.title?.trim() || `${getRecordTitleFromData(record)} approval`,
     description: input.description?.trim() || undefined,
   });
+
+  await markRecordPendingApproval(user, {
+    appId: app.id,
+    tableId: table.id,
+    recordId: record.id,
+    recordTitle: getRecordTitleFromData(record),
+    approvalIds: [approval.id],
+    workflowIds: workflow ? [workflow.id] : [],
+    pendingStatus: approvalConfig.pendingStatus,
+  });
+
+  return approval;
 }
 
 export async function listApprovalsForRecord(
@@ -962,7 +1094,8 @@ export async function updateApprovalDecision(
       tenantId: user.tenantId,
     },
     include: {
-      record: { select: { id: true, dataJson: true } },
+      record: { select: { id: true, status: true, dataJson: true } },
+      workflow: { select: { id: true, name: true, definitionJson: true } },
     },
   });
 
@@ -975,6 +1108,14 @@ export async function updateApprovalDecision(
   }
 
   const commentText = input.commentText?.trim() || undefined;
+  const approvalNode = existingApproval.workflow
+    ? findApprovalNode(existingApproval.workflow.definitionJson)
+    : undefined;
+  const approvalConfig = getApprovalNodeConfig(approvalNode);
+  const nextRecordStatus =
+    status === "approved"
+      ? approvalConfig.approvedStatus
+      : approvalConfig.rejectedStatus;
   const decidedApproval = await prisma.$transaction(async (tx) => {
     const updatedApproval = await tx.approval.update({
       where: { id: existingApproval.id },
@@ -990,7 +1131,7 @@ export async function updateApprovalDecision(
     await tx.appRecord.update({
       where: { id: existingApproval.recordId },
       data: {
-        status,
+        status: nextRecordStatus,
         updatedById: user.id,
       },
     });
@@ -1000,11 +1141,7 @@ export async function updateApprovalDecision(
         id: crypto.randomUUID(),
         tenantId: user.tenantId,
         recordId: existingApproval.recordId,
-        commentText:
-          commentText ??
-          (status === "approved"
-            ? "承認によりレコードステータスを approved に更新しました。"
-            : "却下によりレコードステータスを rejected に更新しました。"),
+        commentText: buildDecisionComment(status, nextRecordStatus, commentText),
         createdById: user.id,
         isSystem: true,
       },
@@ -1024,6 +1161,8 @@ export async function updateApprovalDecision(
       recordId: decidedApproval.recordId,
       workflowId: decidedApproval.workflowId,
       status,
+      recordStatusBefore: existingApproval.record?.status,
+      recordStatusAfter: nextRecordStatus,
       commentText,
     },
   });

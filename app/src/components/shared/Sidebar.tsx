@@ -100,7 +100,9 @@ function SidebarContent({
             },
           ]
         : []),
-      { href: "/admin/audit-logs", icon: "admin_panel_settings", label: "管理" },
+      { href: "/admin/openai", icon: "key", label: "OpenAI 設定" },
+      { href: "/admin/approvals", icon: "approval", label: "承認" },
+      { href: "/admin/audit-logs", icon: "admin_panel_settings", label: "監査ログ" },
     ],
     [currentApp]
   );

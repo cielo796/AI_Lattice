@@ -18,6 +18,7 @@ import {
   listAttachments,
   listBackReferences,
   listComments,
+  listRecordApprovals,
   listRecords,
   updateRecord,
   uploadAttachment,
@@ -44,6 +45,7 @@ import type { ReferenceLabelsByField } from "@/lib/runtime-records";
 import type { RuntimeTableMeta } from "@/types/app";
 import type {
   AppRecord,
+  Approval,
   Attachment,
   RecordBackReferenceGroup,
   RecordComment,
@@ -151,6 +153,7 @@ export default function RuntimeViewPage() {
   const [records, setRecords] = useState<AppRecord[]>([]);
   const [comments, setComments] = useState<RecordComment[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tableMeta, setTableMeta] = useState<RuntimeTableMeta | null>(null);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
@@ -231,6 +234,7 @@ export default function RuntimeViewPage() {
         setSelectedId(null);
         setComments([]);
         setAttachments([]);
+        setApprovals([]);
         setError(
           nextError instanceof Error
             ? nextError.message
@@ -433,6 +437,7 @@ export default function RuntimeViewPage() {
     if (!appCode || !tableCode || !selectedId) {
       setComments([]);
       setAttachments([]);
+      setApprovals([]);
       return;
     }
 
@@ -442,9 +447,10 @@ export default function RuntimeViewPage() {
     async function loadRecordActivity() {
       try {
         setIsLoadingActivity(true);
-        const [nextComments, nextAttachments] = await Promise.all([
+        const [nextComments, nextAttachments, nextApprovals] = await Promise.all([
           listComments(appCode, tableCode, currentRecordId),
           listAttachments(appCode, tableCode, currentRecordId),
+          listRecordApprovals(appCode, tableCode, currentRecordId),
         ]);
 
         if (cancelled) {
@@ -453,6 +459,7 @@ export default function RuntimeViewPage() {
 
         setComments(nextComments);
         setAttachments(nextAttachments);
+        setApprovals(nextApprovals);
         setError(null);
       } catch (nextError) {
         if (cancelled) {
@@ -461,6 +468,7 @@ export default function RuntimeViewPage() {
 
         setComments([]);
         setAttachments([]);
+        setApprovals([]);
         setError(
           nextError instanceof Error
             ? nextError.message
@@ -478,7 +486,7 @@ export default function RuntimeViewPage() {
     return () => {
       cancelled = true;
     };
-  }, [appCode, selectedId, tableCode]);
+  }, [appCode, refreshKey, selectedId, tableCode]);
 
   async function handleAddComment(commentText: string) {
     if (!appCode || !tableCode || !selectedId) {
@@ -524,7 +532,9 @@ export default function RuntimeViewPage() {
       setSelectedId(record.id);
       setComments([]);
       setAttachments([]);
+      setApprovals([]);
       setRecordPanelMode(null);
+      setRefreshKey((current) => current + 1);
       setError(null);
       pushToast({ title: "レコードを作成しました", variant: "success" });
     } catch (nextError) {
@@ -560,6 +570,7 @@ export default function RuntimeViewPage() {
         )
       );
       setRecordPanelMode(null);
+      setRefreshKey((current) => current + 1);
       setError(null);
       pushToast({ title: "レコードを更新しました", variant: "success" });
     } catch (nextError) {
@@ -600,6 +611,7 @@ export default function RuntimeViewPage() {
       setSelectedId(nextRecords[0]?.id ?? null);
       setComments([]);
       setAttachments([]);
+      setApprovals([]);
       setRecordPanelMode(null);
       setError(null);
       pushToast({ title: "レコードを削除しました", variant: "success" });
@@ -773,7 +785,9 @@ export default function RuntimeViewPage() {
               isLoadingBackReferences={isLoadingBackReferences}
               comments={comments}
               attachments={attachments}
+              approvals={approvals}
               isLoadingActivity={isLoadingActivity}
+              isLoadingApprovals={isLoadingActivity}
               isSubmittingComment={isSubmittingComment}
               isUploadingAttachment={isUploadingAttachment}
               isDeletingRecord={isDeletingRecord}
