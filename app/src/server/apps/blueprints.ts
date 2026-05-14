@@ -550,12 +550,14 @@ function toCreatedAppSummary(app: {
 
 export async function generateBlueprintFromPrompt(
   prompt: string,
-  client: OpenAIClientLike = getOpenAIClient()
+  client?: OpenAIClientLike,
+  tenantId?: string
 ) {
   const trimmedPrompt = assertString(prompt, "Prompt");
+  const openAIClient = client ?? (await getOpenAIClient(tenantId));
 
   try {
-    return await requestBlueprint(client, GENERATION_INSTRUCTIONS, trimmedPrompt);
+    return await requestBlueprint(openAIClient, GENERATION_INSTRUCTIONS, trimmedPrompt);
   } catch (error) {
     if (!(error instanceof InvalidGeneratedBlueprintError)) {
       throw error;
@@ -569,7 +571,7 @@ export async function generateBlueprintFromPrompt(
     ].join("\n");
 
     try {
-      return await requestBlueprint(client, REPAIR_INSTRUCTIONS, repairInput);
+      return await requestBlueprint(openAIClient, REPAIR_INSTRUCTIONS, repairInput);
     } catch (repairError) {
       if (!(repairError instanceof InvalidGeneratedBlueprintError)) {
         throw repairError;
