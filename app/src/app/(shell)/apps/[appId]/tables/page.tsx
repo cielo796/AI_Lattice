@@ -20,19 +20,25 @@ import {
 import {
   createField,
   createTable,
+  createView,
   deleteApp,
   deleteField,
   deleteTable,
+  deleteView,
   listFields,
   listTables,
+  listViews,
   updateField,
   updateTable,
+  updateView,
   type CreateFieldInput,
   type CreateTableInput,
+  type CreateViewInput,
   type UpdateFieldInput,
   type UpdateTableInput,
+  type UpdateViewInput,
 } from "@/lib/api/apps";
-import type { AppField, AppTable, FieldType } from "@/types/app";
+import type { AppField, AppTable, AppView, AppViewType, FieldType } from "@/types/app";
 
 type TableFormState = { name: string; code: string; isSystem: boolean };
 type FieldFormState = {
@@ -47,6 +53,13 @@ type FieldFormState = {
   lookupFieldCodes: string[];
   multiple: boolean;
   showBackReference: boolean;
+};
+type ViewFormState = {
+  name: string;
+  viewType: AppViewType;
+  columnCodes: string[];
+  sortFieldCode: string;
+  sortDirection: "asc" | "desc";
 };
 type BadgeVariant = "default" | "success" | "warning" | "error" | "info" | "ai";
 
@@ -63,6 +76,13 @@ const EMPTY_FIELD_FORM: FieldFormState = {
   lookupFieldCodes: [],
   multiple: false,
   showBackReference: false,
+};
+const EMPTY_VIEW_FORM: ViewFormState = {
+  name: "",
+  viewType: "list",
+  columnCodes: [],
+  sortFieldCode: "",
+  sortDirection: "desc",
 };
 
 const FIELD_TYPES: FieldType[] = [
@@ -95,6 +115,14 @@ const FIELD_META: Record<FieldType, { label: string; variant: BadgeVariant }> = 
   calculated: { label: "計算式", variant: "warning" },
 };
 
+const VIEW_META: Record<AppViewType, { label: string; icon: string }> = {
+  list: { label: "一覧", icon: "view_list" },
+  kanban: { label: "カンバン", icon: "view_kanban" },
+  calendar: { label: "カレンダー", icon: "calendar_month" },
+  chart: { label: "チャート", icon: "insert_chart" },
+  kpi: { label: "KPI", icon: "speed" },
+};
+
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
@@ -114,6 +142,49 @@ function getFieldOptions(field: AppField) {
     : [];
 }
 
+function getViewColumnCodes(view: AppView, fields: AppField[]) {
+  const columns = view.settingsJson?.columns;
+  const fieldCodes = new Set(fields.map((field) => field.code));
+
+  return Array.isArray(columns)
+    ? columns.filter(
+        (item): item is string => typeof item === "string" && fieldCodes.has(item)
+      )
+    : [];
+}
+
+function getViewSort(view: AppView) {
+  const sort = view.settingsJson?.sort;
+
+  if (!sort || typeof sort !== "object" || Array.isArray(sort)) {
+    return { fieldCode: "", direction: "desc" as const };
+  }
+
+  const sortSettings = sort as Record<string, unknown>;
+
+  return {
+    fieldCode: typeof sortSettings.fieldCode === "string" ? sortSettings.fieldCode : "",
+    direction: sortSettings.direction === "asc" ? ("asc" as const) : ("desc" as const),
+  };
+}
+
+function buildViewSettings(form: ViewFormState, fields: AppField[]) {
+  const fallbackColumns = fields.slice(0, 4).map((field) => field.code);
+  const columns = form.columnCodes.length > 0 ? form.columnCodes : fallbackColumns;
+
+  return {
+    columns,
+    ...(form.sortFieldCode
+      ? {
+          sort: {
+            fieldCode: form.sortFieldCode,
+            direction: form.sortDirection,
+          },
+        }
+      : {}),
+  };
+}
+
 export default function TableDesignerPage() {
   const params = useParams<{ appId: string }>();
   const router = useRouter();
@@ -123,16 +194,21 @@ export default function TableDesignerPage() {
 
   const [tables, setTables] = useState<AppTable[]>([]);
   const [fields, setFields] = useState<AppField[]>([]);
+  const [views, setViews] = useState<AppView[]>([]);
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
   const [editingTableId, setEditingTableId] = useState<string | null>(null);
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  const [editingViewId, setEditingViewId] = useState<string | null>(null);
   const [tableForm, setTableForm] = useState(EMPTY_TABLE_FORM);
   const [fieldForm, setFieldForm] = useState(EMPTY_FIELD_FORM);
+  const [viewForm, setViewForm] = useState(EMPTY_VIEW_FORM);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingTables, setIsLoadingTables] = useState(true);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
+  const [isLoadingViews, setIsLoadingViews] = useState(false);
   const [isSavingTable, setIsSavingTable] = useState(false);
   const [isSavingField, setIsSavingField] = useState(false);
+  const [isSavingView, setIsSavingView] = useState(false);
   const [isDeletingApp, setIsDeletingApp] = useState(false);
   const [referenceTableFields, setReferenceTableFields] = useState<AppField[]>([]);
   const [isLoadingReferenceTableFields, setIsLoadingReferenceTableFields] =
@@ -215,6 +291,38 @@ export default function TableDesignerPage() {
   }, [activeTableId, appId]);
 
   useEffect(() => {
+    if (!appId || !activeTableId) {
+      setViews([]);
+      return;
+    }
+
+    const currentTableId = activeTableId;
+    let cancelled = false;
+
+    async function loadViewsForTable() {
+      try {
+        setIsLoadingViews(true);
+        const nextViews = sortByOrder(await listViews(appId, currentTableId));
+        if (cancelled) return;
+        setViews(nextViews);
+        setError(null);
+      } catch (nextError) {
+        if (!cancelled) {
+          setViews([]);
+          setError(nextError instanceof Error ? nextError.message : "ビューの読み込みに失敗しました。");
+        }
+      } finally {
+        if (!cancelled) setIsLoadingViews(false);
+      }
+    }
+
+    void loadViewsForTable();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTableId, appId]);
+
+  useEffect(() => {
     if (!appId || fieldForm.fieldType !== "master_ref" || !fieldForm.referenceTableId) {
       setReferenceTableFields([]);
       setIsLoadingReferenceTableFields(false);
@@ -289,6 +397,11 @@ export default function TableDesignerPage() {
     setFieldForm(EMPTY_FIELD_FORM);
   }
 
+  function resetViewForm() {
+    setEditingViewId(null);
+    setViewForm(EMPTY_VIEW_FORM);
+  }
+
   async function onSubmitTable(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!appId) return;
@@ -334,6 +447,7 @@ export default function TableDesignerPage() {
       setActiveTableId((current) => (current === table.id ? nextTables[0]?.id ?? null : current));
       if (editingTableId === table.id) resetTableForm();
       resetFieldForm();
+      resetViewForm();
       setError(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "テーブルの削除に失敗しました。");
@@ -426,10 +540,73 @@ export default function TableDesignerPage() {
     try {
       await deleteField(appId, activeTableId, field.id);
       setFields((current) => current.filter((item) => item.id !== field.id));
+      setViews((current) =>
+        current.map((view) => {
+          const columns = getViewColumnCodes(
+            view,
+            fields.filter((item) => item.id !== field.id)
+          );
+          const sort = getViewSort(view);
+          const settingsJson = {
+            ...view.settingsJson,
+            columns,
+            ...(sort.fieldCode === field.code ? { sort: undefined } : {}),
+          };
+
+          return {
+            ...view,
+            settingsJson,
+          };
+        })
+      );
       if (editingFieldId === field.id) resetFieldForm();
       setError(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "フィールドの削除に失敗しました。");
+    }
+  }
+
+  async function onSubmitView(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!appId || !activeTableId) return;
+    setIsSavingView(true);
+
+    try {
+      const payload: CreateViewInput | UpdateViewInput = {
+        name: viewForm.name.trim(),
+        viewType: viewForm.viewType,
+        settingsJson: buildViewSettings(viewForm, fields),
+      };
+
+      if (editingViewId) {
+        const updated = await updateView(appId, activeTableId, editingViewId, payload);
+        setViews((current) =>
+          sortByOrder(current.map((view) => (view.id === updated.id ? updated : view)))
+        );
+      } else {
+        const created = await createView(appId, activeTableId, payload as CreateViewInput);
+        setViews((current) => sortByOrder([...current, created]));
+      }
+
+      setError(null);
+      resetViewForm();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "ビューの保存に失敗しました。");
+    } finally {
+      setIsSavingView(false);
+    }
+  }
+
+  async function onDeleteView(view: AppView) {
+    if (!appId || !activeTableId || !window.confirm(`ビュー「${view.name}」を削除しますか？`)) return;
+
+    try {
+      await deleteView(appId, activeTableId, view.id);
+      setViews((current) => current.filter((item) => item.id !== view.id));
+      if (editingViewId === view.id) resetViewForm();
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "ビューの削除に失敗しました。");
     }
   }
 
@@ -511,6 +688,7 @@ export default function TableDesignerPage() {
                   onClick={() => {
                     setActiveTableId(table.id);
                     resetFieldForm();
+                    resetViewForm();
                   }}
                   className="w-full text-left"
                 >
@@ -597,6 +775,217 @@ export default function TableDesignerPage() {
               </div>
               {activeTable && <Badge variant="info">{fields.length} フィールド</Badge>}
             </div>
+
+            <section className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-6">
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="font-headline text-lg font-bold tracking-tight text-on-surface">
+                    ビュー
+                  </h3>
+                  <p className="mt-1 text-[13px] text-on-surface-variant">
+                    Runtime の一覧に表示する列と並び順を定義します。
+                  </p>
+                </div>
+                <Badge variant="info">{views.length} ビュー</Badge>
+              </div>
+
+              {activeTable && isLoadingViews && (
+                <div className="mb-4 rounded-lg border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                  ビューを読み込んでいます...
+                </div>
+              )}
+
+              <div className="mb-5 grid gap-2 md:grid-cols-2">
+                {views.map((view) => {
+                  const columns = getViewColumnCodes(view, fields);
+                  const sort = getViewSort(view);
+
+                  return (
+                    <div
+                      key={view.id}
+                      className="rounded-lg border border-outline-variant bg-surface-container-low p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Icon name={VIEW_META[view.viewType].icon} size="sm" />
+                            <span className="truncate text-sm font-semibold text-on-surface">
+                              {view.name}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs text-on-surface-variant">
+                            {VIEW_META[view.viewType].label} / {columns.length || fields.length} 列
+                            {sort.fieldCode ? ` / ${sort.fieldCode} ${sort.direction}` : ""}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingViewId(view.id);
+                              setViewForm({
+                                name: view.name,
+                                viewType: view.viewType,
+                                columnCodes: columns,
+                                sortFieldCode: sort.fieldCode,
+                                sortDirection: sort.direction,
+                              });
+                            }}
+                          >
+                            編集
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="danger"
+                            onClick={() => void onDeleteView(view)}
+                          >
+                            削除
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {!isLoadingViews && activeTable && views.length === 0 && (
+                <div className="mb-5 rounded-lg border border-dashed border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                  ビューはまだありません。まず「すべて」などの一覧ビューを作成してください。
+                </div>
+              )}
+
+              <form onSubmit={(event) => void onSubmitView(event)} className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                      ビュー名
+                    </label>
+                    <Input
+                      value={viewForm.name}
+                      onChange={(event) =>
+                        setViewForm((current) => ({ ...current, name: event.target.value }))
+                      }
+                      placeholder="すべて"
+                      required
+                      disabled={!activeTable || isSavingView}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                      種別
+                    </label>
+                    <select
+                      value={viewForm.viewType}
+                      onChange={(event) =>
+                        setViewForm((current) => ({
+                          ...current,
+                          viewType: event.target.value as AppViewType,
+                        }))
+                      }
+                      disabled={!activeTable || isSavingView}
+                      className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      {Object.entries(VIEW_META).map(([viewType, meta]) => (
+                        <option key={viewType} value={viewType}>
+                          {meta.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_104px] gap-2">
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                        ソート
+                      </label>
+                      <select
+                        value={viewForm.sortFieldCode}
+                        onChange={(event) =>
+                          setViewForm((current) => ({
+                            ...current,
+                            sortFieldCode: event.target.value,
+                          }))
+                        }
+                        disabled={!activeTable || isSavingView}
+                        className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="">更新順</option>
+                        {fields.map((field) => (
+                          <option key={field.id} value={field.code}>
+                            {field.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                        順序
+                      </label>
+                      <select
+                        value={viewForm.sortDirection}
+                        onChange={(event) =>
+                          setViewForm((current) => ({
+                            ...current,
+                            sortDirection: event.target.value as "asc" | "desc",
+                          }))
+                        }
+                        disabled={!activeTable || isSavingView || !viewForm.sortFieldCode}
+                        className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="desc">降順</option>
+                        <option value="asc">昇順</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                    表示列
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {fields.map((field) => (
+                      <label
+                        key={field.id}
+                        className="flex items-center gap-2.5 rounded-md border border-outline-variant bg-surface-container-low px-3 py-2 text-[13px] font-medium text-on-surface"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={viewForm.columnCodes.includes(field.code)}
+                          onChange={(event) =>
+                            setViewForm((current) => ({
+                              ...current,
+                              columnCodes: event.target.checked
+                                ? [...current.columnCodes, field.code]
+                                : current.columnCodes.filter((code) => code !== field.code),
+                            }))
+                          }
+                          disabled={!activeTable || isSavingView}
+                          className="h-4 w-4"
+                        />
+                        <span className="min-w-0 truncate">{field.name}</span>
+                        <span className="ml-auto truncate font-mono text-[11px] text-on-surface-variant">
+                          {field.code}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" disabled={!activeTable || isSavingView || fields.length === 0}>
+                    {isSavingView ? "保存中..." : editingViewId ? "ビューを更新" : "ビューを作成"}
+                  </Button>
+                  {editingViewId && (
+                    <Button type="button" variant="ghost" onClick={resetViewForm}>
+                      キャンセル
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </section>
 
             <form onSubmit={(event) => void onSubmitField(event)} className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.04)] md:p-6">
               <div className="mb-4 flex items-center justify-between">

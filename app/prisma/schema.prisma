@@ -56,6 +56,14 @@ enum FieldType {
   calculated
 }
 
+enum AppViewType {
+  list
+  kanban
+  calendar
+  chart
+  kpi
+}
+
 model Tenant {
   id        String       @id @default(cuid())
   name      String
@@ -70,6 +78,7 @@ model Tenant {
   auditLogs AuditLog[]
   workflows Workflow[]
   approvals Approval[]
+  views     AppView[]
   openAISettings TenantOpenAISettings?
 
   @@map("tenants")
@@ -152,6 +161,7 @@ model App {
   records   AppRecord[]
   workflows Workflow[]
   approvals Approval[]
+  views     AppView[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -174,6 +184,7 @@ model AppTable {
   fields    AppField[]
   records   AppRecord[]
   approvals Approval[]
+  views     AppView[]
 
   @@unique([appId, code])
   @@index([tenantId])
@@ -205,6 +216,29 @@ model AppField {
   @@index([appId])
   @@index([tableId, sortOrder])
   @@map("app_fields")
+}
+
+model AppView {
+  id           String      @id @default(cuid())
+  tenantId     String      @map("tenant_id")
+  appId        String      @map("app_id")
+  tableId      String      @map("table_id")
+  name         String
+  viewType     AppViewType @default(list) @map("view_type")
+  settingsJson Json?       @map("settings_json")
+  sortOrder    Int         @default(0) @map("sort_order")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  tenant Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  app    App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  table  AppTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, name])
+  @@index([tenantId])
+  @@index([appId])
+  @@index([tableId, sortOrder])
+  @@map("app_views")
 }
 
 model AppRecord {
