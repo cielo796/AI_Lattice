@@ -1,4 +1,11 @@
-import type { App, AppField, AppTable, FieldType } from "@/types/app";
+import type {
+  App,
+  AppField,
+  AppTable,
+  AppView,
+  AppViewType,
+  FieldType,
+} from "@/types/app";
 import type { GeneratedAppBlueprint } from "@/types/ai";
 import { apiFetch } from "@/lib/api/client";
 
@@ -38,6 +45,20 @@ export interface UpdateFieldInput {
   sortOrder?: number;
 }
 
+export interface CreateViewInput {
+  name: string;
+  viewType?: AppViewType;
+  settingsJson?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
+export interface UpdateViewInput {
+  name?: string;
+  viewType?: AppViewType;
+  settingsJson?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
 function appPath(appId: string) {
   return `/api/apps/${appId}`;
 }
@@ -64,6 +85,14 @@ function fieldCollectionPath(appId: string, tableId: string) {
 
 function fieldItemPath(appId: string, tableId: string, fieldId: string) {
   return `${fieldCollectionPath(appId, tableId)}/${fieldId}`;
+}
+
+function viewCollectionPath(appId: string, tableId: string) {
+  return `${tableItemPath(appId, tableId)}/views`;
+}
+
+function viewItemPath(appId: string, tableId: string, viewId: string) {
+  return `${viewCollectionPath(appId, tableId)}/${viewId}`;
 }
 
 export async function listApps() {
@@ -151,6 +180,43 @@ export async function deleteField(
   fieldId: string
 ) {
   await apiFetch<string>(fieldItemPath(appId, tableId, fieldId), {
+    method: "DELETE",
+  });
+}
+
+export async function listViews(appId: string, tableId: string) {
+  return apiFetch<AppView[]>(viewCollectionPath(appId, tableId));
+}
+
+export async function createView(
+  appId: string,
+  tableId: string,
+  input: CreateViewInput
+) {
+  return apiFetch<AppView>(viewCollectionPath(appId, tableId), {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateView(
+  appId: string,
+  tableId: string,
+  viewId: string,
+  input: UpdateViewInput
+) {
+  return apiFetch<AppView>(viewItemPath(appId, tableId, viewId), {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteView(
+  appId: string,
+  tableId: string,
+  viewId: string
+) {
+  await apiFetch<string>(viewItemPath(appId, tableId, viewId), {
     method: "DELETE",
   });
 }

@@ -38,6 +38,8 @@ export type FieldType =
   | "ai_generated"
   | "calculated";
 
+export type AppViewType = "list" | "kanban" | "calendar" | "chart" | "kpi";
+
 export interface AppField {
   id: string;
   tenantId: string;
@@ -60,9 +62,11 @@ export interface AppView {
   appId: string;
   tableId: string;
   name: string;
-  viewType: "list" | "kanban" | "calendar" | "chart" | "kpi";
+  viewType: AppViewType;
   settingsJson?: Record<string, unknown>;
+  sortOrder: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface AppForm {
@@ -78,4 +82,5 @@ export interface AppForm {
 export interface RuntimeTableMeta {
   table: Pick<AppTable, "id" | "name" | "code">;
   fields: AppField[];
+  views: AppView[];
 }

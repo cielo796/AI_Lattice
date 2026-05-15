@@ -2,7 +2,14 @@ import { Prisma } from "@prisma/client";
 import { recordAuditLog } from "@/server/audit/service";
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
 import { getPrismaClient } from "@/server/db/prisma";
-import type { App, AppField, AppTable, FieldType } from "@/types/app";
+import type {
+  App,
+  AppField,
+  AppTable,
+  AppView,
+  AppViewType,
+  FieldType,
+} from "@/types/app";
 import type { User } from "@/types/user";
 
 const FIELD_TYPES: FieldType[] = [
@@ -19,6 +26,10 @@ const FIELD_TYPES: FieldType[] = [
   "ai_generated",
   "calculated",
 ];
+
+const VIEW_TYPES: AppViewType[] = ["list", "kanban", "calendar", "chart", "kpi"];
+const VIEW_FILTER_OPERATORS = ["equals", "contains", "not_empty"] as const;
+type ViewFilterOperator = (typeof VIEW_FILTER_OPERATORS)[number];
 
 export class AppsServiceError extends Error {
   constructor(
@@ -82,6 +93,20 @@ export interface UpdateFieldInput {
   sortOrder?: number;
 }
 
+export interface CreateViewInput {
+  name: string;
+  viewType?: AppViewType;
+  settingsJson?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
+export interface UpdateViewInput {
+  name?: string;
+  viewType?: AppViewType;
+  settingsJson?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
 function normalizeIdentifier(value: string, separator: "-" | "_") {
   return value
     .trim()
@@ -111,6 +136,14 @@ function assertFieldType(value: string): FieldType {
   }
 
   return value as FieldType;
+}
+
+function assertViewType(value: string): AppViewType {
+  if (!VIEW_TYPES.includes(value as AppViewType)) {
+    throw new AppsServiceError("ビュー種別が不正です。", 400);
+  }
+
+  return value as AppViewType;
 }
 
 function toJsonObject(
@@ -283,6 +316,32 @@ function toAppField(field: {
   };
 }
 
+function toAppView(view: {
+  id: string;
+  tenantId: string;
+  appId: string;
+  tableId: string;
+  name: string;
+  viewType: AppViewType;
+  settingsJson: Prisma.JsonValue | null;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}): AppView {
+  return {
+    id: view.id,
+    tenantId: view.tenantId,
+    appId: view.appId,
+    tableId: view.tableId,
+    name: view.name,
+    viewType: view.viewType,
+    settingsJson: toSettingsJson(view.settingsJson),
+    sortOrder: view.sortOrder,
+    createdAt: view.createdAt.toISOString(),
+    updatedAt: view.updatedAt.toISOString(),
+  };
+}
+
 async function ensureUniqueAppCode(user: User, code: string, excludeAppId?: string) {
   const prisma = getPrismaClient();
   const duplicate = await prisma.app.findFirst({
@@ -342,6 +401,30 @@ async function ensureUniqueFieldCode(
 
   if (duplicate) {
     throw new AppsServiceError("同じフィールドコードが既に存在します", 409);
+  }
+}
+
+async function ensureUniqueViewName(
+  user: User,
+  appId: string,
+  tableId: string,
+  name: string,
+  excludeViewId?: string
+) {
+  const prisma = getPrismaClient();
+  const duplicate = await prisma.appView.findFirst({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+      name,
+      ...(excludeViewId ? { NOT: { id: excludeViewId } } : {}),
+    },
+    select: { id: true },
+  });
+
+  if (duplicate) {
+    throw new AppsServiceError("同じビュー名が既に存在します。", 409);
   }
 }
 
@@ -405,6 +488,31 @@ async function getFieldOrThrow(
   return field;
 }
 
+async function getViewOrThrow(
+  user: User,
+  appId: string,
+  tableId: string,
+  viewId: string
+) {
+  await getTableOrThrow(user, appId, tableId);
+
+  const prisma = getPrismaClient();
+  const view = await prisma.appView.findFirst({
+    where: {
+      id: viewId,
+      appId,
+      tableId,
+      tenantId: user.tenantId,
+    },
+  });
+
+  if (!view) {
+    throw new AppsServiceError("ビューが見つかりません。", 404);
+  }
+
+  return view;
+}
+
 async function nextTableSortOrder(appId: string) {
   const prisma = getPrismaClient();
   const table = await prisma.appTable.findFirst({
@@ -425,6 +533,17 @@ async function nextFieldSortOrder(tableId: string) {
   });
 
   return field ? field.sortOrder + 1 : 0;
+}
+
+async function nextViewSortOrder(tableId: string) {
+  const prisma = getPrismaClient();
+  const view = await prisma.appView.findFirst({
+    where: { tableId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+
+  return view ? view.sortOrder + 1 : 0;
 }
 
 async function normalizeFieldSettings(
@@ -503,6 +622,275 @@ async function normalizeFieldSettings(
     ...(isMultiReference(settingsJson) ? { multiple: true } : {}),
     ...(shouldShowBackReference(settingsJson) ? { showBackReference: true } : {}),
   };
+}
+
+function normalizeFieldCodeList(
+  value: unknown,
+  availableFieldCodes: Set<string>,
+  fieldName: string
+) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new AppsServiceError(`${fieldName} は配列で指定してください。`, 400);
+  }
+
+  const codes = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const uniqueCodes = [...new Set(codes)];
+  const invalidCode = uniqueCodes.find((code) => !availableFieldCodes.has(code));
+
+  if (invalidCode) {
+    throw new AppsServiceError(`ビュー設定のフィールド "${invalidCode}" が見つかりません。`, 400);
+  }
+
+  return uniqueCodes;
+}
+
+function normalizeViewSort(
+  value: unknown,
+  availableFieldCodes: Set<string>
+) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new AppsServiceError("ビューのソート設定が不正です。", 400);
+  }
+
+  const sort = value as Record<string, unknown>;
+  const fieldCode = typeof sort.fieldCode === "string" ? sort.fieldCode.trim() : "";
+  const direction = sort.direction === "desc" ? "desc" : "asc";
+
+  if (!fieldCode) {
+    return undefined;
+  }
+
+  if (!availableFieldCodes.has(fieldCode)) {
+    throw new AppsServiceError(`ソート対象フィールド "${fieldCode}" が見つかりません。`, 400);
+  }
+
+  return { fieldCode, direction };
+}
+
+function normalizeViewFilters(
+  value: unknown,
+  availableFieldCodes: Set<string>
+) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new AppsServiceError("ビューのフィルタ設定が不正です。", 400);
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        throw new AppsServiceError("ビューのフィルタ設定が不正です。", 400);
+      }
+
+      const filter = item as Record<string, unknown>;
+      const fieldCode = typeof filter.fieldCode === "string" ? filter.fieldCode.trim() : "";
+      const operator = VIEW_FILTER_OPERATORS.includes(
+        filter.operator as ViewFilterOperator
+      )
+        ? (filter.operator as ViewFilterOperator)
+        : "contains";
+      const filterValue =
+        typeof filter.value === "string" ? filter.value.trim() : undefined;
+
+      if (!fieldCode) {
+        return null;
+      }
+
+      if (!availableFieldCodes.has(fieldCode)) {
+        throw new AppsServiceError(`フィルタ対象フィールド "${fieldCode}" が見つかりません。`, 400);
+      }
+
+      return {
+        fieldCode,
+        operator,
+        ...(operator !== "not_empty" && filterValue ? { value: filterValue } : {}),
+      };
+    })
+    .filter(
+      (filter): filter is {
+        fieldCode: string;
+        operator: ViewFilterOperator;
+        value?: string;
+      } => filter !== null
+    );
+}
+
+async function normalizeViewSettings(
+  user: User,
+  appId: string,
+  tableId: string,
+  settingsJson: Record<string, unknown> | undefined
+) {
+  if (!settingsJson) {
+    return undefined;
+  }
+
+  const prisma = getPrismaClient();
+  const fields = await prisma.appField.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+    },
+    select: { code: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const availableFieldCodes = new Set(fields.map((field) => field.code));
+  const columns = normalizeFieldCodeList(
+    settingsJson.columns,
+    availableFieldCodes,
+    "表示列"
+  );
+  const sort = normalizeViewSort(settingsJson.sort, availableFieldCodes);
+  const filters = normalizeViewFilters(settingsJson.filters, availableFieldCodes);
+
+  return {
+    ...(columns !== undefined ? { columns } : {}),
+    ...(sort ? { sort } : {}),
+    ...(filters !== undefined ? { filters } : {}),
+  };
+}
+
+function replaceFieldCodeInViewSettings(
+  value: unknown,
+  previousCode: string,
+  nextCode: string
+) {
+  const settings = toSettingsJson(value);
+
+  if (!settings) {
+    return undefined;
+  }
+
+  let changed = false;
+  const columns = Array.isArray(settings.columns)
+    ? settings.columns.map((column) => {
+        if (column === previousCode) {
+          changed = true;
+          return nextCode;
+        }
+
+        return column;
+      })
+    : settings.columns;
+  const sort =
+    settings.sort && typeof settings.sort === "object" && !Array.isArray(settings.sort)
+      ? { ...(settings.sort as Record<string, unknown>) }
+      : settings.sort;
+
+  if (
+    sort &&
+    typeof sort === "object" &&
+    !Array.isArray(sort) &&
+    (sort as Record<string, unknown>).fieldCode === previousCode
+  ) {
+    (sort as Record<string, unknown>).fieldCode = nextCode;
+    changed = true;
+  }
+
+  const filters = Array.isArray(settings.filters)
+    ? settings.filters.map((filter) => {
+        if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+          return filter;
+        }
+
+        if ((filter as Record<string, unknown>).fieldCode !== previousCode) {
+          return filter;
+        }
+
+        changed = true;
+        return { ...(filter as Record<string, unknown>), fieldCode: nextCode };
+      })
+    : settings.filters;
+
+  if (!changed) {
+    return undefined;
+  }
+
+  const nextSettings: Record<string, unknown> = { ...settings, columns, filters };
+  if (sort) {
+    nextSettings.sort = sort;
+  } else {
+    delete nextSettings.sort;
+  }
+
+  return nextSettings;
+}
+
+function removeFieldCodeFromViewSettings(value: unknown, fieldCode: string) {
+  const settings = toSettingsJson(value);
+
+  if (!settings) {
+    return undefined;
+  }
+
+  let changed = false;
+  const columns = Array.isArray(settings.columns)
+    ? settings.columns.filter((column) => {
+        const keep = column !== fieldCode;
+        if (!keep) {
+          changed = true;
+        }
+
+        return keep;
+      })
+    : settings.columns;
+  let sort =
+    settings.sort && typeof settings.sort === "object" && !Array.isArray(settings.sort)
+      ? { ...(settings.sort as Record<string, unknown>) }
+      : settings.sort;
+
+  if (
+    sort &&
+    typeof sort === "object" &&
+    !Array.isArray(sort) &&
+    (sort as Record<string, unknown>).fieldCode === fieldCode
+  ) {
+    changed = true;
+    sort = undefined;
+  }
+
+  const filters = Array.isArray(settings.filters)
+    ? settings.filters.filter((filter) => {
+        const keep =
+          !filter ||
+          typeof filter !== "object" ||
+          Array.isArray(filter) ||
+          (filter as Record<string, unknown>).fieldCode !== fieldCode;
+        if (!keep) {
+          changed = true;
+        }
+
+        return keep;
+      })
+    : settings.filters;
+
+  if (!changed) {
+    return undefined;
+  }
+
+  const nextSettings: Record<string, unknown> = { ...settings, columns, filters };
+  if (sort) {
+    nextSettings.sort = sort;
+  } else {
+    delete nextSettings.sort;
+  }
+
+  return nextSettings;
 }
 
 export async function listAppsForUser(user: User) {
@@ -1036,22 +1424,58 @@ export async function updateFieldForTable(
       : undefined;
 
   const prisma = getPrismaClient();
-  const field = await prisma.appField.update({
-    where: { id: existingField.id },
-    data: {
-      name: nextName,
-      code: nextCode,
-      fieldType: nextFieldType,
-      required: input.required ?? existingField.required,
-      uniqueFlag: input.uniqueFlag ?? existingField.uniqueFlag,
-      ...(input.defaultValue !== undefined
-        ? { defaultValue: toJsonValue(input.defaultValue) }
-        : {}),
-      ...(input.settingsJson !== undefined
-        ? { settingsJson: toJsonObject(nextSettingsJson) }
-        : {}),
-      sortOrder: input.sortOrder ?? existingField.sortOrder,
-    },
+  const field = await prisma.$transaction(async (tx) => {
+    const updatedField = await tx.appField.update({
+      where: { id: existingField.id },
+      data: {
+        name: nextName,
+        code: nextCode,
+        fieldType: nextFieldType,
+        required: input.required ?? existingField.required,
+        uniqueFlag: input.uniqueFlag ?? existingField.uniqueFlag,
+        ...(input.defaultValue !== undefined
+          ? { defaultValue: toJsonValue(input.defaultValue) }
+          : {}),
+        ...(input.settingsJson !== undefined
+          ? { settingsJson: toJsonObject(nextSettingsJson) }
+          : {}),
+        sortOrder: input.sortOrder ?? existingField.sortOrder,
+      },
+    });
+
+    if (existingField.code !== nextCode) {
+      const views = await tx.appView.findMany({
+        where: {
+          tenantId: user.tenantId,
+          appId,
+          tableId,
+        },
+        select: {
+          id: true,
+          settingsJson: true,
+        },
+      });
+      const updateOperations = views.flatMap((view) => {
+        const settingsJson = replaceFieldCodeInViewSettings(
+          view.settingsJson,
+          existingField.code,
+          nextCode
+        );
+
+        return settingsJson
+          ? [
+              tx.appView.update({
+                where: { id: view.id },
+                data: { settingsJson: toJsonObject(settingsJson) },
+              }),
+            ]
+          : [];
+      });
+
+      await Promise.all(updateOperations);
+    }
+
+    return updatedField;
   });
 
   await recordAuditLog(user, {
@@ -1098,8 +1522,38 @@ export async function deleteFieldForTable(
 
   const existingField = await getFieldOrThrow(user, appId, tableId, fieldId);
   const prisma = getPrismaClient();
-  await prisma.appField.delete({
-    where: { id: existingField.id },
+  await prisma.$transaction(async (tx) => {
+    const views = await tx.appView.findMany({
+      where: {
+        tenantId: user.tenantId,
+        appId,
+        tableId,
+      },
+      select: {
+        id: true,
+        settingsJson: true,
+      },
+    });
+    const updateOperations = views.flatMap((view) => {
+      const settingsJson = removeFieldCodeFromViewSettings(
+        view.settingsJson,
+        existingField.code
+      );
+
+      return settingsJson
+        ? [
+            tx.appView.update({
+              where: { id: view.id },
+              data: { settingsJson: toJsonObject(settingsJson) },
+            }),
+          ]
+        : [];
+    });
+
+    await Promise.all(updateOperations);
+    await tx.appField.delete({
+      where: { id: existingField.id },
+    });
   });
 
   await recordAuditLog(user, {
@@ -1115,6 +1569,187 @@ export async function deleteFieldForTable(
       required: existingField.required,
       uniqueFlag: existingField.uniqueFlag,
       settingsJson: toSettingsJson(existingField.settingsJson),
+    },
+  });
+}
+
+export async function listViewsForTable(
+  user: User,
+  appId: string,
+  tableId: string
+) {
+  await ensureDemoBuilderData();
+  await getTableOrThrow(user, appId, tableId);
+
+  const prisma = getPrismaClient();
+  const views = await prisma.appView.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return views.map((view) =>
+    toAppView(view as typeof view & { viewType: AppViewType })
+  );
+}
+
+export async function getViewForTable(
+  user: User,
+  appId: string,
+  tableId: string,
+  viewId: string
+) {
+  await ensureDemoBuilderData();
+  const view = await getViewOrThrow(user, appId, tableId, viewId);
+  return toAppView(view as typeof view & { viewType: AppViewType });
+}
+
+export async function createViewForTable(
+  user: User,
+  appId: string,
+  tableId: string,
+  input: CreateViewInput
+) {
+  await ensureDemoBuilderData();
+  const table = await getTableOrThrow(user, appId, tableId);
+  const name = assertNonEmpty(input.name, "View name");
+  const viewType = input.viewType ? assertViewType(input.viewType) : "list";
+
+  await ensureUniqueViewName(user, appId, tableId, name);
+
+  const settingsJson = await normalizeViewSettings(
+    user,
+    appId,
+    tableId,
+    input.settingsJson
+  );
+  const prisma = getPrismaClient();
+  const view = await prisma.appView.create({
+    data: {
+      id: crypto.randomUUID(),
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+      name,
+      viewType,
+      settingsJson: toJsonObject(settingsJson),
+      sortOrder: input.sortOrder ?? (await nextViewSortOrder(tableId)),
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "VIEW_CREATE",
+    resourceType: "view",
+    resourceId: view.id,
+    resourceName: view.name,
+    detailJson: {
+      appId,
+      tableId: table.id,
+      tableName: table.name,
+      tableCode: table.code,
+      viewType: view.viewType,
+      settingsJson: toSettingsJson(view.settingsJson),
+      sortOrder: view.sortOrder,
+    },
+  });
+
+  return toAppView(view as typeof view & { viewType: AppViewType });
+}
+
+export async function updateViewForTable(
+  user: User,
+  appId: string,
+  tableId: string,
+  viewId: string,
+  input: UpdateViewInput
+) {
+  await ensureDemoBuilderData();
+  const existingView = await getViewOrThrow(user, appId, tableId, viewId);
+  const nextName = input.name?.trim() || existingView.name;
+  const nextViewType = input.viewType
+    ? assertViewType(input.viewType)
+    : existingView.viewType;
+
+  if (!nextName) {
+    throw new AppsServiceError("ビュー名は必須です。", 400);
+  }
+
+  if (nextName !== existingView.name) {
+    await ensureUniqueViewName(user, appId, tableId, nextName, existingView.id);
+  }
+
+  const nextSettingsJson =
+    input.settingsJson !== undefined
+      ? await normalizeViewSettings(user, appId, tableId, input.settingsJson)
+      : undefined;
+
+  const prisma = getPrismaClient();
+  const view = await prisma.appView.update({
+    where: { id: existingView.id },
+    data: {
+      name: nextName,
+      viewType: nextViewType,
+      ...(input.settingsJson !== undefined
+        ? { settingsJson: toJsonObject(nextSettingsJson) }
+        : {}),
+      sortOrder: input.sortOrder ?? existingView.sortOrder,
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "VIEW_UPDATE",
+    resourceType: "view",
+    resourceId: view.id,
+    resourceName: view.name,
+    detailJson: {
+      appId,
+      tableId,
+      before: {
+        name: existingView.name,
+        viewType: existingView.viewType,
+        settingsJson: toSettingsJson(existingView.settingsJson),
+        sortOrder: existingView.sortOrder,
+      },
+      after: {
+        name: view.name,
+        viewType: view.viewType,
+        settingsJson: toSettingsJson(view.settingsJson),
+        sortOrder: view.sortOrder,
+      },
+    },
+  });
+
+  return toAppView(view as typeof view & { viewType: AppViewType });
+}
+
+export async function deleteViewForTable(
+  user: User,
+  appId: string,
+  tableId: string,
+  viewId: string
+) {
+  await ensureDemoBuilderData();
+  const existingView = await getViewOrThrow(user, appId, tableId, viewId);
+  const prisma = getPrismaClient();
+
+  await prisma.appView.delete({
+    where: { id: existingView.id },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "VIEW_DELETE",
+    resourceType: "view",
+    resourceId: existingView.id,
+    resourceName: existingView.name,
+    detailJson: {
+      appId,
+      tableId,
+      viewType: existingView.viewType,
+      settingsJson: toSettingsJson(existingView.settingsJson),
+      sortOrder: existingView.sortOrder,
     },
   });
 }

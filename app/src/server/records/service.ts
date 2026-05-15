@@ -5,7 +5,13 @@ import { getPrismaClient } from "@/server/db/prisma";
 import { ensureDemoRecordData } from "@/server/records/bootstrap";
 import { runApprovalWorkflowsForRecord } from "@/server/workflows/service";
 import { getRecordTitle } from "@/lib/runtime-records";
-import type { AppField, FieldType, RuntimeTableMeta } from "@/types/app";
+import type {
+  AppField,
+  AppView,
+  AppViewType,
+  FieldType,
+  RuntimeTableMeta,
+} from "@/types/app";
 import type {
   AppRecord,
   Attachment as RecordAttachment,
@@ -201,6 +207,32 @@ function toAppField(field: {
     settingsJson: toSettingsJson(field.settingsJson),
     sortOrder: field.sortOrder,
     createdAt: field.createdAt.toISOString(),
+  };
+}
+
+function toAppView(view: {
+  id: string;
+  tenantId: string;
+  appId: string;
+  tableId: string;
+  name: string;
+  viewType: AppViewType;
+  settingsJson: Prisma.JsonValue | null;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}): AppView {
+  return {
+    id: view.id,
+    tenantId: view.tenantId,
+    appId: view.appId,
+    tableId: view.tableId,
+    name: view.name,
+    viewType: view.viewType,
+    settingsJson: toSettingsJson(view.settingsJson),
+    sortOrder: view.sortOrder,
+    createdAt: view.createdAt.toISOString(),
+    updatedAt: view.updatedAt.toISOString(),
   };
 }
 
@@ -815,11 +847,22 @@ export async function getRuntimeTableMeta(
     },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
+  const views = await prisma.appView.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId: app.id,
+      tableId: table.id,
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
 
   return {
     table: toRuntimeTable(table),
     fields: fields.map((field) =>
       toAppField(field as typeof field & { fieldType: FieldType })
+    ),
+    views: views.map((view) =>
+      toAppView(view as typeof view & { viewType: AppViewType })
     ),
   };
 }

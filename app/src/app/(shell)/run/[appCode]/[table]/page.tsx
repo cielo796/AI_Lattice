@@ -156,6 +156,7 @@ export default function RuntimeViewPage() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tableMeta, setTableMeta] = useState<RuntimeTableMeta | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string>("");
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const [isLoadingMeta, setIsLoadingMeta] = useState(true);
@@ -271,6 +272,11 @@ export default function RuntimeViewPage() {
         }
 
         setTableMeta(nextMeta);
+        setActiveViewId((current) =>
+          current && nextMeta.views.some((view) => view.id === current)
+            ? current
+            : (nextMeta.views[0]?.id ?? "")
+        );
         setError(null);
       } catch (nextError) {
         if (cancelled) {
@@ -741,8 +747,12 @@ export default function RuntimeViewPage() {
         <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
           <RecordList
             records={resolvedRecords}
+            fields={tableMeta?.fields ?? []}
+            views={tableMeta?.views ?? []}
+            activeViewId={activeViewId}
             selectedId={selectedId ?? undefined}
             isLoading={isLoadingRecords}
+            onViewChange={setActiveViewId}
             onSelect={(record) => setSelectedId(record.id)}
           />
 
