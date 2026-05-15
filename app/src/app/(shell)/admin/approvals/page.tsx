@@ -130,6 +130,7 @@ export default function ApprovalsPage() {
   return (
     <>
       <TopBar
+        title="承認"
         breadcrumbs={[
           { label: "ダッシュボード" },
           { label: "管理" },
@@ -148,29 +149,29 @@ export default function ApprovalsPage() {
         }
       />
 
-      <main className="mx-auto max-w-[1600px] px-4 py-10 pt-24 md:px-10">
+      <main className="mx-auto max-w-7xl px-6 pt-20 pb-10 md:px-10">
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-lg bg-surface-container p-4">
-            <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               承認待ち
             </div>
-            <div className="mt-2 text-3xl font-headline font-bold text-white">
+            <div className="mt-2 font-headline text-3xl font-bold tracking-tight text-on-surface">
               {pendingCount}
             </div>
           </div>
-          <div className="rounded-lg bg-surface-container p-4">
-            <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               表示中
             </div>
-            <div className="mt-2 text-3xl font-headline font-bold text-white">
+            <div className="mt-2 font-headline text-3xl font-bold tracking-tight text-on-surface">
               {approvals.length}
             </div>
           </div>
-          <div className="rounded-lg bg-surface-container p-4">
-            <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               選択中
             </div>
-            <div className="mt-2 truncate text-lg font-bold text-white">
+            <div className="mt-2 truncate text-lg font-semibold text-on-surface">
               {selected?.title ?? "-"}
             </div>
           </div>
@@ -183,10 +184,10 @@ export default function ApprovalsPage() {
               type="button"
               onClick={() => setFilter(item.value)}
               className={cn(
-                "rounded-lg px-3 py-2 text-xs font-bold transition-colors",
+                "rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
                 filter === item.value
                   ? "bg-primary text-white"
-                  : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                  : "border border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
               )}
             >
               {item.label}
@@ -195,19 +196,19 @@ export default function ApprovalsPage() {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">
+          <div className="mb-4 rounded-lg border border-error-container bg-error-container/40 p-3 text-sm text-on-error-container">
             {error}
           </div>
         )}
         {notice && (
-          <div className="mb-4 rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-primary">
+          <div className="mb-4 rounded-lg border border-tertiary-container bg-primary-container p-3 text-sm text-on-primary-container">
             {notice}
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="overflow-hidden rounded-xl bg-surface-container">
-            <div className="grid grid-cols-[1fr_120px_150px] gap-4 border-b border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant md:grid-cols-[1.4fr_1fr_130px_150px]">
+          <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+            <div className="grid grid-cols-[1fr_120px_150px] gap-4 border-b border-outline-variant px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted md:grid-cols-[1.4fr_1fr_130px_150px]">
               <span>承認</span>
               <span className="hidden md:block">対象</span>
               <span>状態</span>
@@ -215,51 +216,53 @@ export default function ApprovalsPage() {
             </div>
 
             {isLoading ? (
-              <div className="p-8 text-sm text-on-surface-variant">読み込み中...</div>
+              <div className="p-6 text-sm text-on-surface-variant">読み込み中...</div>
             ) : approvals.length === 0 ? (
-              <div className="p-8 text-sm text-on-surface-variant">
+              <div className="m-5 rounded-xl border-2 border-dashed border-outline-variant bg-surface p-10 text-center text-sm text-on-surface-variant">
                 対象の承認はありません。
               </div>
             ) : (
-              approvals.map((approval) => (
-                <button
-                  key={approval.id}
-                  type="button"
-                  onClick={() => setSelectedId(approval.id)}
-                  className={cn(
-                    "grid w-full grid-cols-[1fr_120px_150px] gap-4 border-b border-outline-variant/10 px-4 py-4 text-left transition-colors last:border-b-0 md:grid-cols-[1.4fr_1fr_130px_150px]",
-                    selected?.id === approval.id
-                      ? "bg-surface-container-high"
-                      : "hover:bg-surface-container-high/50"
-                  )}
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-bold text-on-surface">
-                      {approval.title}
+              <div className="divide-y divide-outline-variant">
+                {approvals.map((approval) => (
+                  <button
+                    key={approval.id}
+                    type="button"
+                    onClick={() => setSelectedId(approval.id)}
+                    className={cn(
+                      "grid w-full grid-cols-[1fr_120px_150px] gap-4 px-5 py-4 text-left transition-colors md:grid-cols-[1.4fr_1fr_130px_150px]",
+                      selected?.id === approval.id
+                        ? "bg-surface-container-high"
+                        : "hover:bg-surface-container-low"
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-on-surface">
+                        {approval.title}
+                      </div>
+                      <div className="mt-1 truncate text-xs text-on-surface-variant">
+                        {approval.workflowName ?? "手動承認"} /{" "}
+                        {approval.requesterName ?? approval.requestedBy}
+                      </div>
                     </div>
-                    <div className="mt-1 truncate text-xs text-on-surface-variant">
-                      {approval.workflowName ?? "手動承認"} /{" "}
-                      {approval.requesterName ?? approval.requestedBy}
+                    <div className="hidden min-w-0 text-xs text-on-surface-variant md:block">
+                      <div className="truncate">{approval.appName ?? approval.appId}</div>
+                      <div className="truncate">{approval.recordTitle ?? approval.recordId}</div>
                     </div>
-                  </div>
-                  <div className="hidden min-w-0 text-xs text-on-surface-variant md:block">
-                    <div className="truncate">{approval.appName ?? approval.appId}</div>
-                    <div className="truncate">{approval.recordTitle ?? approval.recordId}</div>
-                  </div>
-                  <div>
-                    <Badge variant={statusVariants[approval.status]}>
-                      {statusLabels[approval.status]}
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-on-surface-variant">
-                    {formatDateTime(approval.createdAt)}
-                  </div>
-                </button>
-              ))
+                    <div>
+                      <Badge variant={statusVariants[approval.status]}>
+                        {statusLabels[approval.status]}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-on-surface-variant">
+                      {formatDateTime(approval.createdAt)}
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </section>
 
-          <aside className="rounded-xl bg-surface-container p-6">
+          <aside className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
             {selected ? (
               <div className="space-y-6">
                 <div>
@@ -271,7 +274,7 @@ export default function ApprovalsPage() {
                       {formatDateTime(selected.createdAt)}
                     </span>
                   </div>
-                  <h1 className="text-xl font-headline font-bold text-white">
+                  <h1 className="font-headline text-xl font-bold tracking-tight text-on-surface">
                     {selected.title}
                   </h1>
                   {selected.description && (
@@ -284,25 +287,25 @@ export default function ApprovalsPage() {
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between gap-4">
                     <span className="text-on-surface-variant">アプリ</span>
-                    <span className="text-right font-bold text-on-surface">
+                    <span className="text-right font-semibold text-on-surface">
                       {selected.appName ?? selected.appId}
                     </span>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span className="text-on-surface-variant">テーブル</span>
-                    <span className="text-right font-bold text-on-surface">
+                    <span className="text-right font-semibold text-on-surface">
                       {selected.tableName ?? selected.tableId}
                     </span>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span className="text-on-surface-variant">レコード</span>
-                    <span className="text-right font-bold text-on-surface">
+                    <span className="text-right font-semibold text-on-surface">
                       {selected.recordTitle ?? selected.recordId}
                     </span>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span className="text-on-surface-variant">承認者</span>
-                    <span className="text-right font-bold text-on-surface">
+                    <span className="text-right font-semibold text-on-surface">
                       {selected.approverName ?? selected.approverId}
                     </span>
                   </div>
@@ -314,7 +317,7 @@ export default function ApprovalsPage() {
                       value={commentText}
                       onChange={(event) => setCommentText(event.target.value)}
                       rows={4}
-                      className="w-full resize-none rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-high px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary/30"
                       placeholder="判断コメント"
                     />
                     <div className="flex gap-2">

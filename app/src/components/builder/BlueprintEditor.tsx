@@ -97,13 +97,13 @@ export function BlueprintEditor({
 
   return (
     <div className="w-full space-y-6">
-      <section className="rounded-xl bg-surface-container p-6 shadow-2xl">
+      <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-primary">
               アプリ設計案
             </div>
-            <h3 className="font-headline text-2xl font-bold text-white">
+            <h3 className="font-headline text-2xl font-bold tracking-tight text-on-surface">
               作成前に確認
             </h3>
           </div>
@@ -112,7 +112,7 @@ export function BlueprintEditor({
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               アプリ名
             </label>
             <Input
@@ -122,7 +122,7 @@ export function BlueprintEditor({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               アプリコード
             </label>
             <Input
@@ -132,24 +132,24 @@ export function BlueprintEditor({
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               説明
             </label>
             <textarea
               rows={3}
               value={blueprint.description}
               onChange={(event) => onAppChange({ description: event.target.value })}
-              className="w-full resize-y rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full resize-y rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface placeholder:text-on-surface-muted hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               placeholder="このアプリの用途を入力してください。"
             />
           </div>
         </div>
       </section>
 
-      <section className="rounded-xl bg-surface-container p-6 shadow-2xl">
+      <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
               テーブル
             </div>
             <div className="text-sm text-on-surface-variant">
@@ -175,10 +175,10 @@ export function BlueprintEditor({
               type="button"
               onClick={() => onActiveTableChange(table.id)}
               className={cn(
-                "rounded-full px-4 py-2 text-xs font-bold transition-colors",
+                "rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-colors",
                 table.id === activeTableId
-                  ? "bg-primary/15 text-primary"
-                  : "bg-surface-container-high text-on-surface-variant hover:text-on-surface"
+                  ? "bg-primary-container text-on-primary-container"
+                  : "bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface"
               )}
             >
               {table.name}
@@ -190,7 +190,7 @@ export function BlueprintEditor({
           <div className="space-y-5">
             <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                   テーブル名
                 </label>
                 <Input
@@ -202,7 +202,7 @@ export function BlueprintEditor({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                   テーブルコード
                 </label>
                 <Input
@@ -226,7 +226,7 @@ export function BlueprintEditor({
             </div>
 
             <div className="flex items-center justify-between gap-4">
-              <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                 フィールド / {activeTable.fields.length}
               </div>
               <Button
@@ -243,10 +243,10 @@ export function BlueprintEditor({
 
             <div className="space-y-4">
               {activeTable.fields.map((field) => (
-                <div key={field.id} className="rounded-xl bg-surface-container-high p-4">
+                <div key={field.id} className="rounded-xl border border-outline-variant bg-surface-container-low p-4">
                   <div className="grid gap-4 md:grid-cols-[1.2fr_1fr_170px]">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
                         フィールド名
                       </label>
                       <Input
@@ -260,7 +260,7 @@ export function BlueprintEditor({
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
                         フィールドコード
                       </label>
                       <Input
@@ -274,7 +274,7 @@ export function BlueprintEditor({
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
                         種類
                       </label>
                       <select
@@ -284,7 +284,7 @@ export function BlueprintEditor({
                             fieldType: event.target.value as GeneratedBlueprintFieldType,
                           })
                         }
-                        className="w-full rounded-lg bg-surface px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         {FIELD_TYPE_OPTIONS.map((fieldType) => (
                           <option key={fieldType} value={fieldType}>
@@ -296,7 +296,7 @@ export function BlueprintEditor({
                   </div>
 
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                    <label className="flex items-center gap-3 rounded-lg bg-surface px-3 py-2 text-sm text-on-surface">
+                    <label className="flex items-center gap-2.5 rounded-md border border-outline-variant bg-surface px-3 py-1.5 text-[13px] font-medium text-on-surface">
                       <input
                         type="checkbox"
                         checked={field.required}
@@ -323,7 +323,7 @@ export function BlueprintEditor({
 
                   {field.fieldType === "select" && (
                     <div className="mt-4 space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
                         選択肢
                       </label>
                       <Input
@@ -345,7 +345,7 @@ export function BlueprintEditor({
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+          <div className="rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low p-6 text-center text-sm text-on-surface-variant">
             続行するにはテーブルを追加してください。
           </div>
         )}

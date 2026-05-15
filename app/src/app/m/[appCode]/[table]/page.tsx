@@ -147,7 +147,7 @@ function MobileRecordDetailView({
                   referenceTableCode,
                   referenceRecordId
                 )}
-                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 font-bold text-primary hover:text-emerald-300"
+                className="inline-flex items-center gap-1 rounded-full bg-primary-container px-3 py-1 font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-white"
               >
                 <span>
                   {referenceLabelsByField[key]?.[referenceRecordId] ?? referenceRecordId}
@@ -228,9 +228,9 @@ function MobileRecordDetailView({
         {lookupCards.map((lookupCard) => (
           <div
             key={lookupCard.label}
-            className="rounded-lg bg-surface-container-high/60 p-3"
+            className="rounded-lg border border-tertiary-container bg-tertiary-container/40 p-3"
           >
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-primary">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-on-tertiary-container">
               {lookupCard.label}
             </div>
             <div className="space-y-1">
@@ -276,13 +276,13 @@ function MobileRecordDetailView({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-surface">
-      <header className="border-b border-outline-variant/20 bg-surface px-4 pb-4 pt-6">
+    <div className="fixed inset-0 z-40 flex flex-col bg-surface-container-low">
+      <header className="border-b border-outline-variant bg-surface px-4 pb-4 pt-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
         <div className="mb-4 flex items-start justify-between gap-4">
           <button
             type="button"
             onClick={onBack}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container text-on-surface"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-outline-variant bg-surface text-on-surface transition-colors hover:bg-surface-container-high"
           >
             <Icon name="arrow_back" size="md" />
           </button>
@@ -302,16 +302,16 @@ function MobileRecordDetailView({
         </div>
 
         {error && (
-          <div className="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+          <div className="rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-sm font-medium text-on-error-container">
             {error}
           </div>
         )}
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 pb-28 pt-4">
-        <div className="mb-4 rounded-2xl bg-surface-container p-4">
+        <div className="mb-4 rounded-2xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="text-sm font-bold text-on-surface">{customer}</span>
+            <span className="text-sm font-semibold text-on-surface">{customer}</span>
             <span className="text-[10px] text-on-surface-variant">
               {formatDateTime(resolvedRecord.createdAt)}
             </span>
@@ -323,13 +323,13 @@ function MobileRecordDetailView({
 
         {fields.length > 0 && (
           <div className="mb-5">
-            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
               レコードデータ
             </div>
             <div className="space-y-2">
               {fields.map(([key, value]) => (
-                <div key={key} className="rounded-xl bg-surface-container p-4">
-                  <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                <div key={key} className="rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
                     {formatFieldKey(key, fieldDefinitions)}
                   </div>
                   <div className="text-sm text-on-surface">
@@ -360,7 +360,7 @@ function MobileRecordDetailView({
         />
       </div>
 
-      <div className="border-t border-outline-variant/20 bg-surface px-4 pb-6 pt-3">
+      <div className="border-t border-outline-variant bg-surface px-4 pb-6 pt-3 shadow-[0_-1px_2px_rgba(15,23,42,0.04)]">
         <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3">
           <input
             ref={attachmentInputRef}
@@ -373,14 +373,14 @@ function MobileRecordDetailView({
             value={commentText}
             onChange={(event) => setCommentText(event.target.value)}
             placeholder="コメントを追加..."
-            className="w-full rounded-2xl bg-surface-container px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-xl border border-outline bg-surface px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-muted hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={() => attachmentInputRef.current?.click()}
               disabled={!onAddAttachment || isUploadingAttachment}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container text-on-surface-variant disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant bg-surface text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="添付ファイルを追加"
             >
               <Icon name="attach_file" size="sm" />
@@ -867,18 +867,18 @@ export default function MobileRuntimePage() {
     : "まだレコードがありません。新規レコードから作成できます。";
 
   return (
-    <div className="flex min-h-screen flex-col bg-surface">
+    <div className="flex min-h-screen flex-col bg-surface-container-low">
       <header className="glass-effect sticky top-0 z-20 px-4 pb-4 pt-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-primary">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">
               モバイル実行画面
             </div>
-            <h1 className="font-headline text-base font-extrabold tracking-tight text-white">
+            <h1 className="font-headline text-base font-extrabold tracking-tight text-on-surface">
               {tableMeta?.table.name || "実行画面"}
             </h1>
           </div>
-          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
+          <button className="flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant bg-surface text-on-surface-variant transition-colors hover:bg-surface-container-high">
             <Icon name="notifications" size="md" />
           </button>
         </div>
@@ -886,18 +886,18 @@ export default function MobileRuntimePage() {
           <Icon
             name="search"
             size="sm"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted"
           />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="レコードを検索..."
-            className="w-full rounded-full bg-surface-container py-2.5 pl-9 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-full border border-outline bg-surface py-2.5 pl-9 pr-4 text-sm text-on-surface placeholder:text-on-surface-muted hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </header>
 
-      <div className="overflow-x-auto border-b border-outline-variant/20 px-4 py-3">
+      <div className="overflow-x-auto border-b border-outline-variant px-4 py-3">
         <div className="flex min-w-max gap-2">
           {tabs.map((tab) => (
             <button
@@ -905,10 +905,10 @@ export default function MobileRuntimePage() {
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "whitespace-nowrap rounded-full px-4 py-1.5 text-[10px] font-bold tracking-wider transition-colors",
+                "whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-wider transition-colors",
                 activeTab === tab.id
-                  ? "bg-primary/10 text-primary"
-                  : "bg-surface-container text-on-surface-variant"
+                  ? "bg-primary-container text-on-primary-container"
+                  : "border border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low"
               )}
             >
               {tab.label}
@@ -919,19 +919,19 @@ export default function MobileRuntimePage() {
 
       <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4">
         {error && activeOverlay === null && (
-          <div className="mb-3 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+          <div className="mb-3 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-sm font-medium text-on-error-container">
             {error}
           </div>
         )}
 
         {(isLoadingRecords || isLoadingMeta) && (
-          <div className="rounded-xl bg-surface-container p-4 text-sm text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] text-sm text-on-surface-variant">
             レコードを読み込んでいます...
           </div>
         )}
 
         {!isLoadingRecords && filteredRecords.length === 0 && (
-          <div className="rounded-xl border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+          <div className="rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low p-6 text-center text-sm text-on-surface-variant">
             {emptyMessage}
           </div>
         )}
@@ -946,7 +946,7 @@ export default function MobileRuntimePage() {
                 key={record.id}
                 type="button"
                 onClick={() => openDetail(record.id)}
-                className="block w-full rounded-xl bg-surface-container p-4 text-left"
+                className="block w-full rounded-xl border border-outline-variant bg-surface p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all active:scale-[0.99] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)]"
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <span className="text-[10px] font-mono text-on-surface-variant">
@@ -964,19 +964,19 @@ export default function MobileRuntimePage() {
                   </div>
                 </div>
 
-                <h3 className="mb-1.5 text-sm font-bold leading-snug text-on-surface">
+                <h3 className="mb-1.5 text-[14px] font-semibold leading-snug tracking-tight text-on-surface">
                   {getRecordTitle(record)}
                 </h3>
 
-                <p className="mb-3 line-clamp-2 text-xs text-on-surface-variant">
+                <p className="mb-3 line-clamp-2 text-[12px] leading-relaxed text-on-surface-variant">
                   {getRecordDescription(record) || "説明はありません"}
                 </p>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-on-surface-variant">
+                <div className="flex items-center justify-between border-t border-outline-variant pt-2.5">
+                  <span className="text-[10.5px] font-medium text-on-surface-muted">
                     {formatStatusLabel(record.status)}
                   </span>
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
+                  <span className="flex items-center gap-1 text-[10.5px] font-semibold text-primary">
                     <Icon name="visibility" size="sm" />
                     開く
                   </span>
@@ -1002,7 +1002,7 @@ export default function MobileRuntimePage() {
             )}
           >
             <Icon name={item.icon} size="md" />
-            <span className="text-[9px] font-bold tracking-wider">
+            <span className="text-[10px] font-semibold tracking-wider">
               {item.label}
             </span>
           </button>
@@ -1013,9 +1013,9 @@ export default function MobileRuntimePage() {
         type="button"
         onClick={() => setActiveOverlay("create")}
         disabled={isLoadingMeta}
-        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
+        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[0_4px_8px_rgba(240,106,106,0.25),0_8px_24px_rgba(240,106,106,0.18)] transition-all hover:bg-primary-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <Icon name="add" size="lg" className="text-white" />
+        <Icon name="add" size="lg" className="text-on-surface" />
       </button>
 
       {activeOverlay === "detail" && selectedRecord && (
@@ -1042,9 +1042,9 @@ export default function MobileRuntimePage() {
       )}
 
       {activeOverlay === "create" && (
-        <div className="fixed inset-0 z-40 overflow-y-auto bg-surface pb-24 pt-4">
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-surface-container-low pb-24 pt-4">
           {error && (
-            <div className="mx-4 mb-3 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            <div className="mx-4 mb-3 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-sm font-medium text-on-error-container">
               {error}
             </div>
           )}

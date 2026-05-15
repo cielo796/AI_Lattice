@@ -233,10 +233,10 @@ export default function WorkflowEditorPage() {
         }
       />
 
-      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
-        <aside className="w-full border-b border-outline-variant/20 bg-surface-container p-4 2xl:w-80 2xl:border-b-0 2xl:border-r">
+      <main className="flex min-h-[calc(100vh-3.5rem)] flex-col pt-14 2xl:h-[calc(100vh-3.5rem)] 2xl:flex-row">
+        <aside className="w-full border-b border-outline-variant bg-sidebar p-4 2xl:w-80 2xl:border-b-0 2xl:border-r">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h1 className="text-sm font-bold text-white">ワークフロー</h1>
+            <h1 className="font-headline text-sm font-bold tracking-tight text-on-surface">ワークフロー</h1>
             <Button
               variant="secondary"
               size="sm"
@@ -249,11 +249,11 @@ export default function WorkflowEditorPage() {
           </div>
 
           {isLoading ? (
-            <div className="rounded-lg bg-surface-container-high p-4 text-sm text-on-surface-variant">
+            <div className="rounded-lg border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant">
               読み込み中...
             </div>
           ) : workflows.length === 0 ? (
-            <div className="rounded-lg bg-surface-container-high p-4 text-sm text-on-surface-variant">
+            <div className="rounded-lg border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant">
               ワークフローはまだありません。
             </div>
           ) : (
@@ -262,16 +262,17 @@ export default function WorkflowEditorPage() {
                 <button
                   key={workflow.id}
                   type="button"
+                  data-draggable
                   onClick={() => setActiveWorkflowId(workflow.id)}
                   className={cn(
-                    "w-full rounded-lg border p-3 text-left transition-colors",
+                    "group w-full rounded-lg border p-3 text-left transition-all",
                     activeWorkflowId === workflow.id
-                      ? "border-primary bg-primary/10"
-                      : "border-transparent bg-surface hover:bg-surface-container-high"
+                      ? "border-primary-container bg-primary-container/40"
+                      : "border-outline-variant bg-surface hover:border-outline hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
                   )}
                 >
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-bold text-on-surface">
+                    <span className="truncate text-[13.5px] font-semibold text-on-surface">
                       {workflow.name}
                     </span>
                     <Badge variant={workflow.status === "active" ? "success" : "warning"}>
@@ -311,64 +312,66 @@ export default function WorkflowEditorPage() {
               onChange={handleCanvasChange}
             />
           ) : (
-            <div className="flex h-full items-center justify-center bg-surface text-sm text-on-surface-variant">
+            <div className="flex h-full items-center justify-center bg-surface-container-low text-sm text-on-surface-variant">
               ワークフローを選択してください。
             </div>
           )}
           <AICommandBar />
         </section>
 
-        <AISidebar className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
+        <AISidebar className="border-t border-outline-variant 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
           {error && (
-            <div className="rounded-lg border border-error/30 bg-error/10 p-3 text-xs text-error">
+            <div className="rounded-lg border border-error-container bg-error-container/40 p-3 text-xs font-medium text-on-error-container">
               {error}
             </div>
           )}
           {notice && (
-            <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs text-primary">
+            <div className="rounded-lg border border-success-container bg-success-container/40 p-3 text-xs font-medium text-on-success-container">
               {notice}
             </div>
           )}
 
           {activeWorkflow && (
             <>
-              <div className="rounded-lg bg-surface-container p-4">
+              <div className="rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <div className="text-xs font-bold uppercase tracking-widest text-primary">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                     DB Workflow
                   </div>
                   <Badge variant={activeWorkflow.status === "active" ? "success" : "warning"}>
                     {activeWorkflow.status}
                   </Badge>
                 </div>
-                <div className="space-y-3 text-xs text-on-surface-variant">
+                <div className="space-y-2.5 text-[13px] text-on-surface-variant">
                   <div className="flex justify-between gap-3">
                     <span>トリガー</span>
-                    <span className="font-bold text-on-surface">
+                    <span className="font-semibold text-on-surface">
                       {triggerLabels[activeWorkflow.triggerType]}
                     </span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>承認ノード</span>
-                    <span className="font-bold text-on-surface">{approvalNodeCount}</span>
+                    <span className="font-semibold text-on-surface">{approvalNodeCount}</span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>承認待ち</span>
-                    <span className="font-bold text-on-surface">
+                    <span className="font-semibold text-on-surface">
                       {activeWorkflow.pendingApprovalCount ?? 0}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg bg-surface-container p-4">
+              <div className="rounded-xl border border-tertiary-container bg-tertiary-container/40 p-4">
                 <div className="mb-2 flex items-center gap-2">
-                  <Icon name="approval" size="sm" className="text-primary" />
-                  <span className="text-xs font-bold text-on-surface">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-tertiary text-white">
+                    <Icon name="approval" size="sm" />
+                  </span>
+                  <span className="text-[12.5px] font-semibold text-on-tertiary-container">
                     承認実行
                   </span>
                 </div>
-                <p className="text-xs leading-relaxed text-on-surface-variant">
+                <p className="text-[12.5px] leading-relaxed text-on-surface-variant">
                   active workflow に承認ノードがある場合、レコード作成または更新後に
                   pending approval が保存されます。
                 </p>

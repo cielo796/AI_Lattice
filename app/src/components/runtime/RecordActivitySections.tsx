@@ -45,23 +45,26 @@ export function RecordActivitySections({
 }: RecordActivitySectionsProps) {
   const sectionClass = compact ? "mb-5" : "mb-6";
   const roundedClass = compact ? "rounded-xl" : "rounded-lg";
-  const activityCardClass = cn(roundedClass, "bg-surface-container p-4");
+  const activityCardClass = cn(
+    roundedClass,
+    "border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+  );
   const emptyClass = cn(
     roundedClass,
-    "border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant"
+    "border-2 border-dashed border-outline-variant bg-surface-container-low p-4 text-center text-sm text-on-surface-variant"
   );
 
   return (
     <>
       <div className={sectionClass}>
-        <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
           逆参照
         </div>
         {isLoadingBackReferences && backReferenceGroups.length === 0 ? (
           <div
             className={cn(
               roundedClass,
-              "bg-surface-container p-4 text-sm text-on-surface-variant"
+              "border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant"
             )}
           >
             逆参照を読み込んでいます...
@@ -95,11 +98,11 @@ export function RecordActivitySections({
                         backReferenceRecord.id
                       )}
                       className={cn(
-                        "flex items-center justify-between gap-3 bg-surface-container-high/60 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high",
+                        "flex items-center justify-between gap-3 border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface transition-colors hover:border-outline hover:bg-surface-container",
                         roundedClass
                       )}
                     >
-                      <span className="truncate font-bold">
+                      <span className="truncate font-semibold">
                         {getRecordTitle(backReferenceRecord)}
                       </span>
                       <Icon
@@ -120,7 +123,7 @@ export function RecordActivitySections({
 
       <div className={sectionClass}>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
             添付ファイル
           </div>
           {isUploadingAttachment && (
@@ -133,7 +136,7 @@ export function RecordActivitySections({
           <div
             className={cn(
               roundedClass,
-              "bg-surface-container p-4 text-sm text-on-surface-variant"
+              "border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant"
             )}
           >
             添付ファイルを読み込んでいます...
@@ -145,19 +148,19 @@ export function RecordActivitySections({
                 <div
                   key={attachment.id}
                   className={cn(
-                    "flex items-center gap-3 bg-surface-container p-3",
+                    "flex items-center gap-3 border border-outline-variant bg-surface p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
                     roundedClass
                   )}
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Icon name="description" size="sm" className="text-primary" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info-container">
+                    <Icon name="description" size="sm" className="text-[#4573d2]" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <a
                       href={attachment.storagePath}
                       target="_blank"
                       rel="noreferrer"
-                      className="block truncate text-sm font-bold text-on-surface hover:text-primary"
+                      className="block truncate text-sm font-semibold text-on-surface transition-colors hover:text-primary"
                     >
                       {attachment.fileName}
                     </a>
@@ -183,9 +186,12 @@ export function RecordActivitySections({
                   href={attachment.storagePath}
                   target="_blank"
                   rel="noreferrer"
-                  className={cn("block bg-surface-container p-4", roundedClass)}
+                  className={cn(
+                    "block border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)]",
+                    roundedClass
+                  )}
                 >
-                  <div className="mb-1 text-sm font-bold text-on-surface">
+                  <div className="mb-1 text-sm font-semibold text-on-surface">
                     {attachment.fileName}
                   </div>
                   <div className="text-[11px] text-on-surface-variant">
@@ -201,14 +207,14 @@ export function RecordActivitySections({
       </div>
 
       <div>
-        <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
           コメント
         </div>
         {isLoadingActivity && comments.length === 0 ? (
           <div
             className={cn(
               roundedClass,
-              "bg-surface-container p-4 text-sm text-on-surface-variant"
+              "border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant"
             )}
           >
             コメントを読み込んでいます...
@@ -220,7 +226,7 @@ export function RecordActivitySections({
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     {comment.isSystem && <Badge variant="info">システム</Badge>}
-                    <span className="text-xs font-bold text-on-surface">
+                    <span className="text-[13px] font-semibold text-on-surface">
                       {comment.isSystem ? "システムイベント" : comment.createdBy}
                     </span>
                   </div>

@@ -15,12 +15,14 @@ const sizeMap = {
 };
 
 const colors = [
-  "bg-emerald-600",
-  "bg-blue-600",
-  "bg-purple-600",
-  "bg-amber-600",
-  "bg-rose-600",
-  "bg-cyan-600",
+  "bg-[#f06a6a]",
+  "bg-[#f9a7c2]",
+  "bg-[#b8a0e8]",
+  "bg-[#6ebeed]",
+  "bg-[#4ecdc4]",
+  "bg-[#6fd391]",
+  "bg-[#f5d76e] text-[#6e4a14]",
+  "bg-[#f8a26b]",
 ];
 
 export function Avatar({ name, size = "md", className }: AvatarProps) {
@@ -37,7 +39,7 @@ export function Avatar({ name, size = "md", className }: AvatarProps) {
   return (
     <div
       className={cn(
-        "rounded-full flex items-center justify-center font-bold text-white shrink-0",
+        "rounded-full flex items-center justify-center font-semibold text-white shrink-0 ring-2 ring-surface shadow-sm",
         sizeMap[size],
         colors[colorIndex],
         className

@@ -25,38 +25,44 @@ export function AISidebar({
 
   return (
     <aside
-      className={cn("w-full shrink-0 bg-surface-container-low", className)}
+      className={cn(
+        "w-full shrink-0 border-l border-outline-variant bg-surface",
+        className
+      )}
     >
-      <div className="px-6 pb-4 pt-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Icon name="auto_awesome" size="sm" className="text-primary" filled />
-          <span className="text-xs font-bold tracking-widest text-primary">
+      <div className="border-b border-outline-variant px-5 pb-4 pt-5">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-tertiary text-white shadow-sm">
+            <Icon name="auto_awesome" size="sm" filled />
+          </span>
+          <span className="text-[13px] font-semibold text-on-surface">
             {title}
           </span>
-          <span className="ml-auto text-[10px] uppercase tracking-wider text-on-surface-variant">
+          <span className="ml-auto rounded-full bg-tertiary-container px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-on-tertiary-container">
             コンテキスト分析
           </span>
         </div>
       </div>
 
-      <div className="space-y-4 px-6 pb-6">
-        {children}
-      </div>
+      <div className="space-y-4 px-5 py-5">{children}</div>
 
-      <div className="flex border-t border-outline-variant/20">
+      <div className="flex border-t border-outline-variant">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-bold tracking-wider transition-colors",
+              "relative flex flex-1 flex-col items-center gap-1 py-3 text-[10.5px] font-semibold tracking-wider transition-colors",
               activeTab === tab.id
-                ? "bg-primary/5 text-primary"
+                ? "text-primary"
                 : "text-on-surface-variant hover:text-on-surface"
             )}
           >
             <Icon name={tab.icon} size="sm" />
             {tab.label}
+            {activeTab === tab.id && (
+              <span className="absolute inset-x-3 top-0 h-[2.5px] rounded-b-full bg-primary" />
+            )}
           </button>
         ))}
       </div>

@@ -167,50 +167,52 @@ export default function OpenAISettingsPage() {
 
       <main className="mx-auto max-w-[1200px] px-4 py-10 pt-24 md:px-10">
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-lg bg-surface-container p-4">
-            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               状態
             </div>
             <Badge variant={getStatusVariant(status)}>
               {getStatusLabel(status)}
             </Badge>
           </div>
-          <div className="rounded-lg bg-surface-container p-4">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               利用元
             </div>
-            <div className="text-lg font-bold text-white">
+            <div className="font-headline text-lg font-bold tracking-tight text-on-surface">
               {status ? sourceLabels[status.source] : "-"}
             </div>
           </div>
-          <div className="rounded-lg bg-surface-container p-4">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               最終更新
             </div>
-            <div className="text-lg font-bold text-white">
+            <div className="font-headline text-lg font-bold tracking-tight text-on-surface">
               {formatUpdatedAt(status?.updatedAt)}
             </div>
           </div>
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">
+          <div className="mb-4 rounded-lg border border-error-container bg-error-container/40 p-3 text-sm font-medium text-on-error-container">
             {error}
           </div>
         )}
         {notice && (
-          <div className="mb-4 rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-primary">
+          <div className="mb-4 rounded-lg border border-primary-container bg-primary-container/60 p-3 text-sm font-medium text-on-primary-container">
             {notice}
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="rounded-xl bg-surface-container p-6">
+          <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="mb-2 flex items-center gap-2">
-                  <Icon name="key" className="text-primary" />
-                  <h1 className="font-headline text-2xl font-bold text-white">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-container text-primary">
+                    <Icon name="key" />
+                  </span>
+                  <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">
                     OpenAI API キー
                   </h1>
                 </div>
@@ -219,11 +221,11 @@ export default function OpenAISettingsPage() {
                 </p>
               </div>
               {status?.maskedApiKey && (
-                <div className="rounded-lg bg-surface-container-high px-4 py-3 text-right">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                <div className="rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-right">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
                     現在のキー
                   </div>
-                  <div className="mt-1 font-mono text-sm font-bold text-on-surface">
+                  <div className="mt-1 font-mono text-sm font-semibold text-on-surface">
                     {status.maskedApiKey}
                   </div>
                 </div>
@@ -232,7 +234,7 @@ export default function OpenAISettingsPage() {
 
             <form onSubmit={(event) => void handleSave(event)} className="space-y-4">
               <label className="block">
-                <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <span className="mb-1.5 block text-[12px] font-semibold text-on-surface">
                   新しいキー
                 </span>
                 <div className="relative">
@@ -243,7 +245,7 @@ export default function OpenAISettingsPage() {
                     autoComplete="off"
                     spellCheck={false}
                     placeholder="sk-..."
-                    className="w-full rounded-lg border-none bg-surface-container-high py-3 pl-4 pr-12 font-mono text-sm text-on-surface placeholder:text-on-surface-variant/50 transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="w-full rounded-md border border-outline bg-surface py-2 pl-3 pr-12 font-mono text-sm text-on-surface placeholder:text-on-surface-muted hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                   <button
                     type="button"
@@ -280,33 +282,35 @@ export default function OpenAISettingsPage() {
 
           <aside className="space-y-4">
             <div className="mb-4 flex items-center gap-2">
-              <Icon name="admin_panel_settings" className="text-primary" />
-              <h2 className="font-headline text-lg font-bold text-white">
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-tertiary-container text-tertiary">
+                <Icon name="admin_panel_settings" size="sm" />
+              </span>
+              <h2 className="font-headline text-lg font-bold tracking-tight text-on-surface">
                 適用順
               </h2>
             </div>
             <div className="space-y-3 text-sm">
-              <div className="rounded-lg bg-surface-container-high p-4">
-                <div className="mb-1 font-bold text-on-surface">
+              <div className="rounded-lg border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                <div className="mb-1 font-semibold text-on-surface">
                   1. 管理画面
                 </div>
-                <div className="text-on-surface-variant">
+                <div className="text-[13px] leading-relaxed text-on-surface-variant">
                   テナントに保存されたキーを優先します。
                 </div>
               </div>
-              <div className="rounded-lg bg-surface-container-high p-4">
-                <div className="mb-1 font-bold text-on-surface">
+              <div className="rounded-lg border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                <div className="mb-1 font-semibold text-on-surface">
                   2. 環境変数
                 </div>
-                <div className="text-on-surface-variant">
+                <div className="text-[13px] leading-relaxed text-on-surface-variant">
                   未保存の場合は OPENAI_API_KEY を使います。
                 </div>
               </div>
-              <div className="rounded-lg bg-surface-container-high p-4">
-                <div className="mb-1 font-bold text-on-surface">
+              <div className="rounded-lg border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                <div className="mb-1 font-semibold text-on-surface">
                   保存形式
                 </div>
-                <div className="text-on-surface-variant">
+                <div className="text-[13px] leading-relaxed text-on-surface-variant">
                   キー本文は暗号化して保存し、画面には末尾 4 桁だけ表示します。
                 </div>
               </div>

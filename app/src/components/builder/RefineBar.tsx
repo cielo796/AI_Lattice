@@ -8,14 +8,14 @@ export function RefineBar() {
   const router = useRouter();
 
   return (
-    <footer className="glass-effect fixed bottom-0 left-0 right-0 z-50 px-4 py-4 md:left-64 md:h-24 md:px-12 md:py-0">
+    <footer className="fixed bottom-0 left-0 right-0 z-50 border-t border-outline-variant bg-surface px-4 py-4 shadow-[0_-1px_2px_rgba(15,23,42,0.04),0_-8px_24px_rgba(15,23,42,0.06)] md:left-64 md:h-24 md:px-12 md:py-0">
       <div className="mx-auto flex max-w-4xl flex-col gap-4 md:flex-row md:items-center md:gap-6">
         <div className="flex-1 relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant text-lg">
             edit_note
           </span>
           <input
-            className="w-full bg-surface-container-high border-none rounded-full py-3 pl-12 pr-6 text-sm text-white placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full bg-surface-container-high border border-outline-variant rounded-full py-3 pl-12 pr-6 text-sm text-on-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary/30"
             placeholder="AIで調整（例：SLA状態というステータス項目を追加）"
           />
         </div>

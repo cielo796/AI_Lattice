@@ -6,20 +6,28 @@ import type { WorkflowNodeData } from "@/types/workflow";
 
 export function NotificationNode({ data }: NodeProps<WorkflowNodeData>) {
   return (
-    <div className="bg-surface-container rounded-xl p-4 w-56 shadow-[0_12px_40px_rgba(11,28,48,0.4)]">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-amber-500/20 rounded-lg flex items-center justify-center">
-          <Icon name="notifications_active" size="sm" className="text-amber-400" />
+    <div className="w-56 rounded-xl border border-outline-variant bg-surface px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.06)]">
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-tertiary-container">
+          <Icon name="notifications_active" size="sm" className="text-tertiary" />
         </div>
-        <span className="text-[10px] font-bold text-amber-400 tracking-widest uppercase">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-tertiary">
           通知
         </span>
       </div>
-      <div className="text-sm font-bold text-white">{data.label}</div>
+      <div className="text-[13.5px] font-semibold tracking-tight text-on-surface">
+        {data.label}
+      </div>
       {data.description && (
-        <div className="text-xs text-on-surface-variant mt-1">{data.description}</div>
+        <div className="mt-1 text-[12px] text-on-surface-variant">
+          {data.description}
+        </div>
       )}
-      <Handle type="target" position={Position.Left} className="!bg-outline !w-2 !h-2" />
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!h-2.5 !w-2.5 !border-2 !border-surface !bg-outline-strong"
+      />
     </div>
   );
 }

@@ -147,8 +147,8 @@ export function RecordDetail({
   if (!resolvedRecord) {
     return (
       <section className="flex flex-1 items-center justify-center bg-surface-container-low">
-        <div className="max-w-md rounded-xl border border-dashed border-outline-variant/40 p-8 text-center">
-          <div className="mb-2 text-lg font-bold text-white">レコードが選択されていません</div>
+        <div className="max-w-md rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low p-8 text-center">
+          <div className="mb-2 text-lg font-bold text-on-surface">レコードが選択されていません</div>
           <p className="text-sm text-on-surface-variant">
             一覧からレコードを選択すると、詳細、コメント、添付ファイルを確認できます。
           </p>
@@ -181,7 +181,7 @@ export function RecordDetail({
                   referenceTableCode,
                   referenceRecordId
                 )}
-                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 font-bold text-primary hover:text-emerald-300"
+                className="inline-flex items-center gap-1 rounded-full bg-primary-container px-3 py-1 font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-white"
               >
                 <span>
                   {referenceLabelsByField[key]?.[referenceRecordId] ?? referenceRecordId}
@@ -262,9 +262,9 @@ export function RecordDetail({
         {lookupCards.map((lookupCard) => (
           <div
             key={lookupCard.label}
-            className="rounded-lg bg-surface-container-high/60 p-3"
+            className="rounded-lg border border-tertiary-container bg-tertiary-container/40 p-3"
           >
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-primary">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-on-tertiary-container">
               {lookupCard.label}
             </div>
             <div className="space-y-1">
@@ -322,7 +322,7 @@ export function RecordDetail({
             </Button>
           </div>
         </div>
-        <h1 className="font-headline text-3xl font-extrabold leading-tight text-white">
+        <h1 className="font-headline text-3xl font-extrabold leading-tight text-on-surface">
           {getRecordTitle(resolvedRecord)}
         </h1>
       </div>
@@ -332,7 +332,7 @@ export function RecordDetail({
           <Avatar name={customer} size="lg" />
           <div className="flex-1">
             <div className="mb-2 flex items-baseline gap-2">
-              <span className="text-sm font-bold text-white">{customer}</span>
+              <span className="text-sm font-bold text-on-surface">{customer}</span>
               <span className="text-xs text-on-surface-variant">
                 作成: {formatDateTime(resolvedRecord.createdAt)}
               </span>
@@ -345,13 +345,13 @@ export function RecordDetail({
 
         {fields.length > 0 && (
           <div className="mb-6">
-            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
               レコードデータ
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               {fields.map(([key, value]) => (
-                <div key={key} className="rounded-lg bg-surface-container p-3">
-                  <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                <div key={key} className="rounded-lg border border-outline-variant bg-surface p-3">
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
                     {formatFieldKey(key, fieldDefinitions)}
                   </div>
                   <div className="text-sm text-on-surface">
@@ -371,13 +371,13 @@ export function RecordDetail({
 
         <div className="mb-6" data-testid="record-approvals">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
               Governance approvals
             </div>
             {approvals.some((approval) => approval.status === "pending") && (
               <Link
                 href="/admin/approvals"
-                className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20"
+                className="inline-flex items-center gap-1 rounded-md bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-white"
               >
                 Review queue
                 <Icon name="arrow_outward" size="sm" />
@@ -386,11 +386,11 @@ export function RecordDetail({
           </div>
 
           {isLoadingApprovals ? (
-            <div className="rounded-lg bg-surface-container p-3 text-sm text-on-surface-variant">
+            <div className="rounded-lg border border-outline-variant bg-surface p-3 text-sm text-on-surface-variant">
               Loading approvals...
             </div>
           ) : approvals.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+            <div className="rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
               No approvals have been requested for this record yet.
             </div>
           ) : (
@@ -398,7 +398,7 @@ export function RecordDetail({
               {approvals.map((approval) => (
                 <div
                   key={approval.id}
-                  className="rounded-lg bg-surface-container p-3"
+                  className="rounded-lg border border-outline-variant bg-surface p-3"
                 >
                   <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -429,7 +429,7 @@ export function RecordDetail({
                     )}
                   </div>
                   {approval.commentText && (
-                    <div className="mt-2 rounded bg-surface-container-high/60 p-2 text-xs text-on-surface">
+                    <div className="mt-2 rounded-md border-l-2 border-outline bg-surface-container-low p-2 text-xs leading-relaxed text-on-surface">
                       {approval.commentText}
                     </div>
                   )}
@@ -455,7 +455,7 @@ export function RecordDetail({
       <div className="px-8 py-4">
         <form
           onSubmit={(event) => void handleSubmit(event)}
-          className="rounded-xl bg-surface-container p-3"
+          className="rounded-xl border border-outline-variant bg-surface p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15"
         >
           <input
             ref={attachmentInputRef}
@@ -468,7 +468,7 @@ export function RecordDetail({
             value={commentText}
             onChange={(event) => setCommentText(event.target.value)}
             placeholder="コメントを追加..."
-            className="w-full resize-none bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none"
+            className="w-full resize-none bg-transparent text-sm text-on-surface placeholder:text-on-surface-muted focus:outline-none"
           />
           <div className="mt-2 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -476,7 +476,7 @@ export function RecordDetail({
                 type="button"
                 onClick={() => attachmentInputRef.current?.click()}
                 disabled={!record || !onAddAttachment || isUploadingAttachment}
-                className="flex h-8 w-8 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="添付ファイルを追加"
               >
                 <Icon name="attach_file" size="sm" />

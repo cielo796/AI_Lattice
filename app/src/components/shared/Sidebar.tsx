@@ -109,26 +109,26 @@ function SidebarContent({
   const showAppSwitcher = isAppScopedPath(pathname);
 
   return (
-    <div className="flex h-full flex-col p-6">
-      <div className="mb-6 flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Icon name="apps" className="text-white" size="sm" />
+    <div className="flex h-full flex-col px-3 py-5">
+      <div className="mb-5 flex items-start justify-between gap-3 px-2">
+        <Link href="/home" onClick={onNavigate} className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
+            <Icon name="hub" className="text-white" size="sm" />
           </div>
           <div className="flex flex-col">
-            <span className="font-headline text-lg font-bold leading-none text-white">
+            <span className="font-headline text-[15px] font-extrabold leading-none tracking-tight text-on-surface">
               AI Lattice
             </span>
-            <span className="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant">
+            <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-on-surface-muted">
               v2.4.0
             </span>
           </div>
-        </div>
+        </Link>
         {mobile && (
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface"
             aria-label="ナビゲーションを閉じる"
           >
             <Icon name="close" size="md" />
@@ -136,9 +136,18 @@ function SidebarContent({
         )}
       </div>
 
+      <Link
+        href="/apps/new/ai"
+        onClick={onNavigate}
+        className="mx-2 mb-4 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-primary-hover active:scale-[0.98]"
+      >
+        <Icon name="add" size="sm" />
+        作成
+      </Link>
+
       {showAppSwitcher && (
-        <div className="mb-6 rounded-xl bg-surface-container p-4">
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+        <div className="mx-2 mb-4 rounded-lg border border-outline-variant bg-surface p-3">
+          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-muted">
             現在のアプリ
           </div>
           <select
@@ -153,7 +162,7 @@ function SidebarContent({
               router.push(`/apps/${nextAppId}/tables`);
               onNavigate?.();
             }}
-            className="w-full rounded-lg bg-surface px-3 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-md border border-outline-variant bg-surface px-2 py-1.5 text-sm font-medium text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             {!currentApp && <option value="">アプリを選択</option>}
             {apps.map((app) => (
@@ -162,19 +171,10 @@ function SidebarContent({
               </option>
             ))}
           </select>
-
-          <Link
-            href="/apps/new/ai"
-            onClick={onNavigate}
-            className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-primary transition-colors hover:text-emerald-400"
-          >
-            <Icon name="auto_awesome" size="sm" />
-            新しいアプリを作成
-          </Link>
         </div>
       )}
 
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-0.5">
         {navItems.map((item) => {
           const isActive = pathname?.startsWith(item.href);
 
@@ -184,29 +184,36 @@ function SidebarContent({
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 transition-all duration-200",
+                "group relative flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150",
                 isActive
-                  ? "translate-x-1 bg-surface-container font-bold text-white shadow-sm"
-                  : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                  ? "bg-sidebar-active font-semibold text-on-primary-container"
+                  : "text-on-surface-variant hover:bg-sidebar-hover hover:text-on-surface"
               )}
             >
-              <Icon name={item.icon} size="md" />
-              <span className="text-sm font-medium">{item.label}</span>
+              {isActive && (
+                <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
+              )}
+              <Icon
+                name={item.icon}
+                size="md"
+                className={isActive ? "text-primary" : ""}
+              />
+              <span className="text-[13.5px] font-medium">{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="mt-auto space-y-1 border-t border-outline-variant/30 pt-4">
+      <div className="mt-auto space-y-0.5 border-t border-outline-variant pt-3">
         {bottomItems.map((item) => (
           <Link
             key={item.label}
             href={item.href}
             onClick={onNavigate}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-on-surface-variant transition-colors hover:bg-surface-container"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface"
           >
             <Icon name={item.icon} size="md" />
-            <span className="text-sm font-medium">{item.label}</span>
+            <span className="text-[13.5px] font-medium">{item.label}</span>
           </Link>
         ))}
       </div>
@@ -233,7 +240,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col bg-[#0c1322] md:flex">
+      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col bg-sidebar border-r border-outline-variant md:flex">
         <SidebarContent pathname={pathname} />
       </aside>
 
@@ -243,7 +250,7 @@ export function Sidebar() {
           onClick={closeMobileNav}
         >
           <aside
-            className="h-full w-[min(18rem,85vw)] bg-[#0c1322] shadow-2xl"
+            className="h-full w-[min(18rem,85vw)] bg-sidebar border-r border-outline-variant shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <SidebarContent

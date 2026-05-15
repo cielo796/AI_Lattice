@@ -6,26 +6,36 @@ import type { WorkflowNodeData } from "@/types/workflow";
 
 export function ConditionNode({ data }: NodeProps<WorkflowNodeData>) {
   return (
-    <div className="bg-surface-container rounded-xl p-4 w-56 shadow-[0_12px_40px_rgba(11,28,48,0.4)]">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 bg-purple-500/20 rounded-lg flex items-center justify-center">
-          <Icon name="rule" size="sm" className="text-purple-400" />
+    <div className="w-56 rounded-xl border border-outline-variant bg-surface px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.06)]">
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-warning-container">
+          <Icon name="rule" size="sm" className="text-[#f1bd6c]" />
         </div>
-        <span className="text-[10px] font-bold text-purple-400 tracking-widest uppercase">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6e4a14]">
           条件分岐
         </span>
       </div>
-      <div className="text-sm font-bold text-white">{data.label}</div>
-      <div className="flex gap-2 mt-3">
-        <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+      <div className="text-[13.5px] font-semibold tracking-tight text-on-surface">
+        {data.label}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <span className="rounded-full bg-success-container px-2 py-0.5 text-[10px] font-semibold text-on-success-container">
           はい
         </span>
-        <span className="text-[10px] text-on-surface-variant bg-surface-container-highest/40 px-2 py-0.5 rounded-full">
+        <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
           いいえ
         </span>
       </div>
-      <Handle type="target" position={Position.Left} className="!bg-outline !w-2 !h-2" />
-      <Handle type="source" position={Position.Right} className="!bg-outline !w-2 !h-2" />
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!h-2.5 !w-2.5 !border-2 !border-surface !bg-outline-strong"
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!h-2.5 !w-2.5 !border-2 !border-surface !bg-outline-strong"
+      />
     </div>
   );
 }

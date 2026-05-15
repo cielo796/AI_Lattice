@@ -14,10 +14,10 @@ interface AppShellProps {
 export function AppShell({ children, title, breadcrumbs, actions }: AppShellProps) {
   return (
     <ShellChromeProvider>
-      <div className="min-h-screen bg-surface">
+      <div className="min-h-screen bg-surface-container-low">
         <Sidebar />
         <TopBar title={title} breadcrumbs={breadcrumbs} actions={actions} />
-        <main className="min-h-screen pt-16 md:ml-64">{children}</main>
+        <main className="min-h-screen pt-14 md:ml-64">{children}</main>
       </div>
     </ShellChromeProvider>
   );
