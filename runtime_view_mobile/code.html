@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html class="dark" lang="en"><head>
+<html class="light" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>The Intelligent Layer - Tickets</title>
@@ -8,75 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "background": "#f8f9ff",
-                        "secondary-fixed-dim": "#bec6e0",
-                        "secondary-fixed": "#dae2fd",
-                        "outline-variant": "#c6c6cd",
-                        "on-tertiary": "#ffffff",
-                        "surface-container-high": "#dce9ff",
-                        "on-tertiary-fixed": "#002113",
-                        "inverse-surface": "#213145",
-                        "surface-container-low": "#eff4ff",
-                        "on-tertiary-container": "#009668",
-                        "inverse-on-surface": "#eaf1ff",
-                        "surface-container": "#e5eeff",
-                        "surface": "#f8f9ff",
-                        "on-background": "#0b1c30",
-                        "tertiary": "#000000",
-                        "surface-variant": "#d3e4fe",
-                        "on-surface-variant": "#45464d",
-                        "surface-container-lowest": "#ffffff",
-                        "on-secondary-fixed-variant": "#3f465c",
-                        "secondary": "#565e74",
-                        "on-primary-fixed-variant": "#003ea8",
-                        "primary-fixed": "#dbe1ff",
-                        "primary-container": "#00174b",
-                        "on-error-container": "#93000a",
-                        "secondary-container": "#dae2fd",
-                        "tertiary-fixed": "#6ffbbe",
-                        "surface-bright": "#f8f9ff",
-                        "inverse-primary": "#b4c5ff",
-                        "error": "#ba1a1a",
-                        "tertiary-fixed-dim": "#4edea3",
-                        "surface-tint": "#0053db",
-                        "surface-container-highest": "#d3e4fe",
-                        "surface-dim": "#cbdbf5",
-                        "on-primary-container": "#497cff",
-                        "on-surface": "#0b1c30",
-                        "on-primary-fixed": "#00174b",
-                        "on-primary": "#ffffff",
-                        "error-container": "#ffdad6",
-                        "on-secondary": "#ffffff",
-                        "on-secondary-fixed": "#131b2e",
-                        "on-secondary-container": "#5c647a",
-                        "tertiary-container": "#002113",
-                        "primary-fixed-dim": "#b4c5ff",
-                        "on-tertiary-fixed-variant": "#005236",
-                        "primary": "#000000",
-                        "on-error": "#ffffff",
-                        "outline": "#76777d"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.5rem",
-                        "lg": "0.5rem",
-                        "xl": "0.75rem",
-                        "full": "9999px"
-                    },
-                    "fontFamily": {
-                        "headline": ["Manrope"],
-                        "body": ["Inter"],
-                        "label": ["Inter"]
-                    }
-                }
-            }
-        }
-    </script>
+<script src="../mockups-asana-tailwind.js"></script>
+<link href="../mockups-asana-theme.css" rel="stylesheet"/>
 <style>
         body {
             background-color: #0b1c30; /* Dark slate background for dark mode context */
@@ -101,160 +34,160 @@
   </head>
 <body class="font-body selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
 <!-- TopAppBar -->
-<header class="fixed top-0 w-full z-50 bg-slate-950/70 backdrop-blur-xl flex justify-between items-center px-6 py-4 w-full">
+<header class="fixed top-0 w-full z-50 bg-sidebar/70 backdrop-blur-xl flex justify-between items-center px-6 py-4 w-full">
 <div class="flex items-center gap-3">
 <div class="w-10 h-10 rounded-full bg-surface-container-high overflow-hidden">
 <img alt="User Profile" class="w-full h-full object-cover" data-alt="Close up portrait of a professional male designer with neutral expression and soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmJJi-ZkbAxEMvnkA-RBr6WBTW10hORDMCTzLWYKv5hDIyWEKBXEM0rJSm28U202qy5sXvOW-lbmYSG7w4QoSXo3x2EIILalYomyUa2oXvQ9CV-cBP_QEIdgg1pfHdfOjBvdpykSz3mujCjmpS1e7dyhDxAWuSwrkwclPh76xSsaiciShVeMFrh3bHu1s1nMpQ6h-zKhPxCZYUm2LqEvFPEA20WbgsOhR87abcNlM4pO1_H0_tM3yAu78p8as__rGXw5-IY_CqlPM"/>
 </div>
-<h1 class="font-headline font-bold tracking-tight text-lg text-slate-50">The Intelligent Layer</h1>
+<h1 class="font-headline font-semibold tracking-tight text-lg text-slate-50">The Intelligent Layer</h1>
 </div>
-<button class="text-slate-50 hover:bg-slate-800 transition-colors p-2 rounded-xl active:scale-95 transition-transform">
+<button class="text-slate-50 hover:bg-surface-container-high transition-colors p-2 rounded-xl active:scale-95 transition-transform">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
 </button>
 </header>
-<main class="pt-24 pb-32 px-6 min-h-screen bg-slate-950">
+<main class="pt-24 pb-32 px-6 min-h-screen bg-sidebar">
 <!-- Search & Filter Area -->
 <section class="mb-8">
 <div class="relative group">
-<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-xl" data-icon="search">search</span>
-<input class="w-full bg-slate-900 border-none rounded-xl py-4 pl-12 pr-4 text-slate-200 placeholder:text-slate-600 focus:ring-2 focus:ring-surface-tint/30 transition-all" placeholder="Search tickets or insights..." type="text"/>
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-muted text-xl" data-icon="search">search</span>
+<input class="w-full bg-surface border-none rounded-xl py-4 pl-12 pr-4 text-on-surface placeholder:text-on-surface-muted focus:ring-2 focus:ring-surface-tint/30 transition-all" placeholder="Search tickets or insights..." type="text"/>
 </div>
 <div class="flex gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide">
-<span class="bg-emerald-500/10 text-emerald-400 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap">All Active</span>
-<span class="bg-slate-900 text-slate-400 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap">High Priority</span>
-<span class="bg-slate-900 text-slate-400 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap">AI Suggested</span>
+<span class="bg-primary-container text-primary px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap">All Active</span>
+<span class="bg-surface text-on-surface-variant px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap">High Priority</span>
+<span class="bg-surface text-on-surface-variant px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap">AI Suggested</span>
 </div>
 </section>
 <!-- Dynamic Content Canvas -->
 <div class="space-y-4">
 <!-- Ticket Item 1: High Priority with AI Insight -->
-<div class="bg-slate-900/40 rounded-xl p-5 border-l-4 border-emerald-500/40 hover:bg-slate-900/60 transition-all group">
+<div class="bg-surface/40 rounded-xl p-5 border-l-4 border-primary/40 hover:bg-surface/60 transition-all group">
 <div class="flex justify-between items-start mb-3">
-<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: TK-8821</span>
-<div class="flex items-center gap-2 bg-emerald-950/30 px-2 py-1 rounded-lg border border-emerald-500/20">
-<span class="material-symbols-outlined text-[14px] text-emerald-400" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-<span class="text-[10px] font-bold text-emerald-400 uppercase tracking-tighter">AI Insight</span>
+<span class="text-[10px] font-semibold text-on-surface-muted tracking-widest uppercase">ID: TK-8821</span>
+<div class="flex items-center gap-2 bg-emerald-950/30 px-2 py-1 rounded-lg border border-primary/20">
+<span class="material-symbols-outlined text-[14px] text-primary" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="text-[10px] font-semibold text-primary uppercase tracking-tighter">AI Insight</span>
 </div>
 </div>
-<h3 class="text-slate-100 font-headline font-bold text-lg mb-2 group-hover:text-white transition-colors">API Authentication Handshake Failure</h3>
+<h3 class="text-on-surface font-headline font-semibold text-lg mb-2 group-hover:text-on-surface transition-colors">API Authentication Handshake Failure</h3>
 <div class="flex items-center gap-4">
 <div class="flex items-center gap-1.5">
 <span class="w-2 h-2 rounded-full bg-error"></span>
-<span class="text-xs font-medium text-slate-400">Critical</span>
+<span class="text-xs font-medium text-on-surface-variant">Critical</span>
 </div>
 <div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-sm text-slate-500" data-icon="schedule">schedule</span>
-<span class="text-xs font-medium text-slate-400">2m ago</span>
+<span class="material-symbols-outlined text-sm text-on-surface-muted" data-icon="schedule">schedule</span>
+<span class="text-xs font-medium text-on-surface-variant">2m ago</span>
 </div>
 </div>
-<div class="mt-4 p-3 bg-emerald-950/10 rounded-lg border border-emerald-500/5">
-<p class="text-xs text-emerald-300/80 leading-relaxed italic">
+<div class="mt-4 p-3 bg-emerald-950/10 rounded-lg border border-primary/5">
+<p class="text-xs text-primary/80 leading-relaxed italic">
                         "Probability of infrastructure latency in US-East-1 detected. Suggesting reroute to secondary node."
                     </p>
 </div>
 </div>
 <!-- Ticket Item 2: Medium Priority -->
-<div class="bg-slate-900/40 rounded-xl p-5 hover:bg-slate-900/60 transition-all group">
+<div class="bg-surface/40 rounded-xl p-5 hover:bg-surface/60 transition-all group">
 <div class="flex justify-between items-start mb-3">
-<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: TK-8794</span>
+<span class="text-[10px] font-semibold text-on-surface-muted tracking-widest uppercase">ID: TK-8794</span>
 </div>
-<h3 class="text-slate-100 font-headline font-bold text-lg mb-2">User Permissions Sync Issues</h3>
+<h3 class="text-on-surface font-headline font-semibold text-lg mb-2">User Permissions Sync Issues</h3>
 <div class="flex items-center gap-4">
 <div class="flex items-center gap-1.5">
 <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-<span class="text-xs font-medium text-slate-400">Medium</span>
+<span class="text-xs font-medium text-on-surface-variant">Medium</span>
 </div>
 <div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-sm text-slate-500" data-icon="schedule">schedule</span>
-<span class="text-xs font-medium text-slate-400">45m ago</span>
+<span class="material-symbols-outlined text-sm text-on-surface-muted" data-icon="schedule">schedule</span>
+<span class="text-xs font-medium text-on-surface-variant">45m ago</span>
 </div>
 </div>
 </div>
 <!-- Ticket Item 3: Asymmetric AI Focus Card -->
 <div class="relative overflow-hidden rounded-xl p-1 bg-gradient-to-br from-emerald-500/20 via-slate-800 to-slate-900">
-<div class="bg-slate-950 rounded-[10px] p-5">
+<div class="bg-sidebar rounded-[10px] p-5">
 <div class="flex justify-between items-start mb-3">
-<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: TK-8812</span>
-<span class="material-symbols-outlined text-emerald-400" data-icon="bolt" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<span class="text-[10px] font-semibold text-on-surface-muted tracking-widest uppercase">ID: TK-8812</span>
+<span class="material-symbols-outlined text-primary" data-icon="bolt" style="font-variation-settings: 'FILL' 1;">bolt</span>
 </div>
-<h3 class="text-slate-100 font-headline font-bold text-lg mb-2">Database Migration Bottleneck</h3>
+<h3 class="text-on-surface font-headline font-semibold text-lg mb-2">Database Migration Bottleneck</h3>
 <div class="flex items-center gap-4 mb-4">
 <div class="flex items-center gap-1.5">
-<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-<span class="text-xs font-medium text-slate-400">High</span>
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-xs font-medium text-on-surface-variant">High</span>
 </div>
 <div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-sm text-slate-500" data-icon="person">person</span>
-<span class="text-xs font-medium text-slate-400">Assigned: Alex R.</span>
+<span class="material-symbols-outlined text-sm text-on-surface-muted" data-icon="person">person</span>
+<span class="text-xs font-medium text-on-surface-variant">Assigned: Alex R.</span>
 </div>
 </div>
-<button class="w-full py-2.5 bg-emerald-900/20 text-emerald-400 rounded-lg text-xs font-bold uppercase tracking-widest border border-emerald-500/10 hover:bg-emerald-900/40 transition-colors">
+<button class="w-full py-2.5 bg-emerald-900/20 text-primary rounded-lg text-xs font-semibold uppercase tracking-widest border border-primary/10 hover:bg-emerald-900/40 transition-colors">
                         View AI Resolution Path
                     </button>
 </div>
 </div>
 <!-- Ticket Item 4: Simple list -->
-<div class="bg-slate-900/40 rounded-xl p-5 hover:bg-slate-900/60 transition-all group">
+<div class="bg-surface/40 rounded-xl p-5 hover:bg-surface/60 transition-all group">
 <div class="flex justify-between items-start mb-3">
-<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: TK-8770</span>
+<span class="text-[10px] font-semibold text-on-surface-muted tracking-widest uppercase">ID: TK-8770</span>
 </div>
-<h3 class="text-slate-100 font-headline font-bold text-lg mb-2">Password Reset Loop</h3>
+<h3 class="text-on-surface font-headline font-semibold text-lg mb-2">Password Reset Loop</h3>
 <div class="flex items-center gap-4">
 <div class="flex items-center gap-1.5">
 <span class="w-2 h-2 rounded-full bg-slate-500"></span>
-<span class="text-xs font-medium text-slate-400">Low</span>
+<span class="text-xs font-medium text-on-surface-variant">Low</span>
 </div>
 <div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-sm text-slate-500" data-icon="schedule">schedule</span>
-<span class="text-xs font-medium text-slate-400">2h ago</span>
+<span class="material-symbols-outlined text-sm text-on-surface-muted" data-icon="schedule">schedule</span>
+<span class="text-xs font-medium text-on-surface-variant">2h ago</span>
 </div>
 </div>
 </div>
 <!-- Ticket Item 5: AI Flagged -->
-<div class="bg-slate-900/40 rounded-xl p-5 border-l-4 border-emerald-500/40 hover:bg-slate-900/60 transition-all group">
+<div class="bg-surface/40 rounded-xl p-5 border-l-4 border-primary/40 hover:bg-surface/60 transition-all group">
 <div class="flex justify-between items-start mb-3">
-<span class="text-[10px] font-bold text-slate-500 tracking-widest uppercase">ID: TK-8805</span>
-<div class="flex items-center gap-2 bg-emerald-950/30 px-2 py-1 rounded-lg border border-emerald-500/20">
-<span class="material-symbols-outlined text-[14px] text-emerald-400" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-<span class="text-[10px] font-bold text-emerald-400 uppercase tracking-tighter">AI Insight</span>
+<span class="text-[10px] font-semibold text-on-surface-muted tracking-widest uppercase">ID: TK-8805</span>
+<div class="flex items-center gap-2 bg-emerald-950/30 px-2 py-1 rounded-lg border border-primary/20">
+<span class="material-symbols-outlined text-[14px] text-primary" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="text-[10px] font-semibold text-primary uppercase tracking-tighter">AI Insight</span>
 </div>
 </div>
-<h3 class="text-slate-100 font-headline font-bold text-lg mb-2">Memory Leak in Rendering Engine</h3>
+<h3 class="text-on-surface font-headline font-semibold text-lg mb-2">Memory Leak in Rendering Engine</h3>
 <div class="flex items-center gap-4">
 <div class="flex items-center gap-1.5">
 <span class="w-2 h-2 rounded-full bg-error"></span>
-<span class="text-xs font-medium text-slate-400">Critical</span>
+<span class="text-xs font-medium text-on-surface-variant">Critical</span>
 </div>
 <div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-sm text-slate-500" data-icon="schedule">schedule</span>
-<span class="text-xs font-medium text-slate-400">1h ago</span>
+<span class="material-symbols-outlined text-sm text-on-surface-muted" data-icon="schedule">schedule</span>
+<span class="text-xs font-medium text-on-surface-variant">1h ago</span>
 </div>
 </div>
 </div>
 </div>
 </main>
 <!-- BottomNavBar -->
-<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-2 bg-slate-950/80 backdrop-blur-2xl border-t border-slate-800/20 shadow-[0_-12px_40px_rgba(11,28,48,0.06)] rounded-t-2xl z-50">
-<a class="flex flex-col items-center justify-center text-slate-500 px-4 py-2 hover:text-emerald-300 transition-all duration-200 active:scale-90" href="#">
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-2 bg-sidebar/80 backdrop-blur-2xl border-t border-outline-variant/20 shadow-[0_-12px_40px_rgba(11,28,48,0.06)] rounded-t-2xl z-50">
+<a class="flex flex-col items-center justify-center text-on-surface-muted px-4 py-2 hover:text-primary transition-all duration-200 active:scale-90" href="#">
 <span class="material-symbols-outlined mb-1" data-icon="home">home</span>
 <span class="font-label text-[10px] font-semibold uppercase tracking-widest">Home</span>
 </a>
-<a class="flex flex-col items-center justify-center text-slate-500 px-4 py-2 hover:text-emerald-300 transition-all duration-200 active:scale-90" href="#">
+<a class="flex flex-col items-center justify-center text-on-surface-muted px-4 py-2 hover:text-primary transition-all duration-200 active:scale-90" href="#">
 <span class="material-symbols-outlined mb-1" data-icon="widgets">widgets</span>
 <span class="font-label text-[10px] font-semibold uppercase tracking-widest">Apps</span>
 </a>
 <!-- Active Tab: Tasks (Tickets) -->
-<a class="flex flex-col items-center justify-center bg-emerald-500/10 text-emerald-400 rounded-xl px-4 py-2 transition-all duration-200 active:scale-90" href="#">
+<a class="flex flex-col items-center justify-center bg-primary-container text-primary rounded-xl px-4 py-2 transition-all duration-200 active:scale-90" href="#">
 <span class="material-symbols-outlined mb-1" data-icon="assignment_turned_in" style="font-variation-settings: 'FILL' 1;">assignment_turned_in</span>
 <span class="font-label text-[10px] font-semibold uppercase tracking-widest">Tasks</span>
 </a>
-<a class="flex flex-col items-center justify-center text-slate-500 px-4 py-2 hover:text-emerald-300 transition-all duration-200 active:scale-90" href="#">
+<a class="flex flex-col items-center justify-center text-on-surface-muted px-4 py-2 hover:text-primary transition-all duration-200 active:scale-90" href="#">
 <span class="material-symbols-outlined mb-1" data-icon="search">search</span>
 <span class="font-label text-[10px] font-semibold uppercase tracking-widest">Search</span>
 </a>
 </nav>
 <!-- Contextual FAB - Restricted to Home/Tasks -->
-<button class="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-xl shadow-emerald-500/20 active:scale-95 transition-transform z-40">
+<button class="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-primary text-slate-950 flex items-center justify-center shadow-xl shadow-emerald-500/20 active:scale-95 transition-transform z-40">
 <span class="material-symbols-outlined text-3xl" data-icon="add">add</span>
 </button>
 </body></html>

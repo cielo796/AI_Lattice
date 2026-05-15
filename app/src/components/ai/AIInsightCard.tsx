@@ -19,19 +19,21 @@ export function AIInsightCard({
   return (
     <div
       className={cn(
-        "bg-emerald-950/30 rounded-lg p-4 border border-primary/20",
+        "rounded-xl border border-tertiary-container bg-tertiary-container/40 p-4",
         className
       )}
     >
       {title && (
-        <div className="flex items-center gap-2 mb-2">
-          <Icon name={icon} size="sm" className="text-primary" filled />
-          <span className="text-xs font-bold text-primary tracking-wider uppercase">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-tertiary text-white shadow-sm">
+            <Icon name={icon} size="sm" filled />
+          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-on-tertiary-container">
             {title}
           </span>
         </div>
       )}
-      <div className="text-sm text-on-surface">{children}</div>
+      <div className="text-[13.5px] leading-relaxed text-on-surface">{children}</div>
     </div>
   );
 }

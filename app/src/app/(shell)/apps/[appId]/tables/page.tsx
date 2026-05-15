@@ -477,19 +477,19 @@ export default function TableDesignerPage() {
         }
       />
 
-      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
+      <main className="flex min-h-[calc(100vh-3.5rem)] flex-col pt-14 2xl:h-[calc(100vh-3.5rem)] 2xl:flex-row">
         <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
-        <aside className="w-full border-b border-outline-variant/20 bg-surface-container p-4 xl:w-80 xl:overflow-y-auto xl:border-b-0 xl:border-r xl:p-6">
+        <aside className="w-full border-b border-outline-variant bg-sidebar p-4 xl:w-80 xl:overflow-y-auto xl:border-b-0 xl:border-r xl:p-6">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <div className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">テーブル</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">テーブル</div>
               <div className="text-sm text-on-surface-variant">API と連携したメタデータです。</div>
             </div>
             <Badge variant="info">{tables.length}</Badge>
           </div>
 
           {isLoadingTables && (
-            <div className="mb-4 rounded-lg bg-surface-container-high p-4 text-sm text-on-surface-variant">
+            <div className="mb-4 rounded-lg border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant">
               テーブルを読み込んでいます...
             </div>
           )}
@@ -498,11 +498,12 @@ export default function TableDesignerPage() {
             {tables.map((table) => (
               <div
                 key={table.id}
+                data-draggable
                 className={cn(
-                  "rounded-lg border p-3",
+                  "group rounded-lg border p-3 transition-colors",
                   activeTableId === table.id
-                    ? "border-primary/40 bg-primary/10"
-                    : "border-transparent bg-surface hover:bg-surface-container-high"
+                    ? "border-primary-container bg-primary-container/40"
+                    : "border-outline-variant bg-surface hover:border-outline hover:bg-surface-container-low"
                 )}
               >
                 <button
@@ -548,9 +549,9 @@ export default function TableDesignerPage() {
             ))}
           </div>
 
-          <form onSubmit={(event) => void onSubmitTable(event)} className="mt-6 rounded-xl bg-surface p-4">
+          <form onSubmit={(event) => void onSubmitTable(event)} className="mt-6 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">{editingTableId ? "テーブルを編集" : "新規テーブル"}</h3>
+              <h3 className="text-sm font-semibold tracking-tight text-on-surface">{editingTableId ? "テーブルを編集" : "新規テーブル"}</h3>
               {editingTableId && (
                 <Button type="button" size="sm" variant="ghost" onClick={resetTableForm}>
                   キャンセル
@@ -560,7 +561,7 @@ export default function TableDesignerPage() {
             <div className="space-y-3">
               <Input value={tableForm.name} onChange={(event) => setTableForm((current) => ({ ...current, name: event.target.value }))} placeholder="テーブル名" required />
               <Input value={tableForm.code} onChange={(event) => setTableForm((current) => ({ ...current, code: event.target.value }))} placeholder="table_code" />
-              <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
+              <label className="flex items-center gap-2.5 rounded-md border border-outline-variant bg-surface-container-low px-3 py-1.5 text-[13px] font-medium text-on-surface">
                 <input type="checkbox" checked={tableForm.isSystem} onChange={(event) => setTableForm((current) => ({ ...current, isSystem: event.target.checked }))} className="h-4 w-4" />
                 システムテーブル
               </label>
@@ -571,15 +572,15 @@ export default function TableDesignerPage() {
           </form>
         </aside>
 
-        <section className="flex-1 overflow-y-auto bg-surface px-4 py-6 md:px-6 xl:p-10">
+        <section className="flex-1 overflow-y-auto bg-surface-container-low px-4 py-6 md:px-6 xl:p-10">
           {wasCreated && (
-            <div className="mb-6 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+            <div className="mb-6 rounded-lg border border-success-container bg-success-container/40 px-4 py-3 text-sm font-medium text-on-success-container">
               アプリを作成しました。生成されたスキーマを確認し、必要に応じてテーブルとフィールドを調整してください。
             </div>
           )}
 
           {error && (
-            <div className="mb-6 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            <div className="mb-6 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-sm font-medium text-on-error-container">
               {error}
             </div>
           )}
@@ -587,7 +588,7 @@ export default function TableDesignerPage() {
           <div className="max-w-4xl">
             <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="font-headline text-2xl font-bold text-white md:text-3xl">
+                <h2 className="font-headline text-2xl font-bold tracking-tight text-on-surface md:text-3xl">
                   {activeTable ? activeTable.name : "テーブルを選択"}
                 </h2>
                 <p className="mt-2 text-sm text-on-surface-variant">
@@ -597,9 +598,9 @@ export default function TableDesignerPage() {
               {activeTable && <Badge variant="info">{fields.length} フィールド</Badge>}
             </div>
 
-            <form onSubmit={(event) => void onSubmitField(event)} className="mb-8 rounded-xl bg-surface-container p-4 md:p-6">
+            <form onSubmit={(event) => void onSubmitField(event)} className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.04)] md:p-6">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">{editingFieldId ? "フィールドを編集" : "新規フィールド"}</h3>
+                <h3 className="font-headline text-lg font-bold tracking-tight text-on-surface">{editingFieldId ? "フィールドを編集" : "新規フィールド"}</h3>
                 {editingFieldId && (
                   <Button type="button" size="sm" variant="ghost" onClick={resetFieldForm}>
                     キャンセル
@@ -608,22 +609,22 @@ export default function TableDesignerPage() {
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                     表示名
                   </label>
                   <Input value={fieldForm.name} onChange={(event) => setFieldForm((current) => ({ ...current, name: event.target.value }))} placeholder="件名" required disabled={!activeTable || isSavingField} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                     フィールドコード
                   </label>
                   <Input value={fieldForm.code} onChange={(event) => setFieldForm((current) => ({ ...current, code: event.target.value }))} placeholder="field_code" disabled={!activeTable || isSavingField} />
                 </div>
-                <div className="rounded-lg border border-outline-variant/30 bg-surface-container-high/60 px-3 py-2 text-xs text-on-surface-variant md:col-span-2">
+                <div className="rounded-md border border-info-container bg-info-container/40 px-3 py-2 text-[12px] leading-relaxed text-on-info-container md:col-span-2">
                   表示名は画面に表示される名称です。コードは API とレコード保存に使われます。
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                     フィールド型
                   </label>
                   <select
@@ -657,7 +658,7 @@ export default function TableDesignerPage() {
                       }))
                     }
                     disabled={!activeTable || isSavingField}
-                    className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
                     {FIELD_TYPES.map((fieldType) => (
                       <option key={fieldType} value={fieldType}>
@@ -667,7 +668,7 @@ export default function TableDesignerPage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                     {fieldForm.fieldType === "master_ref" ? "参照先テーブル" : "選択肢"}
                   </label>
                   {fieldForm.fieldType === "master_ref" ? (
@@ -684,7 +685,7 @@ export default function TableDesignerPage() {
                       disabled={
                         !activeTable || isSavingField || referenceTableOptions.length === 0
                       }
-                      className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
                       <option value="">
                         {referenceTableOptions.length > 0
@@ -716,7 +717,7 @@ export default function TableDesignerPage() {
                 {fieldForm.fieldType === "master_ref" && (
                   <>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                      <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                         表示フィールド
                       </label>
                       <select
@@ -736,7 +737,7 @@ export default function TableDesignerPage() {
                           !activeReferenceTable ||
                           isLoadingReferenceTableFields
                         }
-                        className="w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         <option value="">
                           {activeReferenceTable
@@ -751,7 +752,7 @@ export default function TableDesignerPage() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                      <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                         Lookup フィールド
                       </label>
                       <select
@@ -772,7 +773,7 @@ export default function TableDesignerPage() {
                           !activeReferenceTable ||
                           isLoadingReferenceTableFields
                         }
-                        className="min-h-[124px] w-full rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        className="min-h-[124px] w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         {referenceTableFields
                           .filter((field) => field.code !== fieldForm.displayFieldCode)
@@ -790,17 +791,17 @@ export default function TableDesignerPage() {
                 )}
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
-                <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
+                <label className="flex items-center gap-2.5 rounded-md border border-outline-variant bg-surface-container-low px-3 py-1.5 text-[13px] font-medium text-on-surface">
                   <input type="checkbox" checked={fieldForm.required} onChange={(event) => setFieldForm((current) => ({ ...current, required: event.target.checked }))} disabled={!activeTable || isSavingField} className="h-4 w-4" />
                   必須
                 </label>
-                <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
+                <label className="flex items-center gap-2.5 rounded-md border border-outline-variant bg-surface-container-low px-3 py-1.5 text-[13px] font-medium text-on-surface">
                   <input type="checkbox" checked={fieldForm.uniqueFlag} onChange={(event) => setFieldForm((current) => ({ ...current, uniqueFlag: event.target.checked }))} disabled={!activeTable || isSavingField} className="h-4 w-4" />
                   一意
                 </label>
                 {fieldForm.fieldType === "master_ref" && (
                   <>
-                    <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
+                    <label className="flex items-center gap-2.5 rounded-md border border-outline-variant bg-surface-container-low px-3 py-1.5 text-[13px] font-medium text-on-surface">
                       <input
                         type="checkbox"
                         checked={fieldForm.multiple}
@@ -815,7 +816,7 @@ export default function TableDesignerPage() {
                       />
                       複数参照
                     </label>
-                    <label className="flex items-center gap-3 rounded-lg bg-surface-container-high px-3 py-2 text-sm text-on-surface">
+                    <label className="flex items-center gap-2.5 rounded-md border border-outline-variant bg-surface-container-low px-3 py-1.5 text-[13px] font-medium text-on-surface">
                       <input
                         type="checkbox"
                         checked={fieldForm.showBackReference}
@@ -840,7 +841,7 @@ export default function TableDesignerPage() {
               </div>
             </form>
 
-            <div className="hidden gap-4 px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant md:grid md:grid-cols-[minmax(0,2fr)_160px_120px]">
+            <div className="hidden gap-4 px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted md:grid md:grid-cols-[minmax(0,2fr)_160px_120px]">
               <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                 <div>表示名</div>
                 <div>フィールドコード</div>
@@ -851,24 +852,31 @@ export default function TableDesignerPage() {
 
             <div className="space-y-2">
               {activeTable && isLoadingFields && (
-                <div className="rounded-lg bg-surface-container p-6 text-sm text-on-surface-variant">
+                <div className="rounded-lg border border-outline-variant bg-surface p-6 text-sm text-on-surface-variant">
                   フィールドを読み込んでいます...
                 </div>
               )}
 
               {fields.map((field) => (
-                <div key={field.id} className="grid grid-cols-1 gap-4 rounded-lg bg-surface-container p-4 md:grid-cols-[minmax(0,2fr)_160px_120px] md:items-center">
+                <div
+                  key={field.id}
+                  data-draggable
+                  className="group grid grid-cols-1 gap-4 rounded-lg border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)] md:grid-cols-[minmax(0,2fr)_160px_120px] md:items-center"
+                >
                   <div className="min-w-0">
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant md:hidden">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted md:hidden">
                       表示名 / フィールドコード
                     </div>
                     <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                       <div className="min-w-0">
-                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
                           表示名
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={cn("truncate text-sm", field.fieldType === "ai_generated" ? "font-bold text-primary" : "text-on-surface")}>
+                          <span className="drag-handle material-symbols-outlined text-[16px] text-on-surface-muted">
+                            drag_indicator
+                          </span>
+                          <span className={cn("truncate text-[13.5px] font-medium", field.fieldType === "ai_generated" ? "font-semibold text-tertiary" : "text-on-surface")}>
                             {field.name}
                           </span>
                           {field.required && <span className="text-xs text-error">*</span>}
@@ -876,7 +884,7 @@ export default function TableDesignerPage() {
                         </div>
                       </div>
                       <div className="min-w-0">
-                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
                           フィールドコード
                         </div>
                         <div className="truncate font-mono text-xs text-on-surface-variant">
@@ -886,7 +894,7 @@ export default function TableDesignerPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant md:hidden">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted md:hidden">
                       種類
                     </div>
                     <Badge variant={FIELD_META[field.fieldType].variant}>{FIELD_META[field.fieldType].label}</Badge>
@@ -923,8 +931,12 @@ export default function TableDesignerPage() {
               ))}
 
               {!isLoadingFields && activeTable && fields.length === 0 && (
-                <div className="rounded-lg border border-dashed border-outline-variant/40 p-6 text-sm text-on-surface-variant">
-                  フィールドはまだありません。
+                <div className="rounded-xl border-2 border-dashed border-outline-variant bg-surface px-6 py-10 text-center">
+                  <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary-container text-primary">
+                    <Icon name="view_column" />
+                  </div>
+                  <p className="text-[13.5px] font-medium text-on-surface">フィールドはまだありません</p>
+                  <p className="mt-1 text-[12.5px] text-on-surface-variant">上のフォームから追加できます。</p>
                 </div>
               )}
             </div>
@@ -941,7 +953,7 @@ export default function TableDesignerPage() {
         </section>
         </div>
 
-        <AISidebar className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
+        <AISidebar className="border-t border-outline-variant 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
           <div className="text-xs text-on-surface">
             この画面では、既存 API 経由で実際のテーブルメタデータを読み書きします。
           </div>

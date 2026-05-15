@@ -166,17 +166,21 @@ export default function NewAIAppPage() {
   return (
     <>
       <TopBar
-        title="AI Lattice"
+        title="新規アプリ"
         breadcrumbs={[{ label: "AI ビルダー" }, { label: "新規アプリ" }]}
       />
 
-      <main className="pt-16 pb-16">
-        <section className="mx-auto max-w-5xl px-6 pb-10 pt-20">
+      <main className="pt-14 pb-16">
+        <section className="mx-auto max-w-5xl px-6 pb-10 pt-16">
           <div className="mb-10 text-center">
-            <h2 className="mb-4 font-headline text-4xl font-extrabold tracking-tight text-white">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-tertiary-container px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-on-tertiary-container">
+              <Icon name="auto_awesome" size="sm" filled />
+              AI Builder
+            </div>
+            <h2 className="mb-3 font-headline text-3xl font-extrabold tracking-tight text-on-surface md:text-4xl">
               作成したい社内アプリを説明してください
             </h2>
-            <p className="font-medium text-on-surface-variant">
+            <p className="mx-auto max-w-2xl text-[15px] leading-relaxed text-on-surface-variant">
               AI がアプリ、テーブル、フィールドの設計案を作成します。
               内容を確認・編集してからビルダーに保存できます。
             </p>
@@ -215,25 +219,27 @@ export default function NewAIAppPage() {
 
         {error && (
           <section className="mx-auto max-w-5xl px-6 pb-6">
-            <div className="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            <div className="rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-sm font-medium text-on-error-container">
               {error}
             </div>
           </section>
         )}
 
         {!blueprint && !isGenerating && (
-          <section className="px-8 text-center text-sm text-on-surface-variant">
+          <section className="px-8 pt-6 text-center text-sm text-on-surface-variant">
             プロンプトを入力すると、編集可能なアプリ設計案を生成できます。
           </section>
         )}
 
         {isGenerating && (
           <section className="mx-auto max-w-5xl px-6">
-            <div className="rounded-xl border border-primary/20 bg-emerald-950/20 p-8 text-center">
+            <div className="rounded-2xl border border-tertiary-container bg-tertiary-container/30 p-10 text-center">
               <div className="mb-3 flex justify-center">
-                <Icon name="auto_awesome" size="lg" filled className="text-primary" />
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary text-white shadow-[0_4px_12px_rgba(141,108,220,0.4)]">
+                  <Icon name="auto_awesome" size="lg" filled />
+                </span>
               </div>
-              <div className="text-lg font-bold text-white">
+              <div className="font-headline text-lg font-bold tracking-tight text-on-surface">
                 アプリ設計案を生成しています...
               </div>
               <p className="mt-2 text-sm text-on-surface-variant">
@@ -244,9 +250,9 @@ export default function NewAIAppPage() {
         )}
 
         {blueprint && (
-          <section className="px-8">
-            <div className="flex min-h-[700px] flex-col overflow-hidden rounded-xl bg-surface-container-low md:flex-row">
-              <aside className="w-full bg-surface-container p-6 md:w-80">
+          <section className="px-6 md:px-8">
+            <div className="flex min-h-[700px] flex-col overflow-hidden rounded-xl border border-outline-variant bg-surface md:flex-row">
+              <aside className="w-full border-b border-outline-variant bg-sidebar p-6 md:w-80 md:border-b-0 md:border-r">
                 <GeneratedAssetsList
                   aiInsight={blueprint.aiInsight}
                   tables={blueprint.tables.map((table) => ({
@@ -259,7 +265,7 @@ export default function NewAIAppPage() {
                 />
               </aside>
 
-              <div className="flex-1 bg-surface/20 p-8">
+              <div className="flex-1 bg-surface p-6 md:p-8">
                 <BlueprintEditor
                   blueprint={blueprint}
                   activeTableId={activeTableId}

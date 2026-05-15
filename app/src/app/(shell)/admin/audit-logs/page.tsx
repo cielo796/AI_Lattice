@@ -200,6 +200,7 @@ export default function AuditLogsPage() {
   return (
     <>
       <TopBar
+        title="監査ログ"
         breadcrumbs={[{ label: "管理" }, { label: "監査ログ" }]}
         actions={
           <Button
@@ -214,43 +215,43 @@ export default function AuditLogsPage() {
         }
       />
 
-      <main className="mx-auto max-w-[1800px] px-4 py-10 pt-24 md:px-10">
+      <main className="mx-auto max-w-7xl px-6 pt-20 pb-10 md:px-10">
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-lg bg-surface-container p-4">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               表示件数
             </div>
-            <div className="font-headline text-2xl font-bold text-white">
+            <div className="font-headline text-2xl font-bold tracking-tight text-on-surface">
               {logs.length}
             </div>
           </div>
-          <div className="rounded-lg bg-surface-container p-4">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               変更操作
             </div>
-            <div className="font-headline text-2xl font-bold text-white">
+            <div className="font-headline text-2xl font-bold tracking-tight text-on-surface">
               {mutationCount}
             </div>
           </div>
-          <div className="rounded-lg bg-surface-container p-4">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               AI 関与
             </div>
-            <div className="font-headline text-2xl font-bold text-primary">
+            <div className="font-headline text-2xl font-bold tracking-tight text-primary">
               {aiLogCount}
             </div>
           </div>
         </div>
 
         {error && (
-          <div className="mb-6 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+          <div className="mb-6 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-sm text-on-error-container">
             {error}
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
-          <div className="overflow-hidden rounded-xl bg-surface-container">
-            <div className="hidden grid-cols-[140px_180px_150px_1fr] gap-4 px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant md:grid">
+          <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+            <div className="hidden grid-cols-[140px_180px_150px_1fr] gap-4 border-b border-outline-variant px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted md:grid">
               <div>時刻</div>
               <div>ユーザー</div>
               <div>操作</div>
@@ -258,87 +259,89 @@ export default function AuditLogsPage() {
             </div>
 
             {isLoading && logs.length === 0 ? (
-              <div className="px-6 py-10 text-sm text-on-surface-variant">
+              <div className="px-6 py-6 text-sm text-on-surface-variant">
                 監査ログを読み込んでいます...
               </div>
             ) : logs.length === 0 ? (
-              <div className="px-6 py-10 text-sm text-on-surface-variant">
+              <div className="m-5 rounded-xl border-2 border-dashed border-outline-variant bg-surface p-10 text-center text-sm text-on-surface-variant">
                 監査ログはまだありません。
               </div>
             ) : (
-              logs.map((log) => (
-                <button
-                  key={log.id}
-                  type="button"
-                  onClick={() => setSelectedId(log.id)}
-                  className={cn(
-                    "grid w-full grid-cols-1 gap-2 px-4 py-4 text-left transition-colors md:grid-cols-[140px_180px_150px_1fr] md:gap-4 md:px-6 md:items-center",
-                    selected?.id === log.id
-                      ? "bg-surface-container-high"
-                      : "hover:bg-surface-container-high/50"
-                  )}
-                >
-                  <div className="font-mono text-xs text-on-surface-variant">
-                    {formatTimestamp(log.createdAt)}
-                  </div>
-                  <div className="truncate text-sm font-semibold text-on-surface">
-                    {log.actorName}
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge
-                        variant={getActionVariant(log)}
-                        className="text-[9px]"
-                      >
-                        {formatAction(log.actionType)}
-                      </Badge>
-                      <Badge
-                        variant={getResultVariant(log.result ?? "success")}
-                        className="text-[9px]"
-                      >
-                        {getResultLabel(log.result ?? "success")}
-                      </Badge>
+              <div className="divide-y divide-outline-variant">
+                {logs.map((log) => (
+                  <button
+                    key={log.id}
+                    type="button"
+                    onClick={() => setSelectedId(log.id)}
+                    className={cn(
+                      "grid w-full grid-cols-1 gap-2 px-4 py-4 text-left transition-colors md:grid-cols-[140px_180px_150px_1fr] md:gap-4 md:px-6 md:items-center",
+                      selected?.id === log.id
+                        ? "bg-surface-container-high"
+                        : "hover:bg-surface-container-low"
+                    )}
+                  >
+                    <div className="font-mono text-xs text-on-surface-variant">
+                      {formatTimestamp(log.createdAt)}
                     </div>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold text-on-surface">
-                      {log.resourceName ?? log.resourceId ?? "-"}
+                    <div className="truncate text-sm font-semibold text-on-surface">
+                      {log.actorName}
                     </div>
-                    <div className="truncate font-mono text-[11px] text-on-surface-variant">
-                      {formatResource(log.resourceType)} / {getDetailSummary(log)}
+                    <div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge
+                          variant={getActionVariant(log)}
+                          className="text-[9px]"
+                        >
+                          {formatAction(log.actionType)}
+                        </Badge>
+                        <Badge
+                          variant={getResultVariant(log.result ?? "success")}
+                          className="text-[9px]"
+                        >
+                          {getResultLabel(log.result ?? "success")}
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-semibold text-on-surface">
+                        {log.resourceName ?? log.resourceId ?? "-"}
+                      </div>
+                      <div className="truncate font-mono text-[11px] text-on-surface-variant">
+                        {formatResource(log.resourceType)} / {getDetailSummary(log)}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
-          <aside className="rounded-xl bg-surface-container p-6">
+          <aside className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
             {selected ? (
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                       イベント詳細
                     </div>
-                    <h2 className="font-headline text-xl font-bold text-white">
+                    <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">
                       {formatAction(selected.actionType)}
                     </h2>
                   </div>
-                  <span className="font-mono text-[10px] text-on-surface-variant">
+                  <span className="font-mono text-[10px] text-on-surface-muted">
                     {selected.id}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-lg bg-surface-container-high p-3">
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                       ユーザー
                     </div>
                     <div className="truncate text-on-surface">{selected.actorName}</div>
                   </div>
                   <div className="rounded-lg bg-surface-container-high p-3">
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                       結果
                     </div>
                     <Badge variant={getResultVariant(selected.result ?? "success")}>
@@ -346,7 +349,7 @@ export default function AuditLogsPage() {
                     </Badge>
                   </div>
                   <div className="rounded-lg bg-surface-container-high p-3">
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                       対象
                     </div>
                     <div className="truncate text-on-surface">
@@ -354,7 +357,7 @@ export default function AuditLogsPage() {
                     </div>
                   </div>
                   <div className="rounded-lg bg-surface-container-high p-3">
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                       AI
                     </div>
                     <Badge
@@ -371,10 +374,10 @@ export default function AuditLogsPage() {
                 </div>
 
                 <div>
-                  <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                     メタデータ
                   </div>
-                  <pre className="max-h-[520px] overflow-auto rounded-lg bg-surface-container-low p-3 text-[10px] text-on-surface-variant">
+                  <pre className="max-h-[520px] overflow-auto rounded-lg border border-outline-variant bg-surface-container-low p-3 text-[10px] text-on-surface-variant">
 {JSON.stringify(
   {
     actionType: selected.actionType,

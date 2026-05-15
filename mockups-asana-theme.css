@@ -1,0 +1,307 @@
+/*
+ * Shared Asana-style helpers for HTML mockups.
+ * Pair with mockups-asana-tailwind.js for full unified theme.
+ *
+ * Usage:
+ *   <link href="../mockups-asana-theme.css" rel="stylesheet" />
+ */
+
+:root {
+  --asana-coral: #f06a6a;
+  --asana-coral-hover: #e25555;
+  --asana-coral-pressed: #c84545;
+  --asana-coral-container: #ffe4e0;
+  --asana-sidebar: #fcf8f7;
+  --asana-sidebar-hover: #f1ece9;
+  --asana-sidebar-active: #ffe4e0;
+  --asana-surface: #ffffff;
+  --asana-surface-container: #faf8f7;
+  --asana-surface-container-low: #fcfbfa;
+  --asana-on-surface: #1e1f21;
+  --asana-on-surface-variant: #6f7782;
+  --asana-on-surface-muted: #9ca6b2;
+  --asana-outline: #d8dde3;
+  --asana-outline-variant: #ece8e6;
+
+  --asana-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 1px 4px rgba(15, 23, 42, 0.04);
+  --asana-shadow-elevated: 0 2px 4px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.06);
+  --asana-shadow-popover: 0 4px 8px rgba(15, 23, 42, 0.06),
+    0 16px 40px rgba(15, 23, 42, 0.1);
+}
+
+html,
+body {
+  background: #fcfbfa;
+  color: var(--asana-on-surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+/* Glass / sticky chrome — Asana white */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-bottom: 1px solid var(--asana-outline-variant);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--asana-outline-variant);
+}
+
+/* Asana sidebar */
+.asana-sidebar {
+  background: var(--asana-sidebar);
+  border-right: 1px solid var(--asana-outline-variant);
+}
+
+.asana-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--asana-on-surface-variant);
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+  position: relative;
+}
+
+.asana-sidebar-item:hover {
+  background: var(--asana-sidebar-hover);
+  color: var(--asana-on-surface);
+}
+
+.asana-sidebar-item.active {
+  background: var(--asana-sidebar-active);
+  color: #6e1d1d;
+  font-weight: 600;
+}
+
+.asana-sidebar-item.active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 1.25rem;
+  background: var(--asana-coral);
+  border-radius: 0 9999px 9999px 0;
+}
+
+/* Asana top bar */
+.asana-topbar {
+  height: 3.5rem;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--asana-outline-variant);
+}
+
+/* Card */
+.asana-card {
+  background: var(--asana-surface);
+  border: 1px solid var(--asana-outline-variant);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  box-shadow: var(--asana-shadow-card);
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+
+.asana-card:hover {
+  box-shadow: var(--asana-shadow-elevated);
+}
+
+.asana-card-elevated {
+  background: var(--asana-surface);
+  border: 1px solid var(--asana-outline-variant);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  box-shadow: var(--asana-shadow-elevated);
+}
+
+/* Buttons */
+.asana-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 2.25rem;
+  padding: 0 0.875rem;
+  border-radius: 0.5rem;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: all 100ms ease;
+  border: 1px solid transparent;
+}
+
+.asana-btn-primary {
+  background: var(--asana-coral);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(240, 106, 106, 0.25);
+}
+.asana-btn-primary:hover {
+  background: var(--asana-coral-hover);
+}
+.asana-btn-primary:active {
+  background: var(--asana-coral-pressed);
+  transform: scale(0.98);
+}
+
+.asana-btn-secondary {
+  background: var(--asana-surface);
+  color: var(--asana-on-surface);
+  border-color: var(--asana-outline);
+}
+.asana-btn-secondary:hover {
+  background: var(--asana-surface-container);
+}
+
+.asana-btn-ghost {
+  background: transparent;
+  color: var(--asana-on-surface-variant);
+}
+.asana-btn-ghost:hover {
+  background: var(--asana-surface-container);
+  color: var(--asana-on-surface);
+}
+
+/* Pills / Tags (Asana category chips) */
+.asana-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.asana-pill-coral {
+  background: #ffe4e0;
+  color: #c84545;
+}
+.asana-pill-pink {
+  background: #fce7f2;
+  color: #b13c66;
+}
+.asana-pill-lavender {
+  background: #ece5fc;
+  color: #5a3eb5;
+}
+.asana-pill-blue {
+  background: #dde7f9;
+  color: #1f3d7a;
+}
+.asana-pill-teal {
+  background: #d6f4f1;
+  color: #1f6e68;
+}
+.asana-pill-green {
+  background: #d6f0e2;
+  color: #1f5e3d;
+}
+.asana-pill-yellow {
+  background: #fdecd1;
+  color: #6e4a14;
+}
+.asana-pill-orange {
+  background: #fde0cc;
+  color: #8f4615;
+}
+
+/* Inline editable affordance */
+.inline-editable {
+  border-radius: 0.5rem;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+  cursor: text;
+}
+.inline-editable:hover {
+  background: var(--asana-surface-container);
+}
+.inline-editable:focus,
+.inline-editable[data-editing="true"] {
+  background: var(--asana-surface);
+  box-shadow: 0 0 0 2px var(--asana-coral);
+  outline: none;
+}
+
+/* Drag handle */
+.drag-handle {
+  cursor: grab;
+  color: var(--asana-on-surface-muted);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+[data-draggable]:hover .drag-handle,
+[data-draggable]:focus-within .drag-handle,
+.group:hover .drag-handle {
+  opacity: 1;
+}
+
+/* Subtle row hover (Asana task list) */
+.asana-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--asana-outline-variant);
+  transition: background-color 100ms ease;
+}
+.asana-row:hover {
+  background: var(--asana-surface-container);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d8dde3;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8b1bd;
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+/* Selection */
+::selection {
+  background: #ffe4e0;
+  color: #6e1d1d;
+}
+
+/* Focus ring */
+.focus-ring:focus-visible,
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(240, 106, 106, 0.25);
+}

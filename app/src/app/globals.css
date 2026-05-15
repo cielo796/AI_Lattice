@@ -1,76 +1,111 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* ── Surface Hierarchy ── */
-  --color-surface: #0f172a;
-  --color-surface-dim: #0f172a;
-  --color-surface-bright: #1e293b;
-  --color-surface-container: #1e293b;
-  --color-surface-container-low: #0f172a;
-  --color-surface-container-high: #1e293b;
-  --color-surface-container-highest: #334155;
-  --color-surface-container-lowest: #0f172a;
+  /* ── Surface Hierarchy (Asana light) ── */
+  --color-surface: #ffffff;
+  --color-surface-dim: #f9f8f8;
+  --color-surface-bright: #ffffff;
+  --color-surface-container: #faf8f7;
+  --color-surface-container-low: #fcfbfa;
+  --color-surface-container-high: #f4f1ef;
+  --color-surface-container-highest: #ece8e6;
+  --color-surface-container-lowest: #ffffff;
 
-  /* ── Primary (Emerald) ── */
-  --color-primary: #10b981;
-  --color-primary-container: #064e3b;
-  --color-primary-fixed: #10b981;
-  --color-primary-fixed-dim: #10b981;
+  /* Sidebar / nav surface — Asana's warm cream */
+  --color-sidebar: #fcf8f7;
+  --color-sidebar-hover: #f1ece9;
+  --color-sidebar-active: #ffe4e0;
+
+  /* ── Primary (Asana Coral) ── */
+  --color-primary: #f06a6a;
+  --color-primary-hover: #e25555;
+  --color-primary-pressed: #c84545;
+  --color-primary-container: #ffe4e0;
+  --color-primary-fixed: #f06a6a;
+  --color-primary-fixed-dim: #ffcdc6;
   --color-on-primary: #ffffff;
-  --color-on-primary-container: #10b981;
-  --color-on-primary-fixed: #064e3b;
-  --color-on-primary-fixed-variant: #10b981;
-  --color-inverse-primary: #10b981;
+  --color-on-primary-container: #6e1d1d;
+  --color-on-primary-fixed: #6e1d1d;
+  --color-on-primary-fixed-variant: #c84545;
+  --color-inverse-primary: #ffafa6;
 
-  /* ── Secondary ── */
-  --color-secondary: #94a3b8;
-  --color-secondary-container: #1e293b;
-  --color-secondary-fixed: #1e293b;
-  --color-secondary-fixed-dim: #334155;
+  /* ── Secondary (Asana muted) ── */
+  --color-secondary: #6f7782;
+  --color-secondary-container: #eef0f2;
+  --color-secondary-fixed: #eef0f2;
+  --color-secondary-fixed-dim: #d8dde3;
   --color-on-secondary: #ffffff;
-  --color-on-secondary-container: #94a3b8;
-  --color-on-secondary-fixed: #e2e8f0;
-  --color-on-secondary-fixed-variant: #cbd5e1;
+  --color-on-secondary-container: #3a4453;
+  --color-on-secondary-fixed: #3a4453;
+  --color-on-secondary-fixed-variant: #525c69;
 
-  /* ── Tertiary (AI Signal - Emerald) ── */
-  --color-tertiary: #10b981;
-  --color-tertiary-container: #064e3b;
-  --color-tertiary-fixed: #10b981;
-  --color-tertiary-fixed-dim: #10b981;
+  /* ── Tertiary (AI Signal — Asana lavender) ── */
+  --color-tertiary: #8d6cdc;
+  --color-tertiary-container: #ece5fc;
+  --color-tertiary-fixed: #8d6cdc;
+  --color-tertiary-fixed-dim: #c9b8f3;
   --color-on-tertiary: #ffffff;
-  --color-on-tertiary-container: #10b981;
-  --color-on-tertiary-fixed: #064e3b;
-  --color-on-tertiary-fixed-variant: #064e3b;
+  --color-on-tertiary-container: #3b257a;
+  --color-on-tertiary-fixed: #3b257a;
+  --color-on-tertiary-fixed-variant: #5a3eb5;
+
+  /* ── Status colors (Asana pastel) ── */
+  --color-success: #4cb782;
+  --color-success-container: #d6f0e2;
+  --color-on-success-container: #1f5e3d;
+  --color-warning: #f1bd6c;
+  --color-warning-container: #fdecd1;
+  --color-on-warning-container: #6e4a14;
+  --color-info: #4573d2;
+  --color-info-container: #dde7f9;
+  --color-on-info-container: #1f3d7a;
+  --color-amber: #f1bd6c;
 
   /* ── Error ── */
-  --color-error: #f87171;
-  --color-error-container: #450a0a;
+  --color-error: #d1483c;
+  --color-error-container: #fadcd9;
   --color-on-error: #ffffff;
-  --color-on-error-container: #f87171;
+  --color-on-error-container: #6e1d18;
 
   /* ── Text / On-Surface ── */
-  --color-on-surface: #e2e8f0;
-  --color-on-surface-variant: #94a3b8;
-  --color-on-background: #e2e8f0;
-  --color-background: #0f172a;
-  --color-inverse-surface: #e2e8f0;
-  --color-inverse-on-surface: #0f172a;
+  --color-on-surface: #1e1f21;
+  --color-on-surface-variant: #6f7782;
+  --color-on-surface-muted: #9ca6b2;
+  --color-on-background: #1e1f21;
+  --color-background: #ffffff;
+  --color-inverse-surface: #1e1f21;
+  --color-inverse-on-surface: #ffffff;
 
-  /* ── Outlines ── */
-  --color-outline: #475569;
-  --color-outline-variant: #334155;
-  --color-surface-tint: #10b981;
+  /* ── Outlines / borders ── */
+  --color-outline: #d8dde3;
+  --color-outline-variant: #ece8e6;
+  --color-outline-strong: #a8b1bd;
+  --color-surface-tint: #f06a6a;
 
-  /* ── Additional palette ── */
-  --color-amber: #f59e0b;
-  --color-warning: #f59e0b;
+  /* ── Asana category accents (for app/category chips) ── */
+  --color-accent-coral: #f06a6a;
+  --color-accent-pink: #f9a7c2;
+  --color-accent-lavender: #b8a0e8;
+  --color-accent-blue: #6ebeed;
+  --color-accent-teal: #4ecdc4;
+  --color-accent-green: #6fd391;
+  --color-accent-lime: #c5e066;
+  --color-accent-yellow: #f5d76e;
+  --color-accent-orange: #f8a26b;
 
-  /* ── Border Radius ── */
-  --radius-DEFAULT: 0.25rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
+  /* ── Border Radius (Asana uses larger radii) ── */
+  --radius-DEFAULT: 0.375rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
   --radius-full: 9999px;
+
+  /* ── Shadow (soft, Asana-style) ── */
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 4px rgba(15, 23, 42, 0.04);
+  --shadow-elevated: 0 2px 4px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-popover: 0 4px 8px rgba(15, 23, 42, 0.06), 0 16px 40px rgba(15, 23, 42, 0.1);
 
   /* ── Font Family ── */
   --font-headline: "Manrope", system-ui, sans-serif;
@@ -79,10 +114,16 @@
 }
 
 /* ── Base ── */
-body {
+html, body {
   background-color: var(--color-surface);
   color: var(--color-on-surface);
+}
+
+body {
   font-family: var(--font-body);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Material Symbols ── */
@@ -91,7 +132,7 @@ body {
   font-family: "Material Symbols Outlined";
   font-weight: normal;
   font-style: normal;
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
   letter-spacing: normal;
   text-transform: none;
@@ -102,53 +143,104 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Glassmorphism ── */
+/* ── Surfaces / panels ── */
 .glass-effect {
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .glass-panel {
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--color-outline-variant);
 }
 
 /* ── Grid Pattern (Workflow Canvas) ── */
 .grid-pattern {
-  background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+  background-image: radial-gradient(circle, #d8dde3 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
-/* ── Scrollbar ── */
+/* ── Scrollbar (subtle, Asana-style) ── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+  background: #d8dde3;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #a8b1bd;
+  background-clip: padding-box;
+  border: 2px solid transparent;
 }
 
-/* ── React Flow Overrides ── */
+/* ── React Flow Overrides (Asana light) ── */
 .react-flow__node {
-  border: none !important;
-  box-shadow: none !important;
+  border: 1px solid var(--color-outline-variant) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 .react-flow__edge-path {
-  stroke: #475569;
-  stroke-width: 2;
+  stroke: #a8b1bd;
+  stroke-width: 1.5;
 }
 .react-flow__controls {
   display: none;
 }
 .react-flow__background {
-  background-color: #0f172a !important;
+  background-color: #faf8f7 !important;
+}
+
+/* ── Selection ── */
+::selection {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+/* ── Focus ring ── */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(240, 106, 106, 0.25);
+}
+
+/* ── Drag affordance ── */
+.drag-handle {
+  cursor: grab;
+  color: var(--color-on-surface-muted);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+[data-draggable]:hover .drag-handle,
+[data-draggable]:focus-within .drag-handle {
+  opacity: 1;
+}
+
+/* ── Inline editable ── */
+.inline-editable {
+  border-radius: var(--radius-md);
+  padding: 4px 6px;
+  margin: -4px -6px;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+  cursor: text;
+}
+.inline-editable:hover {
+  background: var(--color-surface-container);
+}
+.inline-editable:focus,
+.inline-editable[data-editing="true"] {
+  background: var(--color-surface);
+  box-shadow: 0 0 0 2px var(--color-primary);
+  outline: none;
 }

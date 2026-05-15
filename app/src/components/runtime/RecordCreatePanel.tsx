@@ -208,7 +208,7 @@ function renderFieldInput(
   referenceOptions: ReferenceOption[] = []
 ) {
   const sharedClassName =
-    "w-full rounded-lg border-none bg-surface-container-high px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/30";
+    "w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface placeholder:text-on-surface-muted hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
   if (field.fieldType === "textarea") {
     return (
@@ -224,7 +224,7 @@ function renderFieldInput(
 
   if (field.fieldType === "boolean") {
     return (
-      <label className="flex min-h-[50px] items-center justify-between rounded-lg bg-surface-container-high px-4 py-3 text-sm text-on-surface">
+      <label className="flex min-h-[42px] items-center justify-between rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong">
         <span>有効</span>
         <input
           type="checkbox"
@@ -463,13 +463,13 @@ export function RecordCreatePanel({
         : "レコードを作成";
 
   return (
-    <section className="border-b border-outline-variant/30 bg-surface-container px-8 py-6">
+    <section className="border-b border-outline-variant bg-surface px-8 py-6 shadow-[inset_0_-1px_0_rgba(15,23,42,0.04)]">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
             {title}
           </div>
-          <h2 className="font-headline text-2xl font-extrabold text-white">
+          <h2 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
             {heading}
           </h2>
         </div>
@@ -490,11 +490,11 @@ export function RecordCreatePanel({
                 )}
               >
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-bold text-on-surface">
+                  <label className="text-[13px] font-semibold text-on-surface">
                     {formatFieldLabel(field)}
                   </label>
                   {field.required && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                    <span className="rounded-full bg-primary-container px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-on-primary-container">
                       必須
                     </span>
                   )}
@@ -505,20 +505,20 @@ export function RecordCreatePanel({
                     [field.code]: nextValue,
                   }));
                 }, referenceOptionsByField[field.code] ?? [])}
-                <div className="text-[11px] uppercase tracking-wider text-on-surface-variant">
+                <div className="text-[10.5px] font-medium uppercase tracking-wider text-on-surface-muted">
                   {formatFieldType(field.fieldType)}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-outline-variant/40 p-4 text-sm text-on-surface-variant">
+          <div className="rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low p-6 text-center text-sm text-on-surface-variant">
             このテーブルには実行時フィールドがまだありません。レコードは空のデータで保存されます。
           </div>
         )}
 
         {formError && (
-          <div className="mt-4 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+          <div className="mt-4 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-sm font-medium text-on-error-container">
             {formError}
           </div>
         )}

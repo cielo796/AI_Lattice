@@ -22,29 +22,33 @@ export function GeneratedAssetsList({
 }: GeneratedAssetsListProps) {
   return (
     <div>
-      <h3 className="mb-6 font-headline text-sm font-bold uppercase tracking-widest text-on-surface-variant">
+      <h3 className="mb-6 font-headline text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
         生成された構成案
       </h3>
       <div className="space-y-6">
         <div>
           <div className="mb-3 flex items-center gap-2 px-2">
-            <Icon name="table_chart" size="sm" className="text-on-surface-variant" />
-            <span className="text-sm font-bold text-on-surface">テーブル</span>
+            <Icon name="table_chart" size="sm" className="text-on-surface-muted" />
+            <span className="text-sm font-semibold text-on-surface">テーブル</span>
           </div>
           <div className="space-y-1">
             {tables.map((table) => (
               <button
                 key={table.id}
                 onClick={() => onSelectTable?.(table.id)}
+                data-draggable
                 className={cn(
-                  "flex w-full items-center rounded-lg p-2 text-sm transition-colors",
+                  "group flex w-full items-center gap-2 rounded-md p-2 text-sm transition-colors",
                   activeTableId === table.id
-                    ? "bg-surface-container-high font-semibold text-primary"
-                    : "text-on-surface-variant hover:bg-surface-container-high"
+                    ? "bg-primary-container font-semibold text-on-primary-container"
+                    : "text-on-surface hover:bg-surface-container-high"
                 )}
               >
-                <span>{table.name}</span>
-                <span className="ml-auto mr-2 text-[10px] text-on-surface-variant">
+                <span className="drag-handle material-symbols-outlined text-base text-on-surface-muted">
+                  drag_indicator
+                </span>
+                <span className="inline-editable truncate text-left">{table.name}</span>
+                <span className="ml-auto mr-2 rounded-full bg-surface-container-high px-2 py-0.5 text-[10px] font-semibold text-on-surface-muted">
                   {table.fieldCount} フィールド
                 </span>
                 {activeTableId === table.id && (
@@ -55,8 +59,8 @@ export function GeneratedAssetsList({
           </div>
         </div>
 
-        <div className="rounded-xl border border-primary/15 bg-emerald-950/20 p-4">
-          <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary">
+        <div className="rounded-xl border border-tertiary-container bg-tertiary-container/40 p-4">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-primary">
             <Icon name="auto_awesome" size="sm" filled className="text-primary" />
             AI インサイト
           </div>

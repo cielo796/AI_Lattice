@@ -39,7 +39,7 @@ export default async function ShellLayout({
 
   return (
     <ShellChromeProvider>
-      <div className="min-h-screen bg-surface">
+      <div className="min-h-screen bg-surface-container-low">
         <Sidebar />
         <div className="min-h-screen md:ml-64">{children}</div>
       </div>
