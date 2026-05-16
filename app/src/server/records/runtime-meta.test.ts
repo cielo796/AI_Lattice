@@ -89,6 +89,23 @@ describe("runtime metadata", () => {
           },
         ]),
       },
+      appForm: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "form_standard",
+            tenantId: "tenant_1",
+            appId: "app_1",
+            tableId: "tbl_tickets",
+            name: "Standard form",
+            layoutJson: {
+              fields: [{ fieldCode: "subject", visible: true, required: true }],
+            },
+            sortOrder: 0,
+            createdAt: new Date("2026-04-24T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-24T00:00:00.000Z"),
+          },
+        ]),
+      },
     };
 
     getPrismaClient.mockReturnValue(prisma);
@@ -107,6 +124,15 @@ describe("runtime metadata", () => {
         name: "Open tickets",
         viewType: "list",
         settingsJson: { columns: ["subject"] },
+      }),
+    ]);
+    expect(meta.forms).toEqual([
+      expect.objectContaining({
+        id: "form_standard",
+        name: "Standard form",
+        layoutJson: {
+          fields: [{ fieldCode: "subject", visible: true, required: true }],
+        },
       }),
     ]);
   });

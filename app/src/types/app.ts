@@ -76,11 +76,14 @@ export interface AppForm {
   tableId: string;
   name: string;
   layoutJson: Record<string, unknown>;
+  sortOrder: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface RuntimeTableMeta {
   table: Pick<AppTable, "id" | "name" | "code">;
   fields: AppField[];
   views: AppView[];
+  forms: AppForm[];
 }

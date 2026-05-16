@@ -18,27 +18,40 @@ import {
   shouldShowBackReference,
 } from "@/lib/runtime-records";
 import {
+  createForm,
   createField,
   createTable,
   createView,
   deleteApp,
+  deleteForm,
   deleteField,
   deleteTable,
   deleteView,
   listFields,
+  listForms,
   listTables,
   listViews,
+  updateForm,
   updateField,
   updateTable,
   updateView,
+  type CreateFormInput,
   type CreateFieldInput,
   type CreateTableInput,
   type CreateViewInput,
+  type UpdateFormInput,
   type UpdateFieldInput,
   type UpdateTableInput,
   type UpdateViewInput,
 } from "@/lib/api/apps";
-import type { AppField, AppTable, AppView, AppViewType, FieldType } from "@/types/app";
+import type {
+  AppField,
+  AppForm,
+  AppTable,
+  AppView,
+  AppViewType,
+  FieldType,
+} from "@/types/app";
 
 type TableFormState = { name: string; code: string; isSystem: boolean };
 type FieldFormState = {
@@ -60,6 +73,23 @@ type ViewFormState = {
   columnCodes: string[];
   sortFieldCode: string;
   sortDirection: "asc" | "desc";
+  filters: ViewFilterFormState[];
+};
+type ViewFilterFormState = {
+  fieldCode: string;
+  operator: "equals" | "contains" | "not_empty";
+  value: string;
+};
+type FormFieldFormState = {
+  fieldCode: string;
+  visible: boolean;
+  required: boolean;
+  width: "half" | "full";
+  helpText: string;
+};
+type FormFormState = {
+  name: string;
+  fields: FormFieldFormState[];
 };
 type BadgeVariant = "default" | "success" | "warning" | "error" | "info" | "ai";
 
@@ -83,6 +113,11 @@ const EMPTY_VIEW_FORM: ViewFormState = {
   columnCodes: [],
   sortFieldCode: "",
   sortDirection: "desc",
+  filters: [],
+};
+const EMPTY_FORM_FORM: FormFormState = {
+  name: "",
+  fields: [],
 };
 
 const FIELD_TYPES: FieldType[] = [
@@ -121,6 +156,12 @@ const VIEW_META: Record<AppViewType, { label: string; icon: string }> = {
   calendar: { label: "カレンダー", icon: "calendar_month" },
   chart: { label: "チャート", icon: "insert_chart" },
   kpi: { label: "KPI", icon: "speed" },
+};
+
+const VIEW_FILTER_META: Record<ViewFilterFormState["operator"], string> = {
+  equals: "一致",
+  contains: "含む",
+  not_empty: "空でない",
 };
 
 function getParam(value: string | string[] | undefined) {
@@ -168,9 +209,53 @@ function getViewSort(view: AppView) {
   };
 }
 
+function getViewFilters(view: AppView, fields: AppField[]): ViewFilterFormState[] {
+  const filters = view.settingsJson?.filters;
+  const fieldCodes = new Set(fields.map((field) => field.code));
+
+  if (!Array.isArray(filters)) {
+    return [];
+  }
+
+  return filters.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+
+    const filter = item as Record<string, unknown>;
+    const fieldCode = typeof filter.fieldCode === "string" ? filter.fieldCode : "";
+
+    if (!fieldCodes.has(fieldCode)) {
+      return [];
+    }
+
+    const operator =
+      filter.operator === "equals" || filter.operator === "not_empty"
+        ? filter.operator
+        : "contains";
+
+    return [
+      {
+        fieldCode,
+        operator,
+        value: typeof filter.value === "string" ? filter.value : "",
+      },
+    ];
+  });
+}
+
 function buildViewSettings(form: ViewFormState, fields: AppField[]) {
   const fallbackColumns = fields.slice(0, 4).map((field) => field.code);
   const columns = form.columnCodes.length > 0 ? form.columnCodes : fallbackColumns;
+  const filters = form.filters
+    .filter((filter) => filter.fieldCode)
+    .map((filter) => ({
+      fieldCode: filter.fieldCode,
+      operator: filter.operator,
+      ...(filter.operator !== "not_empty" && filter.value.trim()
+        ? { value: filter.value.trim() }
+        : {}),
+    }));
 
   return {
     columns,
@@ -182,6 +267,107 @@ function buildViewSettings(form: ViewFormState, fields: AppField[]) {
           },
         }
       : {}),
+    ...(filters.length > 0 ? { filters } : {}),
+  };
+}
+
+function getDefaultFormField(field: AppField): FormFieldFormState {
+  return {
+    fieldCode: field.code,
+    visible: true,
+    required: field.required,
+    width: field.fieldType === "textarea" ? "full" : "half",
+    helpText: "",
+  };
+}
+
+function getFormFields(form: AppForm, fields: AppField[]): FormFieldFormState[] {
+  const layoutFields = form.layoutJson?.fields;
+  const fieldByCode = new Map(fields.map((field) => [field.code, field]));
+
+  if (!Array.isArray(layoutFields)) {
+    return fields.map(getDefaultFormField);
+  }
+
+  const seenFieldCodes = new Set<string>();
+  const normalizedFields = layoutFields.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+
+    const layoutField = item as Record<string, unknown>;
+    const fieldCode =
+      typeof layoutField.fieldCode === "string" ? layoutField.fieldCode : "";
+    const field = fieldByCode.get(fieldCode);
+
+    if (!field || seenFieldCodes.has(fieldCode)) {
+      return [];
+    }
+
+    seenFieldCodes.add(fieldCode);
+
+    return [
+      {
+        fieldCode,
+        visible: field.required ? true : layoutField.visible !== false,
+        required: field.required || layoutField.required === true,
+        width: layoutField.width === "full" ? ("full" as const) : ("half" as const),
+        helpText: typeof layoutField.helpText === "string" ? layoutField.helpText : "",
+      },
+    ];
+  });
+
+  fields.forEach((field) => {
+    if (!seenFieldCodes.has(field.code)) {
+      normalizedFields.push(getDefaultFormField(field));
+    }
+  });
+
+  return normalizedFields;
+}
+
+function alignFormFields(
+  formFields: FormFieldFormState[],
+  fields: AppField[]
+): FormFieldFormState[] {
+  const fieldByCode = new Map(fields.map((field) => [field.code, field]));
+  const seenFieldCodes = new Set<string>();
+  const normalizedFields = formFields.flatMap((formField) => {
+    const field = fieldByCode.get(formField.fieldCode);
+
+    if (!field || seenFieldCodes.has(formField.fieldCode)) {
+      return [];
+    }
+
+    seenFieldCodes.add(formField.fieldCode);
+
+    return [
+      {
+        ...formField,
+        visible: field.required ? true : formField.visible,
+        required: field.required || formField.required,
+      },
+    ];
+  });
+
+  fields.forEach((field) => {
+    if (!seenFieldCodes.has(field.code)) {
+      normalizedFields.push(getDefaultFormField(field));
+    }
+  });
+
+  return normalizedFields;
+}
+
+function buildFormLayout(form: FormFormState) {
+  return {
+    fields: form.fields.map((field) => ({
+      fieldCode: field.fieldCode,
+      visible: field.visible,
+      required: field.required,
+      width: field.width,
+      ...(field.helpText.trim() ? { helpText: field.helpText.trim() } : {}),
+    })),
   };
 }
 
@@ -195,20 +381,25 @@ export default function TableDesignerPage() {
   const [tables, setTables] = useState<AppTable[]>([]);
   const [fields, setFields] = useState<AppField[]>([]);
   const [views, setViews] = useState<AppView[]>([]);
+  const [forms, setForms] = useState<AppForm[]>([]);
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
   const [editingTableId, setEditingTableId] = useState<string | null>(null);
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
+  const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [tableForm, setTableForm] = useState(EMPTY_TABLE_FORM);
   const [fieldForm, setFieldForm] = useState(EMPTY_FIELD_FORM);
   const [viewForm, setViewForm] = useState(EMPTY_VIEW_FORM);
+  const [formForm, setFormForm] = useState(EMPTY_FORM_FORM);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingTables, setIsLoadingTables] = useState(true);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [isLoadingViews, setIsLoadingViews] = useState(false);
+  const [isLoadingForms, setIsLoadingForms] = useState(false);
   const [isSavingTable, setIsSavingTable] = useState(false);
   const [isSavingField, setIsSavingField] = useState(false);
   const [isSavingView, setIsSavingView] = useState(false);
+  const [isSavingForm, setIsSavingForm] = useState(false);
   const [isDeletingApp, setIsDeletingApp] = useState(false);
   const [referenceTableFields, setReferenceTableFields] = useState<AppField[]>([]);
   const [isLoadingReferenceTableFields, setIsLoadingReferenceTableFields] =
@@ -323,6 +514,45 @@ export default function TableDesignerPage() {
   }, [activeTableId, appId]);
 
   useEffect(() => {
+    if (!appId || !activeTableId) {
+      setForms([]);
+      return;
+    }
+
+    const currentTableId = activeTableId;
+    let cancelled = false;
+
+    async function loadFormsForTable() {
+      try {
+        setIsLoadingForms(true);
+        const nextForms = sortByOrder(await listForms(appId, currentTableId));
+        if (cancelled) return;
+        setForms(nextForms);
+        setError(null);
+      } catch (nextError) {
+        if (!cancelled) {
+          setForms([]);
+          setError(nextError instanceof Error ? nextError.message : "フォームの読み込みに失敗しました。");
+        }
+      } finally {
+        if (!cancelled) setIsLoadingForms(false);
+      }
+    }
+
+    void loadFormsForTable();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTableId, appId]);
+
+  useEffect(() => {
+    setFormForm((current) => ({
+      ...current,
+      fields: alignFormFields(current.fields, fields),
+    }));
+  }, [fields]);
+
+  useEffect(() => {
     if (!appId || fieldForm.fieldType !== "master_ref" || !fieldForm.referenceTableId) {
       setReferenceTableFields([]);
       setIsLoadingReferenceTableFields(false);
@@ -402,6 +632,14 @@ export default function TableDesignerPage() {
     setViewForm(EMPTY_VIEW_FORM);
   }
 
+  function resetFormForm() {
+    setEditingFormId(null);
+    setFormForm({
+      ...EMPTY_FORM_FORM,
+      fields: fields.map(getDefaultFormField),
+    });
+  }
+
   async function onSubmitTable(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!appId) return;
@@ -448,6 +686,7 @@ export default function TableDesignerPage() {
       if (editingTableId === table.id) resetTableForm();
       resetFieldForm();
       resetViewForm();
+      resetFormForm();
       setError(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "テーブルの削除に失敗しました。");
@@ -559,6 +798,18 @@ export default function TableDesignerPage() {
           };
         })
       );
+      setForms((current) =>
+        current.map((form) => ({
+          ...form,
+          layoutJson: {
+            ...form.layoutJson,
+            fields: getFormFields(
+              form,
+              fields.filter((item) => item.id !== field.id)
+            ),
+          },
+        }))
+      );
       if (editingFieldId === field.id) resetFieldForm();
       setError(null);
     } catch (nextError) {
@@ -607,6 +858,49 @@ export default function TableDesignerPage() {
       setError(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "ビューの削除に失敗しました。");
+    }
+  }
+
+  async function onSubmitForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!appId || !activeTableId) return;
+    setIsSavingForm(true);
+
+    try {
+      const payload: CreateFormInput | UpdateFormInput = {
+        name: formForm.name.trim(),
+        layoutJson: buildFormLayout(formForm),
+      };
+
+      if (editingFormId) {
+        const updated = await updateForm(appId, activeTableId, editingFormId, payload);
+        setForms((current) =>
+          sortByOrder(current.map((form) => (form.id === updated.id ? updated : form)))
+        );
+      } else {
+        const created = await createForm(appId, activeTableId, payload as CreateFormInput);
+        setForms((current) => sortByOrder([...current, created]));
+      }
+
+      setError(null);
+      resetFormForm();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "フォームの保存に失敗しました。");
+    } finally {
+      setIsSavingForm(false);
+    }
+  }
+
+  async function onDeleteForm(form: AppForm) {
+    if (!appId || !activeTableId || !window.confirm(`フォーム「${form.name}」を削除しますか？`)) return;
+
+    try {
+      await deleteForm(appId, activeTableId, form.id);
+      setForms((current) => current.filter((item) => item.id !== form.id));
+      if (editingFormId === form.id) resetFormForm();
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "フォームの削除に失敗しました。");
     }
   }
 
@@ -689,6 +983,7 @@ export default function TableDesignerPage() {
                     setActiveTableId(table.id);
                     resetFieldForm();
                     resetViewForm();
+                    resetFormForm();
                   }}
                   className="w-full text-left"
                 >
@@ -799,6 +1094,7 @@ export default function TableDesignerPage() {
                 {views.map((view) => {
                   const columns = getViewColumnCodes(view, fields);
                   const sort = getViewSort(view);
+                  const filters = getViewFilters(view, fields);
 
                   return (
                     <div
@@ -816,6 +1112,7 @@ export default function TableDesignerPage() {
                           <div className="mt-1 text-xs text-on-surface-variant">
                             {VIEW_META[view.viewType].label} / {columns.length || fields.length} 列
                             {sort.fieldCode ? ` / ${sort.fieldCode} ${sort.direction}` : ""}
+                            {filters.length > 0 ? ` / ${filters.length} フィルタ` : ""}
                           </div>
                         </div>
                         <div className="flex shrink-0 gap-2">
@@ -831,6 +1128,7 @@ export default function TableDesignerPage() {
                                 columnCodes: columns,
                                 sortFieldCode: sort.fieldCode,
                                 sortDirection: sort.direction,
+                                filters,
                               });
                             }}
                           >
@@ -974,12 +1272,381 @@ export default function TableDesignerPage() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                      フィルタ
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={!activeTable || isSavingView || fields.length === 0}
+                      onClick={() =>
+                        setViewForm((current) => ({
+                          ...current,
+                          filters: [
+                            ...current.filters,
+                            {
+                              fieldCode: fields[0]?.code ?? "",
+                              operator: "contains",
+                              value: "",
+                            },
+                          ],
+                        }))
+                      }
+                    >
+                      追加
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {viewForm.filters.map((filter, filterIndex) => (
+                      <div
+                        key={`${filter.fieldCode}-${filterIndex}`}
+                        className="grid gap-2 rounded-md border border-outline-variant bg-surface-container-low p-2 md:grid-cols-[minmax(0,1fr)_112px_minmax(0,1fr)_72px]"
+                      >
+                        <select
+                          value={filter.fieldCode}
+                          onChange={(event) =>
+                            setViewForm((current) => ({
+                              ...current,
+                              filters: current.filters.map((item, index) =>
+                                index === filterIndex
+                                  ? { ...item, fieldCode: event.target.value }
+                                  : item
+                              ),
+                            }))
+                          }
+                          disabled={!activeTable || isSavingView}
+                          className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          {fields.map((field) => (
+                            <option key={field.id} value={field.code}>
+                              {field.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={filter.operator}
+                          onChange={(event) =>
+                            setViewForm((current) => ({
+                              ...current,
+                              filters: current.filters.map((item, index) =>
+                                index === filterIndex
+                                  ? {
+                                      ...item,
+                                      operator: event.target
+                                        .value as ViewFilterFormState["operator"],
+                                    }
+                                  : item
+                              ),
+                            }))
+                          }
+                          disabled={!activeTable || isSavingView}
+                          className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          {Object.entries(VIEW_FILTER_META).map(([operator, label]) => (
+                            <option key={operator} value={operator}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <Input
+                          value={filter.value}
+                          onChange={(event) =>
+                            setViewForm((current) => ({
+                              ...current,
+                              filters: current.filters.map((item, index) =>
+                                index === filterIndex
+                                  ? { ...item, value: event.target.value }
+                                  : item
+                              ),
+                            }))
+                          }
+                          placeholder="値"
+                          disabled={
+                            !activeTable ||
+                            isSavingView ||
+                            filter.operator === "not_empty"
+                          }
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={!activeTable || isSavingView}
+                          onClick={() =>
+                            setViewForm((current) => ({
+                              ...current,
+                              filters: current.filters.filter(
+                                (_item, index) => index !== filterIndex
+                              ),
+                            }))
+                          }
+                        >
+                          削除
+                        </Button>
+                      </div>
+                    ))}
+                    {viewForm.filters.length === 0 && (
+                      <div className="rounded-md border border-dashed border-outline-variant bg-surface-container-low px-3 py-2 text-[12.5px] text-on-surface-variant">
+                        条件なしで表示します。
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={!activeTable || isSavingView || fields.length === 0}>
                     {isSavingView ? "保存中..." : editingViewId ? "ビューを更新" : "ビューを作成"}
                   </Button>
                   {editingViewId && (
                     <Button type="button" variant="ghost" onClick={resetViewForm}>
+                      キャンセル
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </section>
+
+            <section className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-6">
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="font-headline text-lg font-bold tracking-tight text-on-surface">
+                    フォーム
+                  </h3>
+                  <p className="mt-1 text-[13px] text-on-surface-variant">
+                    Runtime の作成/編集フォームに表示する項目と入力補助を定義します。
+                  </p>
+                </div>
+                <Badge variant="info">{forms.length} フォーム</Badge>
+              </div>
+
+              {activeTable && isLoadingForms && (
+                <div className="mb-4 rounded-lg border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                  フォームを読み込んでいます...
+                </div>
+              )}
+
+              <div className="mb-5 grid gap-2 md:grid-cols-2">
+                {forms.map((form) => {
+                  const formFields = getFormFields(form, fields);
+                  const visibleCount = formFields.filter((field) => field.visible).length;
+                  const requiredCount = formFields.filter((field) => field.required).length;
+
+                  return (
+                    <div
+                      key={form.id}
+                      className="rounded-lg border border-outline-variant bg-surface-container-low p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Icon name="dynamic_form" size="sm" />
+                            <span className="truncate text-sm font-semibold text-on-surface">
+                              {form.name}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs text-on-surface-variant">
+                            {visibleCount} 表示 / {requiredCount} 必須
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingFormId(form.id);
+                              setFormForm({
+                                name: form.name,
+                                fields: formFields,
+                              });
+                            }}
+                          >
+                            編集
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="danger"
+                            onClick={() => void onDeleteForm(form)}
+                          >
+                            削除
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {!isLoadingForms && activeTable && forms.length === 0 && (
+                <div className="mb-5 rounded-lg border border-dashed border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                  フォームはまだありません。標準フォームから作成できます。
+                </div>
+              )}
+
+              <form onSubmit={(event) => void onSubmitForm(event)} className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                      フォーム名
+                    </label>
+                    <Input
+                      value={formForm.name}
+                      onChange={(event) =>
+                        setFormForm((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
+                      placeholder="標準フォーム"
+                      required
+                      disabled={!activeTable || isSavingForm}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={!activeTable || isSavingForm || fields.length === 0}
+                    onClick={() =>
+                      setFormForm((current) => ({
+                        ...current,
+                        fields: fields.map(getDefaultFormField),
+                      }))
+                    }
+                  >
+                    標準に戻す
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="hidden gap-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted md:grid md:grid-cols-[minmax(0,1.2fr)_88px_88px_112px_minmax(0,1.3fr)]">
+                    <div>フィールド</div>
+                    <div>表示</div>
+                    <div>必須</div>
+                    <div>幅</div>
+                    <div>ヘルプ</div>
+                  </div>
+                  {formForm.fields.map((formField, formFieldIndex) => {
+                    const field = fields.find((item) => item.code === formField.fieldCode);
+                    if (!field) return null;
+
+                    return (
+                      <div
+                        key={formField.fieldCode}
+                        className="grid gap-3 rounded-md border border-outline-variant bg-surface-container-low p-3 md:grid-cols-[minmax(0,1.2fr)_88px_88px_112px_minmax(0,1.3fr)] md:items-center"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-[13px] font-semibold text-on-surface">
+                            {field.name}
+                          </div>
+                          <div className="truncate font-mono text-[11px] text-on-surface-variant">
+                            {field.code}
+                          </div>
+                        </div>
+                        <label className="flex items-center gap-2 text-[13px] font-medium text-on-surface">
+                          <input
+                            type="checkbox"
+                            checked={formField.visible}
+                            disabled={!activeTable || isSavingForm || field.required}
+                            onChange={(event) =>
+                              setFormForm((current) => ({
+                                ...current,
+                                fields: current.fields.map((item, index) =>
+                                  index === formFieldIndex
+                                    ? {
+                                        ...item,
+                                        visible: event.target.checked,
+                                        required: event.target.checked
+                                          ? item.required
+                                          : false,
+                                      }
+                                    : item
+                                ),
+                              }))
+                            }
+                            className="h-4 w-4"
+                          />
+                          表示
+                        </label>
+                        <label className="flex items-center gap-2 text-[13px] font-medium text-on-surface">
+                          <input
+                            type="checkbox"
+                            checked={formField.required}
+                            disabled={
+                              !activeTable ||
+                              isSavingForm ||
+                              field.required ||
+                              !formField.visible
+                            }
+                            onChange={(event) =>
+                              setFormForm((current) => ({
+                                ...current,
+                                fields: current.fields.map((item, index) =>
+                                  index === formFieldIndex
+                                    ? { ...item, required: event.target.checked }
+                                    : item
+                                ),
+                              }))
+                            }
+                            className="h-4 w-4"
+                          />
+                          必須
+                        </label>
+                        <select
+                          value={formField.width}
+                          onChange={(event) =>
+                            setFormForm((current) => ({
+                              ...current,
+                              fields: current.fields.map((item, index) =>
+                                index === formFieldIndex
+                                  ? {
+                                      ...item,
+                                      width: event.target.value as FormFieldFormState["width"],
+                                    }
+                                  : item
+                              ),
+                            }))
+                          }
+                          disabled={!activeTable || isSavingForm || !formField.visible}
+                          className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="half">1/2</option>
+                          <option value="full">全幅</option>
+                        </select>
+                        <Input
+                          value={formField.helpText}
+                          onChange={(event) =>
+                            setFormForm((current) => ({
+                              ...current,
+                              fields: current.fields.map((item, index) =>
+                                index === formFieldIndex
+                                  ? { ...item, helpText: event.target.value }
+                                  : item
+                              ),
+                            }))
+                          }
+                          placeholder="入力時の補足"
+                          disabled={!activeTable || isSavingForm || !formField.visible}
+                        />
+                      </div>
+                    );
+                  })}
+                  {fields.length === 0 && (
+                    <div className="rounded-md border border-dashed border-outline-variant bg-surface-container-low px-3 py-2 text-[12.5px] text-on-surface-variant">
+                      先にフィールドを追加してください。
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" disabled={!activeTable || isSavingForm || fields.length === 0}>
+                    {isSavingForm ? "保存中..." : editingFormId ? "フォームを更新" : "フォームを作成"}
+                  </Button>
+                  {editingFormId && (
+                    <Button type="button" variant="ghost" onClick={resetFormForm}>
                       キャンセル
                     </Button>
                   )}

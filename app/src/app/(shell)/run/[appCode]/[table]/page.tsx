@@ -772,6 +772,7 @@ export default function RuntimeViewPage() {
                 }
                 appCode={appCode}
                 fields={tableMeta?.fields ?? []}
+                forms={tableMeta?.forms ?? []}
                 mode={recordPanelMode ?? "create"}
                 initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
                 tableName={tableMeta?.table.name}
