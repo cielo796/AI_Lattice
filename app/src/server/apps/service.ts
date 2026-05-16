@@ -5,6 +5,7 @@ import { getPrismaClient } from "@/server/db/prisma";
 import type {
   App,
   AppField,
+  AppForm,
   AppTable,
   AppView,
   AppViewType,
@@ -29,7 +30,9 @@ const FIELD_TYPES: FieldType[] = [
 
 const VIEW_TYPES: AppViewType[] = ["list", "kanban", "calendar", "chart", "kpi"];
 const VIEW_FILTER_OPERATORS = ["equals", "contains", "not_empty"] as const;
+const FORM_FIELD_WIDTHS = ["half", "full"] as const;
 type ViewFilterOperator = (typeof VIEW_FILTER_OPERATORS)[number];
+type FormFieldWidth = (typeof FORM_FIELD_WIDTHS)[number];
 
 export class AppsServiceError extends Error {
   constructor(
@@ -104,6 +107,18 @@ export interface UpdateViewInput {
   name?: string;
   viewType?: AppViewType;
   settingsJson?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
+export interface CreateFormInput {
+  name: string;
+  layoutJson?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
+export interface UpdateFormInput {
+  name?: string;
+  layoutJson?: Record<string, unknown>;
   sortOrder?: number;
 }
 
@@ -342,6 +357,34 @@ function toAppView(view: {
   };
 }
 
+function toLayoutJson(value: unknown): Record<string, unknown> {
+  return toSettingsJson(value) ?? {};
+}
+
+function toAppForm(form: {
+  id: string;
+  tenantId: string;
+  appId: string;
+  tableId: string;
+  name: string;
+  layoutJson: Prisma.JsonValue | null;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}): AppForm {
+  return {
+    id: form.id,
+    tenantId: form.tenantId,
+    appId: form.appId,
+    tableId: form.tableId,
+    name: form.name,
+    layoutJson: toLayoutJson(form.layoutJson),
+    sortOrder: form.sortOrder,
+    createdAt: form.createdAt.toISOString(),
+    updatedAt: form.updatedAt.toISOString(),
+  };
+}
+
 async function ensureUniqueAppCode(user: User, code: string, excludeAppId?: string) {
   const prisma = getPrismaClient();
   const duplicate = await prisma.app.findFirst({
@@ -425,6 +468,30 @@ async function ensureUniqueViewName(
 
   if (duplicate) {
     throw new AppsServiceError("同じビュー名が既に存在します。", 409);
+  }
+}
+
+async function ensureUniqueFormName(
+  user: User,
+  appId: string,
+  tableId: string,
+  name: string,
+  excludeFormId?: string
+) {
+  const prisma = getPrismaClient();
+  const duplicate = await prisma.appForm.findFirst({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+      name,
+      ...(excludeFormId ? { NOT: { id: excludeFormId } } : {}),
+    },
+    select: { id: true },
+  });
+
+  if (duplicate) {
+    throw new AppsServiceError("同じフォーム名が既に存在します。", 409);
   }
 }
 
@@ -513,6 +580,31 @@ async function getViewOrThrow(
   return view;
 }
 
+async function getFormOrThrow(
+  user: User,
+  appId: string,
+  tableId: string,
+  formId: string
+) {
+  await getTableOrThrow(user, appId, tableId);
+
+  const prisma = getPrismaClient();
+  const form = await prisma.appForm.findFirst({
+    where: {
+      id: formId,
+      appId,
+      tableId,
+      tenantId: user.tenantId,
+    },
+  });
+
+  if (!form) {
+    throw new AppsServiceError("フォームが見つかりません。", 404);
+  }
+
+  return form;
+}
+
 async function nextTableSortOrder(appId: string) {
   const prisma = getPrismaClient();
   const table = await prisma.appTable.findFirst({
@@ -544,6 +636,17 @@ async function nextViewSortOrder(tableId: string) {
   });
 
   return view ? view.sortOrder + 1 : 0;
+}
+
+async function nextFormSortOrder(tableId: string) {
+  const prisma = getPrismaClient();
+  const form = await prisma.appForm.findFirst({
+    where: { tableId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+
+  return form ? form.sortOrder + 1 : 0;
 }
 
 async function normalizeFieldSettings(
@@ -765,6 +868,121 @@ async function normalizeViewSettings(
   };
 }
 
+type FormLayoutFieldSource = {
+  code: string;
+  required: boolean;
+  fieldType: FieldType;
+};
+
+function getDefaultFormFieldLayout(field: FormLayoutFieldSource) {
+  return {
+    fieldCode: field.code,
+    visible: true,
+    required: field.required,
+    width: field.fieldType === "textarea" ? ("full" as const) : ("half" as const),
+  };
+}
+
+function normalizeFormFieldWidth(value: unknown): FormFieldWidth {
+  return FORM_FIELD_WIDTHS.includes(value as FormFieldWidth)
+    ? (value as FormFieldWidth)
+    : "half";
+}
+
+async function normalizeFormLayout(
+  user: User,
+  appId: string,
+  tableId: string,
+  layoutJson: Record<string, unknown> | undefined
+) {
+  const prisma = getPrismaClient();
+  const fields = await prisma.appField.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+    },
+    select: { code: true, required: true, fieldType: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const fieldByCode = new Map(
+    fields.map((field) => [
+      field.code,
+      field as typeof field & { fieldType: FieldType },
+    ])
+  );
+  const fallbackFields = fields.map((field) =>
+    getDefaultFormFieldLayout(field as typeof field & { fieldType: FieldType })
+  );
+
+  if (!layoutJson) {
+    return { fields: fallbackFields };
+  }
+
+  const layoutFields = layoutJson.fields;
+  if (layoutFields === undefined) {
+    return { fields: fallbackFields };
+  }
+
+  if (!Array.isArray(layoutFields)) {
+    throw new AppsServiceError("フォームのフィールド設定が不正です。", 400);
+  }
+
+  const seenFieldCodes = new Set<string>();
+  const normalizedFields = layoutFields.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new AppsServiceError("フォームのフィールド設定が不正です。", 400);
+    }
+
+    const formField = item as Record<string, unknown>;
+    const fieldCode =
+      typeof formField.fieldCode === "string" ? formField.fieldCode.trim() : "";
+
+    if (!fieldCode) {
+      return [];
+    }
+
+    const field = fieldByCode.get(fieldCode);
+    if (!field) {
+      throw new AppsServiceError(
+        `フォーム設定のフィールド "${fieldCode}" が見つかりません。`,
+        400
+      );
+    }
+
+    if (seenFieldCodes.has(fieldCode)) {
+      return [];
+    }
+
+    seenFieldCodes.add(fieldCode);
+
+    const helpText =
+      typeof formField.helpText === "string" ? formField.helpText.trim() : "";
+    const visible = field.required ? true : formField.visible !== false;
+    const required = field.required || formField.required === true;
+
+    return [
+      {
+        fieldCode,
+        visible,
+        required,
+        width: normalizeFormFieldWidth(formField.width),
+        ...(helpText ? { helpText } : {}),
+      },
+    ];
+  });
+
+  for (const field of fields) {
+    if (!seenFieldCodes.has(field.code)) {
+      normalizedFields.push(
+        getDefaultFormFieldLayout(field as typeof field & { fieldType: FieldType })
+      );
+    }
+  }
+
+  return { fields: normalizedFields };
+}
+
 function replaceFieldCodeInViewSettings(
   value: unknown,
   previousCode: string,
@@ -891,6 +1109,67 @@ function removeFieldCodeFromViewSettings(value: unknown, fieldCode: string) {
   }
 
   return nextSettings;
+}
+
+function replaceFieldCodeInFormLayout(
+  value: unknown,
+  previousCode: string,
+  nextCode: string
+) {
+  const layout = toSettingsJson(value);
+
+  if (!layout || !Array.isArray(layout.fields)) {
+    return undefined;
+  }
+
+  let changed = false;
+  const fields = layout.fields.map((field) => {
+    if (!field || typeof field !== "object" || Array.isArray(field)) {
+      return field;
+    }
+
+    if ((field as Record<string, unknown>).fieldCode !== previousCode) {
+      return field;
+    }
+
+    changed = true;
+    return { ...(field as Record<string, unknown>), fieldCode: nextCode };
+  });
+
+  if (!changed) {
+    return undefined;
+  }
+
+  return { ...layout, fields };
+}
+
+function removeFieldCodeFromFormLayout(value: unknown, fieldCode: string) {
+  const layout = toSettingsJson(value);
+
+  if (!layout || !Array.isArray(layout.fields)) {
+    return undefined;
+  }
+
+  let changed = false;
+  const fields = layout.fields.filter((field) => {
+    const keep =
+      !field ||
+      typeof field !== "object" ||
+      Array.isArray(field) ||
+      (field as Record<string, unknown>).fieldCode !== fieldCode;
+
+    if (!keep) {
+      changed = true;
+    }
+
+    return keep;
+  });
+
+  if (!changed) {
+    return undefined;
+  }
+
+  return { ...layout, fields };
 }
 
 export async function listAppsForUser(user: User) {
@@ -1455,7 +1734,18 @@ export async function updateFieldForTable(
           settingsJson: true,
         },
       });
-      const updateOperations = views.flatMap((view) => {
+      const forms = await tx.appForm.findMany({
+        where: {
+          tenantId: user.tenantId,
+          appId,
+          tableId,
+        },
+        select: {
+          id: true,
+          layoutJson: true,
+        },
+      });
+      const viewUpdateOperations = views.flatMap((view) => {
         const settingsJson = replaceFieldCodeInViewSettings(
           view.settingsJson,
           existingField.code,
@@ -1471,8 +1761,24 @@ export async function updateFieldForTable(
             ]
           : [];
       });
+      const formUpdateOperations = forms.flatMap((form) => {
+        const layoutJson = replaceFieldCodeInFormLayout(
+          form.layoutJson,
+          existingField.code,
+          nextCode
+        );
 
-      await Promise.all(updateOperations);
+        return layoutJson
+          ? [
+              tx.appForm.update({
+                where: { id: form.id },
+                data: { layoutJson: toJsonObject(layoutJson) },
+              }),
+            ]
+          : [];
+      });
+
+      await Promise.all([...viewUpdateOperations, ...formUpdateOperations]);
     }
 
     return updatedField;
@@ -1534,7 +1840,18 @@ export async function deleteFieldForTable(
         settingsJson: true,
       },
     });
-    const updateOperations = views.flatMap((view) => {
+    const forms = await tx.appForm.findMany({
+      where: {
+        tenantId: user.tenantId,
+        appId,
+        tableId,
+      },
+      select: {
+        id: true,
+        layoutJson: true,
+      },
+    });
+    const viewUpdateOperations = views.flatMap((view) => {
       const settingsJson = removeFieldCodeFromViewSettings(
         view.settingsJson,
         existingField.code
@@ -1547,10 +1864,25 @@ export async function deleteFieldForTable(
               data: { settingsJson: toJsonObject(settingsJson) },
             }),
           ]
+          : [];
+    });
+    const formUpdateOperations = forms.flatMap((form) => {
+      const layoutJson = removeFieldCodeFromFormLayout(
+        form.layoutJson,
+        existingField.code
+      );
+
+      return layoutJson
+        ? [
+            tx.appForm.update({
+              where: { id: form.id },
+              data: { layoutJson: toJsonObject(layoutJson) },
+            }),
+          ]
         : [];
     });
 
-    await Promise.all(updateOperations);
+    await Promise.all([...viewUpdateOperations, ...formUpdateOperations]);
     await tx.appField.delete({
       where: { id: existingField.id },
     });
@@ -1750,6 +2082,175 @@ export async function deleteViewForTable(
       viewType: existingView.viewType,
       settingsJson: toSettingsJson(existingView.settingsJson),
       sortOrder: existingView.sortOrder,
+    },
+  });
+}
+
+export async function listFormsForTable(
+  user: User,
+  appId: string,
+  tableId: string
+) {
+  await ensureDemoBuilderData();
+  await getTableOrThrow(user, appId, tableId);
+
+  const prisma = getPrismaClient();
+  const forms = await prisma.appForm.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return forms.map(toAppForm);
+}
+
+export async function getFormForTable(
+  user: User,
+  appId: string,
+  tableId: string,
+  formId: string
+) {
+  await ensureDemoBuilderData();
+  const form = await getFormOrThrow(user, appId, tableId, formId);
+  return toAppForm(form);
+}
+
+export async function createFormForTable(
+  user: User,
+  appId: string,
+  tableId: string,
+  input: CreateFormInput
+) {
+  await ensureDemoBuilderData();
+  const table = await getTableOrThrow(user, appId, tableId);
+  const name = assertNonEmpty(input.name, "Form name");
+
+  await ensureUniqueFormName(user, appId, tableId, name);
+
+  const layoutJson = await normalizeFormLayout(
+    user,
+    appId,
+    tableId,
+    input.layoutJson
+  );
+  const prisma = getPrismaClient();
+  const form = await prisma.appForm.create({
+    data: {
+      id: crypto.randomUUID(),
+      tenantId: user.tenantId,
+      appId,
+      tableId,
+      name,
+      layoutJson: toJsonObject(layoutJson),
+      sortOrder: input.sortOrder ?? (await nextFormSortOrder(tableId)),
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "FORM_CREATE",
+    resourceType: "form",
+    resourceId: form.id,
+    resourceName: form.name,
+    detailJson: {
+      appId,
+      tableId: table.id,
+      tableName: table.name,
+      tableCode: table.code,
+      layoutJson: toLayoutJson(form.layoutJson),
+      sortOrder: form.sortOrder,
+    },
+  });
+
+  return toAppForm(form);
+}
+
+export async function updateFormForTable(
+  user: User,
+  appId: string,
+  tableId: string,
+  formId: string,
+  input: UpdateFormInput
+) {
+  await ensureDemoBuilderData();
+  const existingForm = await getFormOrThrow(user, appId, tableId, formId);
+  const nextName = input.name?.trim() || existingForm.name;
+
+  if (!nextName) {
+    throw new AppsServiceError("フォーム名は必須です。", 400);
+  }
+
+  if (nextName !== existingForm.name) {
+    await ensureUniqueFormName(user, appId, tableId, nextName, existingForm.id);
+  }
+
+  const nextLayoutJson =
+    input.layoutJson !== undefined
+      ? await normalizeFormLayout(user, appId, tableId, input.layoutJson)
+      : undefined;
+
+  const prisma = getPrismaClient();
+  const form = await prisma.appForm.update({
+    where: { id: existingForm.id },
+    data: {
+      name: nextName,
+      ...(input.layoutJson !== undefined
+        ? { layoutJson: toJsonObject(nextLayoutJson) }
+        : {}),
+      sortOrder: input.sortOrder ?? existingForm.sortOrder,
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "FORM_UPDATE",
+    resourceType: "form",
+    resourceId: form.id,
+    resourceName: form.name,
+    detailJson: {
+      appId,
+      tableId,
+      before: {
+        name: existingForm.name,
+        layoutJson: toLayoutJson(existingForm.layoutJson),
+        sortOrder: existingForm.sortOrder,
+      },
+      after: {
+        name: form.name,
+        layoutJson: toLayoutJson(form.layoutJson),
+        sortOrder: form.sortOrder,
+      },
+    },
+  });
+
+  return toAppForm(form);
+}
+
+export async function deleteFormForTable(
+  user: User,
+  appId: string,
+  tableId: string,
+  formId: string
+) {
+  await ensureDemoBuilderData();
+  const existingForm = await getFormOrThrow(user, appId, tableId, formId);
+  const prisma = getPrismaClient();
+
+  await prisma.appForm.delete({
+    where: { id: existingForm.id },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "FORM_DELETE",
+    resourceType: "form",
+    resourceId: existingForm.id,
+    resourceName: existingForm.name,
+    detailJson: {
+      appId,
+      tableId,
+      layoutJson: toLayoutJson(existingForm.layoutJson),
+      sortOrder: existingForm.sortOrder,
     },
   });
 }

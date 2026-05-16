@@ -1,6 +1,7 @@
 import type {
   App,
   AppField,
+  AppForm,
   AppTable,
   AppView,
   AppViewType,
@@ -59,6 +60,18 @@ export interface UpdateViewInput {
   sortOrder?: number;
 }
 
+export interface CreateFormInput {
+  name: string;
+  layoutJson?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
+export interface UpdateFormInput {
+  name?: string;
+  layoutJson?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
 function appPath(appId: string) {
   return `/api/apps/${appId}`;
 }
@@ -93,6 +106,14 @@ function viewCollectionPath(appId: string, tableId: string) {
 
 function viewItemPath(appId: string, tableId: string, viewId: string) {
   return `${viewCollectionPath(appId, tableId)}/${viewId}`;
+}
+
+function formCollectionPath(appId: string, tableId: string) {
+  return `${tableItemPath(appId, tableId)}/forms`;
+}
+
+function formItemPath(appId: string, tableId: string, formId: string) {
+  return `${formCollectionPath(appId, tableId)}/${formId}`;
 }
 
 export async function listApps() {
@@ -217,6 +238,43 @@ export async function deleteView(
   viewId: string
 ) {
   await apiFetch<string>(viewItemPath(appId, tableId, viewId), {
+    method: "DELETE",
+  });
+}
+
+export async function listForms(appId: string, tableId: string) {
+  return apiFetch<AppForm[]>(formCollectionPath(appId, tableId));
+}
+
+export async function createForm(
+  appId: string,
+  tableId: string,
+  input: CreateFormInput
+) {
+  return apiFetch<AppForm>(formCollectionPath(appId, tableId), {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateForm(
+  appId: string,
+  tableId: string,
+  formId: string,
+  input: UpdateFormInput
+) {
+  return apiFetch<AppForm>(formItemPath(appId, tableId, formId), {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteForm(
+  appId: string,
+  tableId: string,
+  formId: string
+) {
+  await apiFetch<string>(formItemPath(appId, tableId, formId), {
     method: "DELETE",
   });
 }

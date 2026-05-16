@@ -7,6 +7,7 @@ import { runApprovalWorkflowsForRecord } from "@/server/workflows/service";
 import { getRecordTitle } from "@/lib/runtime-records";
 import type {
   AppField,
+  AppForm,
   AppView,
   AppViewType,
   FieldType,
@@ -233,6 +234,34 @@ function toAppView(view: {
     sortOrder: view.sortOrder,
     createdAt: view.createdAt.toISOString(),
     updatedAt: view.updatedAt.toISOString(),
+  };
+}
+
+function toLayoutJson(value: unknown): Record<string, unknown> {
+  return toSettingsJson(value) ?? {};
+}
+
+function toAppForm(form: {
+  id: string;
+  tenantId: string;
+  appId: string;
+  tableId: string;
+  name: string;
+  layoutJson: Prisma.JsonValue | null;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}): AppForm {
+  return {
+    id: form.id,
+    tenantId: form.tenantId,
+    appId: form.appId,
+    tableId: form.tableId,
+    name: form.name,
+    layoutJson: toLayoutJson(form.layoutJson),
+    sortOrder: form.sortOrder,
+    createdAt: form.createdAt.toISOString(),
+    updatedAt: form.updatedAt.toISOString(),
   };
 }
 
@@ -855,6 +884,14 @@ export async function getRuntimeTableMeta(
     },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
+  const forms = await prisma.appForm.findMany({
+    where: {
+      tenantId: user.tenantId,
+      appId: app.id,
+      tableId: table.id,
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
 
   return {
     table: toRuntimeTable(table),
@@ -864,6 +901,7 @@ export async function getRuntimeTableMeta(
     views: views.map((view) =>
       toAppView(view as typeof view & { viewType: AppViewType })
     ),
+    forms: forms.map(toAppForm),
   };
 }
 

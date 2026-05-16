@@ -79,6 +79,7 @@ model Tenant {
   workflows Workflow[]
   approvals Approval[]
   views     AppView[]
+  forms     AppForm[]
   openAISettings TenantOpenAISettings?
 
   @@map("tenants")
@@ -162,6 +163,7 @@ model App {
   workflows Workflow[]
   approvals Approval[]
   views     AppView[]
+  forms     AppForm[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -185,6 +187,7 @@ model AppTable {
   records   AppRecord[]
   approvals Approval[]
   views     AppView[]
+  forms     AppForm[]
 
   @@unique([appId, code])
   @@index([tenantId])
@@ -239,6 +242,28 @@ model AppView {
   @@index([appId])
   @@index([tableId, sortOrder])
   @@map("app_views")
+}
+
+model AppForm {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  appId      String   @map("app_id")
+  tableId    String   @map("table_id")
+  name       String
+  layoutJson Json?    @map("layout_json")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  app    App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  table  AppTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, name])
+  @@index([tenantId])
+  @@index([appId])
+  @@index([tableId, sortOrder])
+  @@map("app_forms")
 }
 
 model AppRecord {

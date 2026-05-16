@@ -12,12 +12,13 @@ import {
   getReferenceTableCode,
   isMultiReferenceField,
 } from "@/lib/runtime-records";
-import type { AppField } from "@/types/app";
+import type { AppField, AppForm } from "@/types/app";
 import type { AppRecord } from "@/types/record";
 
 interface RecordCreatePanelProps {
   appCode?: string;
   fields: AppField[];
+  forms?: AppForm[];
   mode?: "create" | "edit";
   initialRecord?: AppRecord | null;
   isSubmitting?: boolean;
@@ -28,6 +29,11 @@ interface RecordCreatePanelProps {
 
 type DraftValue = string | string[] | boolean;
 type ReferenceOption = { value: string; label: string };
+type FormFieldLayout = {
+  field: AppField;
+  width: "half" | "full";
+  helpText?: string;
+};
 
 function formatFieldLabel(field: AppField) {
   return getFieldDisplayName(field);
@@ -118,6 +124,69 @@ function buildInitialDraft(fields: AppField[], initialRecord?: AppRecord | null)
     draft[field.code] = getDraftValue(field, initialRecord);
     return draft;
   }, {});
+}
+
+function getFormFieldLayouts(
+  fields: AppField[],
+  form: AppForm | undefined
+): FormFieldLayout[] {
+  const layoutFields = form?.layoutJson?.fields;
+  const fieldByCode = new Map(fields.map((field) => [field.code, field]));
+
+  if (!Array.isArray(layoutFields)) {
+    return fields.map((field) => ({
+      field,
+      width: field.fieldType === "textarea" ? ("full" as const) : ("half" as const),
+    }));
+  }
+
+  const seenFieldCodes = new Set<string>();
+  const configuredFields: FormFieldLayout[] = layoutFields.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+
+    const layoutField = item as Record<string, unknown>;
+    const fieldCode =
+      typeof layoutField.fieldCode === "string" ? layoutField.fieldCode : "";
+    const field = fieldByCode.get(fieldCode);
+
+    if (!field || seenFieldCodes.has(fieldCode)) {
+      return [];
+    }
+
+    seenFieldCodes.add(fieldCode);
+
+    if (layoutField.visible === false && !field.required) {
+      return [];
+    }
+
+    return [
+      {
+        field: {
+          ...field,
+          required: field.required || layoutField.required === true,
+        },
+        width: layoutField.width === "full" ? ("full" as const) : ("half" as const),
+        helpText:
+          typeof layoutField.helpText === "string" && layoutField.helpText.trim()
+            ? layoutField.helpText.trim()
+            : undefined,
+      },
+    ];
+  });
+
+  fields.forEach((field) => {
+    if (!seenFieldCodes.has(field.code)) {
+      configuredFields.push({
+        field,
+        width: field.fieldType === "textarea" ? "full" : "half",
+        helpText: undefined,
+      });
+    }
+  });
+
+  return configuredFields;
 }
 
 function getMissingRequiredFields(
@@ -337,6 +406,7 @@ function renderFieldInput(
 export function RecordCreatePanel({
   appCode,
   fields,
+  forms = [],
   mode = "create",
   initialRecord = null,
   isSubmitting = false,
@@ -351,6 +421,9 @@ export function RecordCreatePanel({
   const [referenceOptionsByField, setReferenceOptionsByField] = useState<
     Record<string, ReferenceOption[]>
   >({});
+  const activeForm = forms[0];
+  const formFieldLayouts = getFormFieldLayouts(fields, activeForm);
+  const visibleFields = formFieldLayouts.map((item) => item.field);
 
   useEffect(() => {
     let cancelled = false;
@@ -426,7 +499,7 @@ export function RecordCreatePanel({
       return;
     }
 
-    const missingFields = getMissingRequiredFields(fields, draft);
+    const missingFields = getMissingRequiredFields(visibleFields, draft);
     if (missingFields.length > 0) {
       setFormError(`必須項目: ${missingFields.join(", ")}`);
       return;
@@ -479,14 +552,14 @@ export function RecordCreatePanel({
       </div>
 
       <form onSubmit={(event) => void handleSubmit(event)}>
-        {fields.length > 0 ? (
+        {formFieldLayouts.length > 0 ? (
           <div className="grid gap-4 lg:grid-cols-2">
-            {fields.map((field) => (
+            {formFieldLayouts.map(({ field, width, helpText }) => (
               <div
                 key={field.id}
                 className={cn(
                   "space-y-2",
-                  field.fieldType === "textarea" ? "lg:col-span-2" : ""
+                  field.fieldType === "textarea" || width === "full" ? "lg:col-span-2" : ""
                 )}
               >
                 <div className="flex items-center gap-2">
@@ -505,8 +578,9 @@ export function RecordCreatePanel({
                     [field.code]: nextValue,
                   }));
                 }, referenceOptionsByField[field.code] ?? [])}
-                <div className="text-[10.5px] font-medium uppercase tracking-wider text-on-surface-muted">
-                  {formatFieldType(field.fieldType)}
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10.5px] font-medium uppercase tracking-wider text-on-surface-muted">
+                  <span>{formatFieldType(field.fieldType)}</span>
+                  {helpText && <span className="normal-case tracking-normal">{helpText}</span>}
                 </div>
               </div>
             ))}
