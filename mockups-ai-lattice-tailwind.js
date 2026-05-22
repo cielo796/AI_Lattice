@@ -1,14 +1,14 @@
 /*
- * Shared Asana-style Tailwind config for HTML mockups.
+ * Shared AI Lattice Tailwind config for HTML mockups.
  *
  * Usage in a mockup HTML:
  *   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
- *   <script src="../mockups-asana-tailwind.js"></script>
+ *   <script src="../mockups-ai-lattice-tailwind.js"></script>
  *
  * Replaces the per-mockup inline tailwind.config blocks with one unified
- * Asana-style light palette (coral primary, cream sidebar, pastel accents).
+ * AI Lattice light palette (coral primary, cream sidebar, pastel accents).
  */
-(function applyAsanaTailwindConfig() {
+(function applyAILatticeTailwindConfig() {
   if (typeof window === "undefined" || !window.tailwind) {
     return;
   }
@@ -34,7 +34,7 @@
           "sidebar-hover": "#f1ece9",
           "sidebar-active": "#ffe4e0",
 
-          /* Primary — Asana coral */
+          /* Primary — AI Lattice coral */
           primary: "#f06a6a",
           "primary-hover": "#e25555",
           "primary-pressed": "#c84545",
@@ -57,7 +57,7 @@
           "on-secondary-fixed": "#3a4453",
           "on-secondary-fixed-variant": "#525c69",
 
-          /* Tertiary — Asana lavender (AI accent) */
+          /* Tertiary — AI Lattice lavender (AI accent) */
           tertiary: "#8d6cdc",
           "tertiary-container": "#ece5fc",
           "tertiary-fixed": "#8d6cdc",
@@ -98,7 +98,7 @@
           "outline-strong": "#a8b1bd",
           "surface-tint": "#f06a6a",
 
-          /* Asana category accents */
+          /* AI Lattice category accents */
           "accent-coral": "#f06a6a",
           "accent-pink": "#f9a7c2",
           "accent-lavender": "#b8a0e8",

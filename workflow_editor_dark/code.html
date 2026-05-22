@@ -5,8 +5,8 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>AI Lattice — ワークフロー自動化エディタ</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<script src="../mockups-asana-tailwind.js"></script>
-<link href="../mockups-asana-theme.css" rel="stylesheet"/>
+<script src="../mockups-ai-lattice-tailwind.js"></script>
+<link href="../mockups-ai-lattice-theme.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -19,7 +19,7 @@
 <body class="font-body text-on-surface">
 
 <!-- TopBar -->
-<header class="asana-topbar fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between px-6">
+<header class="lattice-topbar fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between px-6">
   <div class="flex items-center gap-6">
     <div class="flex items-center gap-2.5">
       <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
@@ -45,11 +45,11 @@
         <span class="material-symbols-outlined text-[16px]">notifications</span>
       </button>
     </div>
-    <button class="asana-btn asana-btn-secondary">
+    <button class="lattice-btn lattice-btn-secondary">
       <span class="material-symbols-outlined text-[16px]">visibility</span>
       プレビュー
     </button>
-    <button class="asana-btn asana-btn-primary">
+    <button class="lattice-btn lattice-btn-primary">
       <span class="material-symbols-outlined text-[16px]">rocket_launch</span>
       有効化
     </button>
@@ -60,31 +60,31 @@
 <div class="flex h-[calc(100vh-3.5rem)] pt-14 overflow-hidden">
 
   <!-- Sidebar -->
-  <aside class="asana-sidebar h-full w-64 flex flex-col">
+  <aside class="lattice-sidebar h-full w-64 flex flex-col">
     <div class="flex h-full flex-col px-3 py-5">
-      <button class="asana-btn asana-btn-primary mx-2 mb-4 w-[calc(100%-1rem)]">
+      <button class="lattice-btn lattice-btn-primary mx-2 mb-4 w-[calc(100%-1rem)]">
         <span class="material-symbols-outlined text-[18px]">add</span>
         新規プロジェクト
       </button>
 
       <nav class="flex-1 space-y-0.5">
-        <a class="asana-sidebar-item" href="#">
+        <a class="lattice-sidebar-item" href="#">
           <span class="material-symbols-outlined text-[20px]">apps</span>
           アプリ
         </a>
-        <a class="asana-sidebar-item" href="#">
+        <a class="lattice-sidebar-item" href="#">
           <span class="material-symbols-outlined text-[20px]">table_chart</span>
           テーブル
         </a>
-        <a class="asana-sidebar-item active" href="#">
+        <a class="lattice-sidebar-item active" href="#">
           <span class="material-symbols-outlined text-[20px] text-primary">account_tree</span>
           ワークフロー
         </a>
-        <a class="asana-sidebar-item" href="#">
+        <a class="lattice-sidebar-item" href="#">
           <span class="material-symbols-outlined text-[20px]">psychology</span>
           AI 設定
         </a>
-        <a class="asana-sidebar-item" href="#">
+        <a class="lattice-sidebar-item" href="#">
           <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
           管理
         </a>
@@ -235,7 +235,7 @@
       <div class="rounded-xl border border-outline-variant bg-surface p-4 shadow-card">
         <div class="mb-3 flex items-center justify-between">
           <div class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">DB Workflow</div>
-          <span class="asana-pill asana-pill-green">active</span>
+          <span class="lattice-pill lattice-pill-green">active</span>
         </div>
         <div class="space-y-2.5 text-[13px] text-on-surface-variant">
           <div class="flex justify-between"><span>トリガー</span><span class="font-semibold text-on-surface">更新</span></div>
