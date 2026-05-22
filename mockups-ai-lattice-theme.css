@@ -1,40 +1,40 @@
 /*
- * Shared Asana-style helpers for HTML mockups.
- * Pair with mockups-asana-tailwind.js for full unified theme.
+ * Shared AI Lattice helpers for HTML mockups.
+ * Pair with mockups-ai-lattice-tailwind.js for full unified theme.
  *
  * Usage:
- *   <link href="../mockups-asana-theme.css" rel="stylesheet" />
+ *   <link href="../mockups-ai-lattice-theme.css" rel="stylesheet" />
  */
 
 :root {
-  --asana-coral: #f06a6a;
-  --asana-coral-hover: #e25555;
-  --asana-coral-pressed: #c84545;
-  --asana-coral-container: #ffe4e0;
-  --asana-sidebar: #fcf8f7;
-  --asana-sidebar-hover: #f1ece9;
-  --asana-sidebar-active: #ffe4e0;
-  --asana-surface: #ffffff;
-  --asana-surface-container: #faf8f7;
-  --asana-surface-container-low: #fcfbfa;
-  --asana-on-surface: #1e1f21;
-  --asana-on-surface-variant: #6f7782;
-  --asana-on-surface-muted: #9ca6b2;
-  --asana-outline: #d8dde3;
-  --asana-outline-variant: #ece8e6;
+  --lattice-coral: #f06a6a;
+  --lattice-coral-hover: #e25555;
+  --lattice-coral-pressed: #c84545;
+  --lattice-coral-container: #ffe4e0;
+  --lattice-sidebar: #fcf8f7;
+  --lattice-sidebar-hover: #f1ece9;
+  --lattice-sidebar-active: #ffe4e0;
+  --lattice-surface: #ffffff;
+  --lattice-surface-container: #faf8f7;
+  --lattice-surface-container-low: #fcfbfa;
+  --lattice-on-surface: #1e1f21;
+  --lattice-on-surface-variant: #6f7782;
+  --lattice-on-surface-muted: #9ca6b2;
+  --lattice-outline: #d8dde3;
+  --lattice-outline-variant: #ece8e6;
 
-  --asana-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04),
+  --lattice-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04),
     0 1px 4px rgba(15, 23, 42, 0.04);
-  --asana-shadow-elevated: 0 2px 4px rgba(15, 23, 42, 0.04),
+  --lattice-shadow-elevated: 0 2px 4px rgba(15, 23, 42, 0.04),
     0 8px 24px rgba(15, 23, 42, 0.06);
-  --asana-shadow-popover: 0 4px 8px rgba(15, 23, 42, 0.06),
+  --lattice-shadow-popover: 0 4px 8px rgba(15, 23, 42, 0.06),
     0 16px 40px rgba(15, 23, 42, 0.1);
 }
 
 html,
 body {
   background: #fcfbfa;
-  color: var(--asana-on-surface);
+  color: var(--lattice-on-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -43,28 +43,28 @@ body {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
-/* Glass / sticky chrome — Asana white */
+/* Glass / sticky chrome — AI Lattice white */
 .glass-effect {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border-bottom: 1px solid var(--asana-outline-variant);
+  border-bottom: 1px solid var(--lattice-outline-variant);
 }
 
 .glass-panel {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border: 1px solid var(--asana-outline-variant);
+  border: 1px solid var(--lattice-outline-variant);
 }
 
-/* Asana sidebar */
-.asana-sidebar {
-  background: var(--asana-sidebar);
-  border-right: 1px solid var(--asana-outline-variant);
+/* AI Lattice sidebar */
+.lattice-sidebar {
+  background: var(--lattice-sidebar);
+  border-right: 1px solid var(--lattice-outline-variant);
 }
 
-.asana-sidebar-item {
+.lattice-sidebar-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -72,24 +72,24 @@ body {
   border-radius: 0.5rem;
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--asana-on-surface-variant);
+  color: var(--lattice-on-surface-variant);
   text-decoration: none;
   transition: background-color 120ms ease, color 120ms ease;
   position: relative;
 }
 
-.asana-sidebar-item:hover {
-  background: var(--asana-sidebar-hover);
-  color: var(--asana-on-surface);
+.lattice-sidebar-item:hover {
+  background: var(--lattice-sidebar-hover);
+  color: var(--lattice-on-surface);
 }
 
-.asana-sidebar-item.active {
-  background: var(--asana-sidebar-active);
+.lattice-sidebar-item.active {
+  background: var(--lattice-sidebar-active);
   color: #6e1d1d;
   font-weight: 600;
 }
 
-.asana-sidebar-item.active::before {
+.lattice-sidebar-item.active::before {
   content: "";
   position: absolute;
   left: -12px;
@@ -97,43 +97,43 @@ body {
   transform: translateY(-50%);
   width: 3px;
   height: 1.25rem;
-  background: var(--asana-coral);
+  background: var(--lattice-coral);
   border-radius: 0 9999px 9999px 0;
 }
 
-/* Asana top bar */
-.asana-topbar {
+/* AI Lattice top bar */
+.lattice-topbar {
   height: 3.5rem;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--asana-outline-variant);
+  border-bottom: 1px solid var(--lattice-outline-variant);
 }
 
 /* Card */
-.asana-card {
-  background: var(--asana-surface);
-  border: 1px solid var(--asana-outline-variant);
+.lattice-card {
+  background: var(--lattice-surface);
+  border: 1px solid var(--lattice-outline-variant);
   border-radius: 0.75rem;
   padding: 1.25rem;
-  box-shadow: var(--asana-shadow-card);
+  box-shadow: var(--lattice-shadow-card);
   transition: box-shadow 160ms ease, transform 160ms ease;
 }
 
-.asana-card:hover {
-  box-shadow: var(--asana-shadow-elevated);
+.lattice-card:hover {
+  box-shadow: var(--lattice-shadow-elevated);
 }
 
-.asana-card-elevated {
-  background: var(--asana-surface);
-  border: 1px solid var(--asana-outline-variant);
+.lattice-card-elevated {
+  background: var(--lattice-surface);
+  border: 1px solid var(--lattice-outline-variant);
   border-radius: 0.75rem;
   padding: 1.25rem;
-  box-shadow: var(--asana-shadow-elevated);
+  box-shadow: var(--lattice-shadow-elevated);
 }
 
 /* Buttons */
-.asana-btn {
+.lattice-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -149,39 +149,39 @@ body {
   border: 1px solid transparent;
 }
 
-.asana-btn-primary {
-  background: var(--asana-coral);
+.lattice-btn-primary {
+  background: var(--lattice-coral);
   color: #fff;
   box-shadow: 0 1px 2px rgba(240, 106, 106, 0.25);
 }
-.asana-btn-primary:hover {
-  background: var(--asana-coral-hover);
+.lattice-btn-primary:hover {
+  background: var(--lattice-coral-hover);
 }
-.asana-btn-primary:active {
-  background: var(--asana-coral-pressed);
+.lattice-btn-primary:active {
+  background: var(--lattice-coral-pressed);
   transform: scale(0.98);
 }
 
-.asana-btn-secondary {
-  background: var(--asana-surface);
-  color: var(--asana-on-surface);
-  border-color: var(--asana-outline);
+.lattice-btn-secondary {
+  background: var(--lattice-surface);
+  color: var(--lattice-on-surface);
+  border-color: var(--lattice-outline);
 }
-.asana-btn-secondary:hover {
-  background: var(--asana-surface-container);
+.lattice-btn-secondary:hover {
+  background: var(--lattice-surface-container);
 }
 
-.asana-btn-ghost {
+.lattice-btn-ghost {
   background: transparent;
-  color: var(--asana-on-surface-variant);
+  color: var(--lattice-on-surface-variant);
 }
-.asana-btn-ghost:hover {
-  background: var(--asana-surface-container);
-  color: var(--asana-on-surface);
+.lattice-btn-ghost:hover {
+  background: var(--lattice-surface-container);
+  color: var(--lattice-on-surface);
 }
 
-/* Pills / Tags (Asana category chips) */
-.asana-pill {
+/* Pills / Tags (AI Lattice category chips) */
+.lattice-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -193,35 +193,35 @@ body {
   line-height: 1.4;
 }
 
-.asana-pill-coral {
+.lattice-pill-coral {
   background: #ffe4e0;
   color: #c84545;
 }
-.asana-pill-pink {
+.lattice-pill-pink {
   background: #fce7f2;
   color: #b13c66;
 }
-.asana-pill-lavender {
+.lattice-pill-lavender {
   background: #ece5fc;
   color: #5a3eb5;
 }
-.asana-pill-blue {
+.lattice-pill-blue {
   background: #dde7f9;
   color: #1f3d7a;
 }
-.asana-pill-teal {
+.lattice-pill-teal {
   background: #d6f4f1;
   color: #1f6e68;
 }
-.asana-pill-green {
+.lattice-pill-green {
   background: #d6f0e2;
   color: #1f5e3d;
 }
-.asana-pill-yellow {
+.lattice-pill-yellow {
   background: #fdecd1;
   color: #6e4a14;
 }
-.asana-pill-orange {
+.lattice-pill-orange {
   background: #fde0cc;
   color: #8f4615;
 }
@@ -235,19 +235,19 @@ body {
   cursor: text;
 }
 .inline-editable:hover {
-  background: var(--asana-surface-container);
+  background: var(--lattice-surface-container);
 }
 .inline-editable:focus,
 .inline-editable[data-editing="true"] {
-  background: var(--asana-surface);
-  box-shadow: 0 0 0 2px var(--asana-coral);
+  background: var(--lattice-surface);
+  box-shadow: 0 0 0 2px var(--lattice-coral);
   outline: none;
 }
 
 /* Drag handle */
 .drag-handle {
   cursor: grab;
-  color: var(--asana-on-surface-muted);
+  color: var(--lattice-on-surface-muted);
   opacity: 0;
   transition: opacity 120ms ease;
 }
@@ -260,17 +260,17 @@ body {
   opacity: 1;
 }
 
-/* Subtle row hover (Asana task list) */
-.asana-row {
+/* Subtle row hover (AI Lattice task list) */
+.lattice-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--asana-outline-variant);
+  border-bottom: 1px solid var(--lattice-outline-variant);
   transition: background-color 100ms ease;
 }
-.asana-row:hover {
-  background: var(--asana-surface-container);
+.lattice-row:hover {
+  background: var(--lattice-surface-container);
 }
 
 /* Scrollbar */

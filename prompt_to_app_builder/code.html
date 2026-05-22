@@ -5,15 +5,15 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>AI Lattice — AI App Builder</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<script src="../mockups-asana-tailwind.js"></script>
-<link href="../mockups-asana-theme.css" rel="stylesheet"/>
+<script src="../mockups-ai-lattice-tailwind.js"></script>
+<link href="../mockups-ai-lattice-theme.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 </head>
 <body class="bg-surface-container-low font-body text-on-surface">
 
 <!-- Sidebar -->
-<aside class="asana-sidebar fixed left-0 top-0 z-40 flex h-screen w-64 flex-col">
+<aside class="lattice-sidebar fixed left-0 top-0 z-40 flex h-screen w-64 flex-col">
   <div class="flex h-full flex-col px-3 py-5">
     <div class="mb-5 flex items-center gap-2.5 px-2">
       <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
@@ -25,40 +25,40 @@
       </div>
     </div>
 
-    <button class="asana-btn asana-btn-primary mx-2 mb-4 w-[calc(100%-1rem)]">
+    <button class="lattice-btn lattice-btn-primary mx-2 mb-4 w-[calc(100%-1rem)]">
       <span class="material-symbols-outlined text-[18px]">add</span>
       作成
     </button>
 
     <nav class="flex-1 space-y-0.5">
-      <a class="asana-sidebar-item active" href="#">
+      <a class="lattice-sidebar-item active" href="#">
         <span class="material-symbols-outlined text-[20px] text-primary">auto_awesome</span>
         AI ビルダー
       </a>
-      <a class="asana-sidebar-item" href="#">
+      <a class="lattice-sidebar-item" href="#">
         <span class="material-symbols-outlined text-[20px]">apps</span>
         アプリ
       </a>
-      <a class="asana-sidebar-item" href="#">
+      <a class="lattice-sidebar-item" href="#">
         <span class="material-symbols-outlined text-[20px]">table_chart</span>
         テーブル
       </a>
-      <a class="asana-sidebar-item" href="#">
+      <a class="lattice-sidebar-item" href="#">
         <span class="material-symbols-outlined text-[20px]">account_tree</span>
         ワークフロー
       </a>
-      <a class="asana-sidebar-item" href="#">
+      <a class="lattice-sidebar-item" href="#">
         <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
         管理
       </a>
     </nav>
 
     <div class="mt-auto space-y-0.5 border-t border-outline-variant pt-3">
-      <a class="asana-sidebar-item" href="#">
+      <a class="lattice-sidebar-item" href="#">
         <span class="material-symbols-outlined text-[20px]">help</span>
         ヘルプ
       </a>
-      <a class="asana-sidebar-item" href="#">
+      <a class="lattice-sidebar-item" href="#">
         <span class="material-symbols-outlined text-[20px]">chat_bubble</span>
         フィードバック
       </a>
@@ -67,7 +67,7 @@
 </aside>
 
 <!-- Top bar -->
-<header class="asana-topbar fixed left-64 right-0 top-0 z-30 flex items-center justify-between px-6">
+<header class="lattice-topbar fixed left-64 right-0 top-0 z-30 flex items-center justify-between px-6">
   <div class="min-w-0">
     <div class="mb-0.5 flex items-center gap-1.5 text-[11px]">
       <span class="font-medium text-on-surface-muted">AI ビルダー</span>
@@ -118,7 +118,7 @@
     </div>
 
     <div class="mt-4 flex justify-end">
-      <button class="asana-btn asana-btn-primary h-11 px-5">
+      <button class="lattice-btn lattice-btn-primary h-11 px-5">
         <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
         設計案を生成
       </button>
@@ -202,13 +202,13 @@
             <h3 class="font-headline text-xl font-bold tracking-tight text-on-surface">チケット詳細プレビュー</h3>
             <p class="mt-1 text-[13px] text-on-surface-variant">生成スキーマに基づくモックアップです。</p>
           </div>
-          <span class="asana-pill asana-pill-lavender">
+          <span class="lattice-pill lattice-pill-lavender">
             <span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
             AI 提案フィールド
           </span>
         </div>
 
-        <div class="asana-card-elevated">
+        <div class="lattice-card-elevated">
           <div class="grid grid-cols-2 gap-5">
             <div class="col-span-2">
               <label class="mb-1.5 block text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">件名</label>
@@ -236,8 +236,8 @@
             </div>
             <div class="col-span-2 pt-2">
               <div class="flex justify-end gap-2">
-                <button class="asana-btn asana-btn-ghost">破棄</button>
-                <button class="asana-btn asana-btn-primary">チケットを更新</button>
+                <button class="lattice-btn lattice-btn-ghost">破棄</button>
+                <button class="lattice-btn lattice-btn-primary">チケットを更新</button>
               </div>
             </div>
           </div>
@@ -254,7 +254,7 @@
       <span class="material-symbols-outlined pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-muted">edit_note</span>
       <input class="w-full rounded-full border border-outline bg-surface py-2.5 pl-10 pr-4 text-[13.5px] text-on-surface placeholder:text-on-surface-muted hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" placeholder="AI で調整（例：SLA 状態というステータス項目を追加）" type="text"/>
     </div>
-    <button class="asana-btn asana-btn-primary h-11 px-5">
+    <button class="lattice-btn lattice-btn-primary h-11 px-5">
       承認してビルド
       <span class="material-symbols-outlined text-[18px]">rocket_launch</span>
     </button>
