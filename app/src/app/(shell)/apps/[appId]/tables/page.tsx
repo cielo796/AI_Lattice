@@ -32,7 +32,6 @@ import {
   listForms,
   listTables,
   listViews,
-  refineApp,
   updateForm,
   updateField,
   updateTable,
@@ -46,6 +45,7 @@ import {
   type UpdateTableInput,
   type UpdateViewInput,
 } from "@/lib/api/apps";
+import { apiFetch } from "@/lib/api/client";
 import type {
   AppField,
   AppForm,
@@ -54,7 +54,11 @@ import type {
   AppViewType,
   FieldType,
 } from "@/types/app";
-import type { AppRefinementChange } from "@/types/app-refinement";
+import type {
+  AppRefinementChange,
+  AppRefinementPreview,
+  AppRefinementResult,
+} from "@/types/app-refinement";
 
 type TableFormState = { name: string; code: string; isSystem: boolean };
 type FieldFormState = {
@@ -402,6 +406,31 @@ function buildFormLayout(form: FormFormState) {
   };
 }
 
+async function requestAppRefinementPreview(
+  appId: string,
+  input: { instruction: string; activeTableCode?: string }
+) {
+  return apiFetch<AppRefinementPreview>(`/api/apps/${appId}/refine/preview`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+async function requestApplyAppRefinement(
+  appId: string,
+  input: {
+    instruction?: string;
+    activeTableCode?: string;
+    summary: string;
+    operations: AppRefinementPreview["operations"];
+  }
+) {
+  return apiFetch<AppRefinementResult>(`/api/apps/${appId}/refine/apply`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export default function TableDesignerPage() {
   const params = useParams<{ appId: string }>();
   const router = useRouter();
@@ -434,9 +463,12 @@ export default function TableDesignerPage() {
   const [isDeletingApp, setIsDeletingApp] = useState(false);
   const [refineInstruction, setRefineInstruction] = useState("");
   const [isRefining, setIsRefining] = useState(false);
+  const [isApplyingRefinement, setIsApplyingRefinement] = useState(false);
   const [refinementNotice, setRefinementNotice] = useState<string | null>(null);
   const [refinementError, setRefinementError] = useState<string | null>(null);
   const [refinementChanges, setRefinementChanges] = useState<AppRefinementChange[]>([]);
+  const [refinementPreview, setRefinementPreview] =
+    useState<AppRefinementPreview | null>(null);
   const [referenceTableFields, setReferenceTableFields] = useState<AppField[]>([]);
   const [isLoadingReferenceTableFields, setIsLoadingReferenceTableFields] =
     useState(false);
@@ -721,12 +753,40 @@ export default function TableDesignerPage() {
       setRefinementNotice(null);
       setRefinementError(null);
       setRefinementChanges([]);
-      const result = await refineApp(appId, {
+      setRefinementPreview(null);
+      const preview = await requestAppRefinementPreview(appId, {
         instruction,
         activeTableCode: activeTable?.code,
       });
+      setRefinementPreview(preview);
+      setError(null);
+    } catch (nextError) {
+      setRefinementError(
+        nextError instanceof Error ? nextError.message : "AI修正案の作成に失敗しました。"
+      );
+    } finally {
+      setIsRefining(false);
+    }
+  }
+
+  async function onApplyRefinementPreview() {
+    if (!appId || !refinementPreview) {
+      return;
+    }
+
+    try {
+      setIsApplyingRefinement(true);
+      setRefinementNotice(null);
+      setRefinementError(null);
+      const result = await requestApplyAppRefinement(appId, {
+        instruction: refineInstruction.trim() || undefined,
+        activeTableCode: activeTable?.code,
+        summary: refinementPreview.summary,
+        operations: refinementPreview.operations,
+      });
       setRefinementNotice(result.summary);
       setRefinementChanges(result.changes);
+      setRefinementPreview(null);
       setRefineInstruction("");
       await reloadDesignerData(result.changes[0]?.tableCode ?? activeTable?.code);
       resetFieldForm();
@@ -735,11 +795,16 @@ export default function TableDesignerPage() {
       setError(null);
     } catch (nextError) {
       setRefinementError(
-        nextError instanceof Error ? nextError.message : "AI修正に失敗しました。"
+        nextError instanceof Error ? nextError.message : "AI修正の適用に失敗しました。"
       );
     } finally {
-      setIsRefining(false);
+      setIsApplyingRefinement(false);
     }
+  }
+
+  function onCancelRefinementPreview() {
+    setRefinementPreview(null);
+    setRefinementError(null);
   }
 
   async function onSubmitTable(event: FormEvent<HTMLFormElement>) {
@@ -2256,15 +2321,22 @@ export default function TableDesignerPage() {
       <RefineBar
         value={refineInstruction}
         isSubmitting={isRefining}
+        isApplying={isApplyingRefinement}
         disabled={isLoadingTables || isDeletingApp}
         notice={refinementNotice}
         error={refinementError}
         changes={refinementChanges}
+        preview={refinementPreview}
         onChange={(value) => {
           setRefineInstruction(value);
           setRefinementError(null);
+          setRefinementNotice(null);
+          setRefinementChanges([]);
+          setRefinementPreview(null);
         }}
         onSubmit={() => void onSubmitRefinement()}
+        onApplyPreview={() => void onApplyRefinementPreview()}
+        onCancelPreview={onCancelRefinementPreview}
       />
     </>
   );

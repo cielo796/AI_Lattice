@@ -8,7 +8,11 @@ import type {
   FieldType,
 } from "@/types/app";
 import type { GeneratedAppBlueprint } from "@/types/ai";
-import type { AppRefinementResult } from "@/types/app-refinement";
+import type {
+  AppRefinementOperation,
+  AppRefinementPreview,
+  AppRefinementResult,
+} from "@/types/app-refinement";
 import { apiFetch } from "@/lib/api/client";
 
 export interface CreateTableInput {
@@ -93,6 +97,14 @@ function appRefinePath(appId: string) {
   return `${appPath(appId)}/refine`;
 }
 
+function appRefinePreviewPath(appId: string) {
+  return `${appRefinePath(appId)}/preview`;
+}
+
+function appRefineApplyPath(appId: string) {
+  return `${appRefinePath(appId)}/apply`;
+}
+
 function tableCollectionPath(appId: string) {
   return `${appPath(appId)}/tables`;
 }
@@ -152,6 +164,31 @@ export async function refineApp(
   input: { instruction: string; activeTableCode?: string }
 ) {
   return apiFetch<AppRefinementResult>(appRefinePath(appId), {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function previewAppRefinement(
+  appId: string,
+  input: { instruction: string; activeTableCode?: string }
+) {
+  return apiFetch<AppRefinementPreview>(appRefinePreviewPath(appId), {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function applyAppRefinement(
+  appId: string,
+  input: {
+    instruction?: string;
+    activeTableCode?: string;
+    summary: string;
+    operations: AppRefinementOperation[];
+  }
+) {
+  return apiFetch<AppRefinementResult>(appRefineApplyPath(appId), {
     method: "POST",
     body: JSON.stringify(input),
   });

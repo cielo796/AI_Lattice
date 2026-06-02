@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { refineAppWithAI } from "@/server/apps/refinements";
+import {
+  applyAppRefinementPreview,
+  generateAppRefinementPreview,
+  refineAppWithAI,
+} from "@/server/apps/refinements";
 import type { AppField, AppTable } from "@/types/app";
 
 const MockAppsServiceError = vi.hoisted(
@@ -241,6 +245,105 @@ describe("app AI refinements", () => {
       "field_created",
       "view_created",
     ]);
+    expect(auditMocks.recordAuditLog).toHaveBeenCalledWith(
+      user,
+      expect.objectContaining({
+        actionType: "APP_REFINE",
+        aiInvolvement: "assisted",
+      })
+    );
+  });
+
+  it("previews generated operations without writing app metadata", async () => {
+    const client = makeClient({
+      summary: "SLA field will be added.",
+      operations: [
+        {
+          action: "add_field",
+          tableCode: "production-plan",
+          tableName: "",
+          fieldCode: "sla_status",
+          fieldName: "SLA Status",
+          fieldType: "select",
+          setRequired: false,
+          required: false,
+          options: ["on_track", "at_risk", "breached"],
+          viewName: "",
+          viewType: "list",
+          columns: [],
+          groupByFieldCode: "",
+          dateFieldCode: "",
+          metricFieldCode: "",
+          formName: "",
+          formFieldCodes: [],
+          helpText: "",
+        },
+      ],
+    });
+
+    const preview = await generateAppRefinementPreview(
+      user,
+      "app-001",
+      {
+        instruction: "SLAステータスを追加して",
+        activeTableCode: "production-plan",
+      },
+      client
+    );
+
+    expect(preview.operations).toHaveLength(1);
+    expect(preview.changes).toEqual([
+      expect.objectContaining({
+        type: "field_created",
+        description: "Production plan にフィールド「SLA Status」を追加します。",
+      }),
+    ]);
+    expect(serviceMocks.createFieldForTable).not.toHaveBeenCalled();
+    expect(serviceMocks.createViewForTable).not.toHaveBeenCalled();
+    expect(serviceMocks.createTableForApp).not.toHaveBeenCalled();
+    expect(auditMocks.recordAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("applies an approved preview plan", async () => {
+    const result = await applyAppRefinementPreview(user, "app-001", {
+      instruction: "SLAステータスを追加して",
+      activeTableCode: "production-plan",
+      summary: "SLA field was approved.",
+      operations: [
+        {
+          action: "add_field",
+          tableCode: "production-plan",
+          tableName: "",
+          fieldCode: "sla_status",
+          fieldName: "SLA Status",
+          fieldType: "select",
+          setRequired: false,
+          required: false,
+          options: ["on_track", "at_risk", "breached"],
+          viewName: "",
+          viewType: "list",
+          columns: [],
+          groupByFieldCode: "",
+          dateFieldCode: "",
+          metricFieldCode: "",
+          formName: "",
+          formFieldCodes: [],
+          helpText: "",
+        },
+      ],
+    });
+
+    expect(serviceMocks.createFieldForTable).toHaveBeenCalledWith(
+      user,
+      "app-001",
+      "tbl-plan",
+      expect.objectContaining({
+        code: "sla_status",
+        fieldType: "select",
+      })
+    );
+    expect(result.summary).toBe("SLA field was approved.");
+    expect(result.changes.map((change) => change.type)).toEqual(["field_created"]);
     expect(auditMocks.recordAuditLog).toHaveBeenCalledWith(
       user,
       expect.objectContaining({
