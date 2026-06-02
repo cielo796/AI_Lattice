@@ -16,6 +16,8 @@ import { getOpenAIClient } from "@/server/openai/client";
 import type { AppField, AppForm, AppTable, AppView, AppViewType, FieldType } from "@/types/app";
 import type {
   AppRefinementChange,
+  AppRefinementOperation,
+  AppRefinementPreview,
   AppRefinementResult,
 } from "@/types/app-refinement";
 import type { User } from "@/types/user";
@@ -150,30 +152,9 @@ type OpenAIClientLike = {
   };
 };
 
-type RawRefinementOperation = {
-  action: "add_table" | "add_field" | "update_field" | "add_view" | "add_form";
-  tableCode: string;
-  tableName: string;
-  fieldCode: string;
-  fieldName: string;
-  fieldType: "" | FieldType;
-  setRequired: boolean;
-  required: boolean;
-  options: string[];
-  viewName: string;
-  viewType: AppViewType;
-  columns: string[];
-  groupByFieldCode: string;
-  dateFieldCode: string;
-  metricFieldCode: string;
-  formName: string;
-  formFieldCodes: string[];
-  helpText: string;
-};
-
 type RawRefinementResponse = {
   summary: string;
-  operations: RawRefinementOperation[];
+  operations: AppRefinementOperation[];
 };
 
 type TableContext = {
@@ -218,7 +199,7 @@ function parseOpenAIResponse(response: { output_text?: string }) {
   }
 }
 
-function normalizeRawOperation(value: unknown): RawRefinementOperation | null {
+function normalizeRawOperation(value: unknown): AppRefinementOperation | null {
   const operation = assertObject(value, "Refinement operation is invalid");
   const action = normalizeString(operation.action);
 
@@ -274,7 +255,7 @@ function normalizeRefinementResponse(value: unknown): RawRefinementResponse {
   const operations = Array.isArray(response.operations)
     ? response.operations
         .map(normalizeRawOperation)
-        .filter((operation): operation is RawRefinementOperation => operation !== null)
+        .filter((operation): operation is AppRefinementOperation => operation !== null)
         .slice(0, MAX_REFINEMENT_OPERATIONS)
     : [];
 
@@ -327,7 +308,7 @@ function buildPromptInput(input: {
 }
 
 function getTableForOperation(
-  operation: RawRefinementOperation,
+  operation: AppRefinementOperation,
   tables: TableContext[],
   activeTableCode?: string
 ) {
@@ -367,6 +348,100 @@ function getFormWidth(field: AppField) {
   return field.fieldType === "textarea" ? "full" : "half";
 }
 
+function cloneTableContexts(tables: TableContext[]): TableContext[] {
+  return tables.map(({ table, fields, views, forms }) => ({
+    table,
+    fields: [...fields],
+    views: [...views],
+    forms: [...forms],
+  }));
+}
+
+function getPreviewCreatedAt() {
+  return "1970-01-01T00:00:00.000Z";
+}
+
+function makePreviewTable(appId: string, operation: AppRefinementOperation): AppTable {
+  const name = operation.tableName || operation.tableCode;
+  const code = operation.tableCode || operation.tableName;
+
+  if (!name || !code) {
+    throw new AppsServiceError("追加するテーブル名またはコードが不足しています。", 400);
+  }
+
+  return {
+    id: `preview-table-${code}`,
+    tenantId: "",
+    appId,
+    name,
+    code,
+    isSystem: false,
+    sortOrder: 0,
+    createdAt: getPreviewCreatedAt(),
+  };
+}
+
+function makePreviewField(
+  tableContext: TableContext,
+  operation: AppRefinementOperation
+): AppField {
+  const name = operation.fieldName || operation.fieldCode;
+  const code = operation.fieldCode || operation.fieldName;
+
+  if (!name || !code) {
+    throw new AppsServiceError("追加するフィールド名またはコードが不足しています。", 400);
+  }
+
+  return {
+    id: `preview-field-${tableContext.table.code}-${code}`,
+    tenantId: tableContext.table.tenantId,
+    appId: tableContext.table.appId,
+    tableId: tableContext.table.id,
+    name,
+    code,
+    fieldType: operation.fieldType || "text",
+    required: operation.required,
+    uniqueFlag: false,
+    settingsJson:
+      operation.fieldType === "select" ? { options: operation.options } : undefined,
+    sortOrder: tableContext.fields.length,
+    createdAt: getPreviewCreatedAt(),
+  };
+}
+
+function getOperationTableName(
+  operation: AppRefinementOperation,
+  tableContext: TableContext
+) {
+  return operation.tableName || tableContext.table.name;
+}
+
+function assertOptionalViewField(
+  tableContext: TableContext,
+  fieldCode: string,
+  label: string,
+  allowedTypes?: FieldType[]
+) {
+  if (!fieldCode) {
+    return;
+  }
+
+  const field = tableContext.fields.find((item) => item.code === fieldCode);
+  if (!field) {
+    throw new AppsServiceError(
+      `${label} "${fieldCode}" がテーブル "${tableContext.table.code}" に存在しません。`,
+      400
+    );
+  }
+
+  if (allowedTypes && !allowedTypes.includes(field.fieldType)) {
+    throw new AppsServiceError(
+      `${label} "${fieldCode}" は利用できないフィールド型です。`,
+      400
+    );
+  }
+}
+
 async function loadAppContext(user: User, appId: string) {
   const app = await getAppForUser(user, appId);
   const tables = await listTablesForApp(user, appId);
@@ -403,10 +478,124 @@ async function requestRefinementPlan(
   return normalizeRefinementResponse(parseOpenAIResponse(response));
 }
 
+function buildPreviewChanges(input: {
+  appId: string;
+  operations: AppRefinementOperation[];
+  tables: TableContext[];
+  activeTableCode?: string;
+}) {
+  const tables = cloneTableContexts(input.tables);
+  const changes: AppRefinementChange[] = [];
+
+  for (const operation of input.operations) {
+    if (operation.action === "add_table") {
+      const table = makePreviewTable(input.appId, operation);
+      tables.push({
+        table,
+        fields: [],
+        views: [],
+        forms: [],
+      });
+      changes.push({
+        type: "table_created",
+        tableCode: table.code,
+        tableName: table.name,
+        resourceName: table.name,
+        description: `テーブル「${table.name}」を追加します。`,
+      });
+      continue;
+    }
+
+    const tableContext = getTableForOperation(
+      operation,
+      tables,
+      input.activeTableCode
+    );
+
+    if (operation.action === "add_field") {
+      const field = makePreviewField(tableContext, operation);
+      tableContext.fields.push(field);
+      changes.push({
+        type: "field_created",
+        tableCode: tableContext.table.code,
+        tableName: tableContext.table.name,
+        resourceName: field.name,
+        description: `${tableContext.table.name} にフィールド「${field.name}」を追加します。`,
+      });
+      continue;
+    }
+
+    if (operation.action === "update_field") {
+      const existingField = getFieldByCode(tableContext, operation.fieldCode);
+      const updatedField: AppField = {
+        ...existingField,
+        name: operation.fieldName || existingField.name,
+        fieldType: operation.fieldType || existingField.fieldType,
+        required: operation.setRequired ? operation.required : existingField.required,
+        settingsJson:
+          operation.fieldType === "select"
+            ? {
+                options:
+                  operation.options.length > 0
+                    ? operation.options
+                    : getFieldOptions(existingField),
+              }
+            : existingField.settingsJson,
+      };
+      tableContext.fields = tableContext.fields.map((field) =>
+        field.id === existingField.id ? updatedField : field
+      );
+      changes.push({
+        type: "field_updated",
+        tableCode: tableContext.table.code,
+        tableName: tableContext.table.name,
+        resourceName: updatedField.name,
+        description: `${tableContext.table.name} のフィールド「${updatedField.name}」を更新します。`,
+      });
+      continue;
+    }
+
+    if (operation.action === "add_view") {
+      normalizeFieldCodes(operation.columns, tableContext);
+      assertOptionalViewField(tableContext, operation.groupByFieldCode, "グループ化フィールド");
+      assertOptionalViewField(tableContext, operation.dateFieldCode, "日付フィールド", [
+        "date",
+        "datetime",
+      ]);
+      assertOptionalViewField(tableContext, operation.metricFieldCode, "指標フィールド", [
+        "number",
+      ]);
+      const viewName = operation.viewName || `${getOperationTableName(operation, tableContext)} ビュー`;
+      changes.push({
+        type: "view_created",
+        tableCode: tableContext.table.code,
+        tableName: tableContext.table.name,
+        resourceName: viewName,
+        description: `${tableContext.table.name} にビュー「${viewName}」を追加します。`,
+      });
+      continue;
+    }
+
+    if (operation.action === "add_form") {
+      normalizeFieldCodes(operation.formFieldCodes, tableContext);
+      const formName = operation.formName || `${getOperationTableName(operation, tableContext)} フォーム`;
+      changes.push({
+        type: "form_created",
+        tableCode: tableContext.table.code,
+        tableName: tableContext.table.name,
+        resourceName: formName,
+        description: `${tableContext.table.name} にフォーム「${formName}」を追加します。`,
+      });
+    }
+  }
+
+  return changes;
+}
+
 async function applyOperation(input: {
   user: User;
   appId: string;
-  operation: RawRefinementOperation;
+  operation: AppRefinementOperation;
   tables: TableContext[];
   activeTableCode?: string;
 }): Promise<AppRefinementChange | null> {
@@ -558,6 +747,22 @@ export async function refineAppWithAI(
   input: { instruction?: string; activeTableCode?: string },
   client?: OpenAIClientLike
 ): Promise<AppRefinementResult> {
+  const preview = await generateAppRefinementPreview(user, appId, input, client);
+
+  return applyAppRefinementPreview(user, appId, {
+    instruction: input.instruction,
+    activeTableCode: input.activeTableCode,
+    summary: preview.summary,
+    operations: preview.operations,
+  });
+}
+
+export async function generateAppRefinementPreview(
+  user: User,
+  appId: string,
+  input: { instruction?: string; activeTableCode?: string },
+  client?: OpenAIClientLike
+): Promise<AppRefinementPreview> {
   const instruction = input.instruction?.trim();
 
   if (!instruction) {
@@ -565,10 +770,6 @@ export async function refineAppWithAI(
   }
 
   const { app, tables } = await loadAppContext(user, appId);
-  if (tables.length === 0) {
-    throw new AppsServiceError("修正できるテーブルがありません。", 400);
-  }
-
   const openAIClient = client ?? (await getOpenAIClient(user.tenantId));
   const plan = await requestRefinementPlan(
     openAIClient,
@@ -583,6 +784,45 @@ export async function refineAppWithAI(
       tables,
     })
   );
+
+  return {
+    summary: plan.summary,
+    operations: plan.operations,
+    changes: buildPreviewChanges({
+      appId,
+      operations: plan.operations,
+      tables,
+      activeTableCode: input.activeTableCode,
+    }),
+  };
+}
+
+export async function applyAppRefinementPreview(
+  user: User,
+  appId: string,
+  input: {
+    instruction?: string;
+    activeTableCode?: string;
+    summary?: string;
+    operations?: unknown;
+  }
+): Promise<AppRefinementResult> {
+  const plan = normalizeRefinementResponse({
+    summary: input.summary || "AI修正を適用しました。",
+    operations: input.operations,
+  });
+
+  if (plan.operations.length === 0) {
+    throw new AppsServiceError("適用できるAI修正案がありません。", 400);
+  }
+
+  const { app, tables } = await loadAppContext(user, appId);
+  buildPreviewChanges({
+    appId,
+    operations: plan.operations,
+    tables,
+    activeTableCode: input.activeTableCode,
+  });
 
   const changes: AppRefinementChange[] = [];
   for (const operation of plan.operations) {
@@ -605,7 +845,7 @@ export async function refineAppWithAI(
     resourceId: app.id,
     resourceName: app.name,
     detailJson: {
-      instruction,
+      instruction: input.instruction?.trim() || undefined,
       summary: plan.summary,
       changes,
     },
