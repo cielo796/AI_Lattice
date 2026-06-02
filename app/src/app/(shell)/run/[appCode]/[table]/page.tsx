@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { AISidebar } from "@/components/ai/AISidebar";
 import { RecordCreatePanel } from "@/components/runtime/RecordCreatePanel";
 import { RecordDetail } from "@/components/runtime/RecordDetail";
@@ -144,10 +149,13 @@ function buildSimilarRecords(records: AppRecord[], selected: AppRecord | null) {
 
 export default function RuntimeViewPage() {
   const params = useParams<{ appCode: string; table: string }>();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const appCode = getParam(params.appCode);
   const tableCode = getParam(params.table);
   const requestedRecordId = searchParams.get("recordId")?.trim() ?? "";
+  const requestedViewId = searchParams.get("viewId")?.trim() ?? "";
   const pushToast = useToastStore((store) => store.pushToast);
 
   const [records, setRecords] = useState<AppRecord[]>([]);
@@ -272,11 +280,19 @@ export default function RuntimeViewPage() {
         }
 
         setTableMeta(nextMeta);
-        setActiveViewId((current) =>
-          current && nextMeta.views.some((view) => view.id === current)
+        setActiveViewId((current) => {
+          const fallbackViewId = nextMeta.views[0]?.id ?? "";
+
+          if (requestedViewId) {
+            return nextMeta.views.some((view) => view.id === requestedViewId)
+              ? requestedViewId
+              : fallbackViewId;
+          }
+
+          return current && nextMeta.views.some((view) => view.id === current)
             ? current
-            : (nextMeta.views[0]?.id ?? "")
-        );
+            : fallbackViewId;
+        });
         setError(null);
       } catch (nextError) {
         if (cancelled) {
@@ -301,7 +317,21 @@ export default function RuntimeViewPage() {
     return () => {
       cancelled = true;
     };
-  }, [appCode, refreshKey, requestedRecordId, tableCode]);
+  }, [appCode, refreshKey, requestedViewId, tableCode]);
+
+  function handleViewChange(viewId: string) {
+    setActiveViewId(viewId);
+
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    if (viewId) {
+      nextSearchParams.set("viewId", viewId);
+    } else {
+      nextSearchParams.delete("viewId");
+    }
+
+    const query = nextSearchParams.toString();
+    router.replace(`${pathname}${query ? `?${query}` : ""}`, { scroll: false });
+  }
 
   useEffect(() => {
     if (!appCode || !tableMeta) {
@@ -752,7 +782,7 @@ export default function RuntimeViewPage() {
             activeViewId={activeViewId}
             selectedId={selectedId ?? undefined}
             isLoading={isLoadingRecords}
-            onViewChange={setActiveViewId}
+            onViewChange={handleViewChange}
             onSelect={(record) => setSelectedId(record.id)}
           />
 

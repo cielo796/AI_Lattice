@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatMonthLabel,
+  getCalendarDays,
   getChartBuckets,
   getDateFieldCode,
   getGroupFieldCode,
@@ -16,12 +18,12 @@ const fields: AppField[] = [
     tenantId: "tenant_1",
     appId: "app_1",
     tableId: "table_1",
-    name: "ステータス",
+    name: "Status",
     code: "status",
     fieldType: "select",
     required: false,
     uniqueFlag: false,
-    settingsJson: { options: ["未対応", "対応中", "完了"] },
+    settingsJson: { options: ["todo", "doing", "done"] },
     sortOrder: 0,
     createdAt: "2026-04-24T00:00:00.000Z",
   },
@@ -30,7 +32,7 @@ const fields: AppField[] = [
     tenantId: "tenant_1",
     appId: "app_1",
     tableId: "table_1",
-    name: "期限",
+    name: "Due date",
     code: "due_date",
     fieldType: "date",
     required: false,
@@ -43,7 +45,7 @@ const fields: AppField[] = [
     tenantId: "tenant_1",
     appId: "app_1",
     tableId: "table_1",
-    name: "金額",
+    name: "Amount",
     code: "amount",
     fieldType: "number",
     required: false,
@@ -62,7 +64,7 @@ const records: AppRecord[] = [
     status: "active",
     data: {
       title: "Record 1",
-      status: "未対応",
+      status: "todo",
       due_date: "2026-05-01",
       amount: 100,
     },
@@ -79,7 +81,7 @@ const records: AppRecord[] = [
     status: "active",
     data: {
       title: "Record 2",
-      status: "対応中",
+      status: "doing",
       due_date: "2026-05-01",
       amount: 250,
     },
@@ -96,7 +98,7 @@ const records: AppRecord[] = [
     status: "closed",
     data: {
       title: "Record 3",
-      status: "未対応",
+      status: "todo",
       due_date: "2026-05-02",
       amount: 50,
     },
@@ -139,9 +141,9 @@ describe("runtime view helpers", () => {
     const groups = groupRecordsByField(records, "status", fields);
 
     expect(groups.map((group) => [group.label, group.records.length])).toEqual([
-      ["未対応", 2],
-      ["対応中", 1],
-      ["完了", 0],
+      ["todo", 2],
+      ["doing", 1],
+      ["done", 0],
     ]);
   });
 
@@ -165,8 +167,34 @@ describe("runtime view helpers", () => {
     );
 
     expect(buckets.map((bucket) => [bucket.label, bucket.value])).toEqual([
-      ["対応中", 250],
-      ["未対応", 150],
+      ["doing", 250],
+      ["todo", 150],
     ]);
+  });
+
+  it("uses record counts for chart buckets when no metric field is configured", () => {
+    const buckets = getChartBuckets(
+      records,
+      fields.filter((field) => field.fieldType !== "number"),
+      makeView({
+        groupByFieldCode: "status",
+      })
+    );
+
+    expect(buckets.map((bucket) => bucket.value)).toEqual([2, 1]);
+  });
+
+  it("builds month calendar cells with records on matching dates", () => {
+    const days = getCalendarDays(
+      "2026-05",
+      new Map([
+        ["2026-05-01", [records[0], records[1]]],
+        ["2026-05-02", [records[2]]],
+      ])
+    );
+
+    expect(formatMonthLabel("2026-05")).toContain("2026");
+    expect(days.find((day) => day.key === "2026-05-01")?.records).toHaveLength(2);
+    expect(days.find((day) => day.key === "2026-05-02")?.records).toHaveLength(1);
   });
 });

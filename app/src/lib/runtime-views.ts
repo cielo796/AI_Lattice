@@ -470,3 +470,97 @@ export function getNumericMetricValues(records: AppRecord[], metricFieldCode: st
       (value): value is number => typeof value === "number" && Number.isFinite(value)
     );
 }
+
+const numberFormatter = new Intl.NumberFormat("ja-JP", {
+  maximumFractionDigits: 1,
+});
+
+export function formatNumber(value: number) {
+  return numberFormatter.format(value);
+}
+
+export function formatDateGroupLabel(dateKey: string) {
+  if (dateKey === "日付なし") {
+    return dateKey;
+  }
+
+  const date = new Date(`${dateKey}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return dateKey;
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    weekday: "short",
+  }).format(date);
+}
+
+export function formatMonthLabel(monthKey: string) {
+  const date = new Date(`${monthKey}-01T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return monthKey;
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "long",
+  }).format(date);
+}
+
+function getCalendarDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+export function getCurrentMonthKey() {
+  const today = new Date();
+  return getCalendarDateKey(
+    new Date(today.getFullYear(), today.getMonth(), 1)
+  ).slice(0, 7);
+}
+
+export function addMonths(monthKey: string, amount: number) {
+  const date = new Date(`${monthKey}-01T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return getCurrentMonthKey();
+  }
+
+  date.setMonth(date.getMonth() + amount);
+  return getCalendarDateKey(date).slice(0, 7);
+}
+
+export function getCalendarDays(
+  monthKey: string,
+  recordsByDate: Map<string, AppRecord[]>
+) {
+  const baseDate = new Date(`${monthKey}-01T00:00:00`);
+  const normalizedBaseDate = Number.isNaN(baseDate.getTime())
+    ? new Date(`${getCurrentMonthKey()}-01T00:00:00`)
+    : baseDate;
+  const year = normalizedBaseDate.getFullYear();
+  const month = normalizedBaseDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const leadingDays = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cellCount = Math.ceil((leadingDays + daysInMonth) / 7) * 7;
+  const todayKey = getCalendarDateKey(new Date());
+
+  return Array.from({ length: cellCount }, (_, index) => {
+    const date = new Date(year, month, index - leadingDays + 1);
+    const dateKey = getCalendarDateKey(date);
+
+    return {
+      key: dateKey,
+      date,
+      day: date.getDate(),
+      inMonth: date.getMonth() === month,
+      isToday: dateKey === todayKey,
+      records: recordsByDate.get(dateKey) ?? [],
+    };
+  });
+}
