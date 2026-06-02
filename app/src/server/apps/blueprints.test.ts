@@ -64,6 +64,32 @@ const validBlueprint = {
   ],
 };
 
+const multiTableBlueprint = {
+  ...validBlueprint,
+  aiInsight: "Start with tickets and a customer master.",
+  tables: [
+    validBlueprint.tables[0],
+    {
+      name: "Customers",
+      code: "customers",
+      fields: [
+        {
+          name: "Customer Name",
+          code: "customer_name",
+          fieldType: "text" as const,
+          required: true,
+        },
+        {
+          name: "Contact Email",
+          code: "contact_email",
+          fieldType: "text" as const,
+          required: false,
+        },
+      ],
+    },
+  ],
+};
+
 describe("apps blueprints", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -85,6 +111,43 @@ describe("apps blueprints", () => {
 
     expect(blueprint).toEqual(validBlueprint);
     expect(client.responses.create).toHaveBeenCalledOnce();
+  });
+
+  it("keeps only the main table unless the prompt asks for separated tables", async () => {
+    const client = {
+      responses: {
+        create: vi.fn().mockResolvedValue({
+          output_text: JSON.stringify(multiTableBlueprint),
+        }),
+      },
+    };
+
+    const blueprint = await generateBlueprintFromPrompt("営業日報アプリ", client);
+
+    expect(blueprint.tables).toHaveLength(1);
+    expect(blueprint.tables[0].code).toBe("tickets");
+    expect(blueprint.aiInsight).toContain("1テーブル構成");
+  });
+
+  it("keeps multiple tables when the prompt explicitly asks for master tables", async () => {
+    const client = {
+      responses: {
+        create: vi.fn().mockResolvedValue({
+          output_text: JSON.stringify(multiTableBlueprint),
+        }),
+      },
+    };
+
+    const blueprint = await generateBlueprintFromPrompt(
+      "問い合わせテーブルと顧客マスタを別テーブルで管理するアプリ",
+      client
+    );
+
+    expect(blueprint.tables).toHaveLength(2);
+    expect(blueprint.tables.map((table) => table.code)).toEqual([
+      "tickets",
+      "customers",
+    ]);
   });
 
   it("repairs invalid blueprint data with a second OpenAI request", async () => {

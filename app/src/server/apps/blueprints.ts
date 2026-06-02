@@ -14,6 +14,7 @@ import type {
 import type { User } from "@/types/user";
 
 const MAX_TABLES = 3;
+const DEFAULT_GENERATED_TABLE_COUNT = 1;
 const MAX_FIELDS_PER_TABLE = 10;
 const SAMPLE_RECORDS_PER_TABLE = 3;
 const DEFAULT_VIEW_COLUMN_LIMIT = 4;
@@ -34,6 +35,8 @@ const GROUP_FIELD_CODES = new Set([
   "priority",
   "approval_status",
 ]);
+const MULTI_TABLE_PROMPT_PATTERN =
+  /(複数(?:の)?テーブル|テーブル(?:を|に)分け|別テーブル|参照テーブル|関連テーブル|マスタ|マスター|リレーション|multiple tables|separate tables|master table|reference table|lookup table|relationship|relational)/i;
 
 const BLUEPRINT_RESPONSE_SCHEMA = {
   type: "object",
@@ -84,7 +87,9 @@ const GENERATION_INSTRUCTIONS = [
   "You generate internal business app blueprints.",
   "Return JSON only.",
   "Generate a compact but useful first version of the app.",
-  `Create between 1 and ${MAX_TABLES} tables.`,
+  "Create exactly 1 main business table by default.",
+  `Create up to ${MAX_TABLES} tables only when the user explicitly asks for multiple tables, master tables, reference tables, lookup tables, or separated relational data.`,
+  "If you are unsure, keep all fields in the one main table and do not split into customer, employee, product, or status master tables.",
   `Create between 1 and ${MAX_FIELDS_PER_TABLE} fields per table.`,
   "Use only these field types: text, textarea, number, date, datetime, boolean, select.",
   "Use snake_case field codes and kebab-case app and table codes.",
@@ -97,6 +102,7 @@ const GENERATION_INSTRUCTIONS = [
 const REPAIR_INSTRUCTIONS = [
   "Repair the previous invalid blueprint into valid JSON that matches the schema exactly.",
   "Keep the same business intent and stay within the same field type restrictions.",
+  "Preserve the app default: one main table unless the original prompt explicitly asks for multiple, master, reference, lookup, or relational tables.",
   "Return JSON only.",
 ].join(" ");
 
@@ -473,6 +479,43 @@ function parseOpenAIResponse(response: { output_text?: string }) {
   }
 }
 
+function promptExplicitlyAllowsMultipleTables(prompt: string) {
+  return MULTI_TABLE_PROMPT_PATTERN.test(prompt);
+}
+
+function containsJapanese(value: string) {
+  return /[ぁ-んァ-ヶ一-龠]/.test(value);
+}
+
+function appendSingleTableInsight(
+  blueprint: GeneratedAppBlueprint,
+  prompt: string
+) {
+  const suffix = containsJapanese(prompt)
+    ? `まずは「${blueprint.tables[0]?.name ?? "メインテーブル"}」を中心にした1テーブル構成で開始します。必要になったマスタや参照テーブルは後から追加できます。`
+    : `Start with one main table, and add master or reference tables later only when they become necessary.`;
+
+  return `${blueprint.aiInsight} ${suffix}`.trim();
+}
+
+function applySingleTableGenerationDefault(
+  blueprint: GeneratedAppBlueprint,
+  prompt: string
+) {
+  if (
+    blueprint.tables.length <= DEFAULT_GENERATED_TABLE_COUNT ||
+    promptExplicitlyAllowsMultipleTables(prompt)
+  ) {
+    return blueprint;
+  }
+
+  return {
+    ...blueprint,
+    aiInsight: appendSingleTableInsight(blueprint, prompt),
+    tables: blueprint.tables.slice(0, DEFAULT_GENERATED_TABLE_COUNT),
+  };
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -646,7 +689,10 @@ export async function generateBlueprintFromPrompt(
   const openAIClient = client ?? (await getOpenAIClient(tenantId));
 
   try {
-    return await requestBlueprint(openAIClient, GENERATION_INSTRUCTIONS, trimmedPrompt);
+    return applySingleTableGenerationDefault(
+      await requestBlueprint(openAIClient, GENERATION_INSTRUCTIONS, trimmedPrompt),
+      trimmedPrompt
+    );
   } catch (error) {
     if (!(error instanceof InvalidGeneratedBlueprintError)) {
       throw error;
@@ -660,7 +706,10 @@ export async function generateBlueprintFromPrompt(
     ].join("\n");
 
     try {
-      return await requestBlueprint(openAIClient, REPAIR_INSTRUCTIONS, repairInput);
+      return applySingleTableGenerationDefault(
+        await requestBlueprint(openAIClient, REPAIR_INSTRUCTIONS, repairInput),
+        trimmedPrompt
+      );
     } catch (repairError) {
       if (!(repairError instanceof InvalidGeneratedBlueprintError)) {
         throw repairError;
