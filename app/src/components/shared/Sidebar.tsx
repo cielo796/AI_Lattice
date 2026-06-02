@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { listApps } from "@/lib/api/apps";
+import { getAppByCode, listApps } from "@/lib/api/apps";
 import type { App } from "@/types/app";
 import { cn } from "@/lib/cn";
 import { Icon } from "./Icon";
@@ -32,12 +32,24 @@ function resolveCurrentApp(pathname: string | null, apps: App[]) {
   return null;
 }
 
+function resolveRuntimeAppCode(pathname: string | null) {
+  const runtimeMatch = pathname?.match(/^\/(?:run|m)\/([^/]+)/);
+  return runtimeMatch ? decodeURIComponent(runtimeMatch[1]) : "";
+}
+
 function isAppScopedPath(pathname: string | null) {
   return Boolean(pathname?.startsWith("/apps/") || pathname?.startsWith("/run/") || pathname?.startsWith("/m/"));
 }
 
+function mergeApp(apps: App[], app: App) {
+  return apps.some((currentApp) => currentApp.id === app.id)
+    ? apps.map((currentApp) => (currentApp.id === app.id ? app : currentApp))
+    : [app, ...apps];
+}
+
 interface SidebarContentProps {
   pathname: string | null;
+  initialApps?: App[];
   onNavigate?: () => void;
   onClose?: () => void;
   mobile?: boolean;
@@ -45,18 +57,20 @@ interface SidebarContentProps {
 
 function SidebarContent({
   pathname,
+  initialApps = [],
   onNavigate,
   onClose,
   mobile = false,
 }: SidebarContentProps) {
   const router = useRouter();
-  const [apps, setApps] = useState<App[]>([]);
-  const [isLoadingApps, setIsLoadingApps] = useState(true);
+  const [apps, setApps] = useState<App[]>(initialApps);
+  const [isLoadingApps, setIsLoadingApps] = useState(initialApps.length === 0);
 
   useEffect(() => {
     let active = true;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    async function loadAppsForSidebar() {
+    async function loadAppsForSidebar(attempt = 0) {
       try {
         setIsLoadingApps(true);
         const nextApps = await listApps();
@@ -65,6 +79,13 @@ function SidebarContent({
           setApps(nextApps);
         }
       } catch {
+        if (active && attempt < 2) {
+          retryTimer = setTimeout(() => {
+            void loadAppsForSidebar(attempt + 1);
+          }, 600 * (attempt + 1));
+          return;
+        }
+
         if (active) {
           setApps([]);
         }
@@ -79,10 +100,41 @@ function SidebarContent({
 
     return () => {
       active = false;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
     };
   }, []);
 
+  const runtimeAppCode = useMemo(() => resolveRuntimeAppCode(pathname), [pathname]);
   const currentApp = useMemo(() => resolveCurrentApp(pathname, apps), [apps, pathname]);
+
+  useEffect(() => {
+    if (!runtimeAppCode || currentApp) {
+      return;
+    }
+
+    let active = true;
+
+    async function loadCurrentRuntimeApp() {
+      try {
+        const app = await getAppByCode(runtimeAppCode);
+
+        if (active) {
+          setApps((currentApps) => mergeApp(currentApps, app));
+        }
+      } catch {
+        // Keep the global navigation usable even when the runtime app lookup fails.
+      }
+    }
+
+    void loadCurrentRuntimeApp();
+
+    return () => {
+      active = false;
+    };
+  }, [currentApp, runtimeAppCode]);
+
   const navItems = useMemo(
     () => [
       { href: "/home", icon: "apps", label: "アプリ" },
@@ -221,7 +273,11 @@ function SidebarContent({
   );
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  initialApps?: App[];
+}
+
+export function Sidebar({ initialApps = [] }: SidebarProps) {
   const pathname = usePathname();
   const { closeMobileNav, isMobileNavOpen } = useShellChrome();
 
@@ -241,7 +297,7 @@ export function Sidebar() {
   return (
     <>
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col bg-sidebar border-r border-outline-variant md:flex">
-        <SidebarContent pathname={pathname} />
+        <SidebarContent pathname={pathname} initialApps={initialApps} />
       </aside>
 
       {isMobileNavOpen && (
@@ -255,6 +311,7 @@ export function Sidebar() {
           >
             <SidebarContent
               pathname={pathname}
+              initialApps={initialApps}
               mobile
               onClose={closeMobileNav}
               onNavigate={closeMobileNav}

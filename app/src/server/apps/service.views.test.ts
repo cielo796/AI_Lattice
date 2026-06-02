@@ -153,4 +153,137 @@ describe("apps service views", () => {
     });
     expect(prisma.appView.create).not.toHaveBeenCalled();
   });
+
+  it("creates runtime views with grouping, date, and metric settings", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "app_1",
+          tenantId: "tenant_1",
+          name: "Support Desk",
+        }),
+      },
+      appTable: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "tbl_tickets",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          name: "Tickets",
+          code: "tickets",
+          isSystem: false,
+          sortOrder: 0,
+          createdAt: new Date("2026-04-24T00:00:00.000Z"),
+        }),
+      },
+      appField: {
+        findMany: vi.fn().mockResolvedValue([
+          { code: "status", fieldType: "select" },
+          { code: "due_date", fieldType: "date" },
+          { code: "amount", fieldType: "number" },
+        ]),
+      },
+      appView: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ sortOrder: 0 }),
+        create: vi.fn().mockResolvedValue({
+          id: "view_chart",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          tableId: "tbl_tickets",
+          name: "Status chart",
+          viewType: "chart",
+          settingsJson: {
+            columns: ["status", "amount"],
+            groupByFieldCode: "status",
+            dateFieldCode: "due_date",
+            metricFieldCode: "amount",
+          },
+          sortOrder: 1,
+          createdAt: new Date("2026-04-24T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T00:00:00.000Z"),
+        }),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    const view = await createViewForTable(user, "app_1", "tbl_tickets", {
+      name: "Status chart",
+      viewType: "chart",
+      settingsJson: {
+        columns: ["status", "amount"],
+        groupByFieldCode: "status",
+        dateFieldCode: "due_date",
+        metricFieldCode: "amount",
+      },
+    });
+
+    expect(view.settingsJson).toEqual({
+      columns: ["status", "amount"],
+      groupByFieldCode: "status",
+      dateFieldCode: "due_date",
+      metricFieldCode: "amount",
+    });
+    expect(prisma.appView.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          viewType: "chart",
+          settingsJson: {
+            columns: ["status", "amount"],
+            groupByFieldCode: "status",
+            dateFieldCode: "due_date",
+            metricFieldCode: "amount",
+          },
+        }),
+      })
+    );
+  });
+
+  it("rejects non numeric metric fields", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "app_1",
+          tenantId: "tenant_1",
+        }),
+      },
+      appTable: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "tbl_tickets",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          name: "Tickets",
+          code: "tickets",
+          isSystem: false,
+          sortOrder: 0,
+          createdAt: new Date("2026-04-24T00:00:00.000Z"),
+        }),
+      },
+      appField: {
+        findMany: vi.fn().mockResolvedValue([
+          { code: "subject", fieldType: "text" },
+        ]),
+      },
+      appView: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    await expect(
+      createViewForTable(user, "app_1", "tbl_tickets", {
+        name: "Broken KPI",
+        viewType: "kpi",
+        settingsJson: { metricFieldCode: "subject" },
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining("指標フィールド"),
+    });
+    expect(prisma.appView.create).not.toHaveBeenCalled();
+  });
 });
