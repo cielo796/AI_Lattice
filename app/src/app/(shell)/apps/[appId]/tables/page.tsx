@@ -73,6 +73,9 @@ type ViewFormState = {
   columnCodes: string[];
   sortFieldCode: string;
   sortDirection: "asc" | "desc";
+  groupByFieldCode: string;
+  dateFieldCode: string;
+  metricFieldCode: string;
   filters: ViewFilterFormState[];
 };
 type ViewFilterFormState = {
@@ -113,6 +116,9 @@ const EMPTY_VIEW_FORM: ViewFormState = {
   columnCodes: [],
   sortFieldCode: "",
   sortDirection: "desc",
+  groupByFieldCode: "",
+  dateFieldCode: "",
+  metricFieldCode: "",
   filters: [],
 };
 const EMPTY_FORM_FORM: FormFormState = {
@@ -244,6 +250,17 @@ function getViewFilters(view: AppView, fields: AppField[]): ViewFilterFormState[
   });
 }
 
+function getViewSettingFieldCode(
+  view: AppView,
+  fields: AppField[],
+  settingKey: "groupByFieldCode" | "dateFieldCode" | "metricFieldCode"
+) {
+  const fieldCode = view.settingsJson?.[settingKey];
+  const fieldCodes = new Set(fields.map((field) => field.code));
+
+  return typeof fieldCode === "string" && fieldCodes.has(fieldCode) ? fieldCode : "";
+}
+
 function buildViewSettings(form: ViewFormState, fields: AppField[]) {
   const fallbackColumns = fields.slice(0, 4).map((field) => field.code);
   const columns = form.columnCodes.length > 0 ? form.columnCodes : fallbackColumns;
@@ -268,6 +285,17 @@ function buildViewSettings(form: ViewFormState, fields: AppField[]) {
         }
       : {}),
     ...(filters.length > 0 ? { filters } : {}),
+    ...((form.viewType === "kanban" || form.viewType === "chart") &&
+    form.groupByFieldCode
+      ? { groupByFieldCode: form.groupByFieldCode }
+      : {}),
+    ...(form.viewType === "calendar" && form.dateFieldCode
+      ? { dateFieldCode: form.dateFieldCode }
+      : {}),
+    ...((form.viewType === "chart" || form.viewType === "kpi") &&
+    form.metricFieldCode
+      ? { metricFieldCode: form.metricFieldCode }
+      : {}),
   };
 }
 
@@ -786,11 +814,22 @@ export default function TableDesignerPage() {
             fields.filter((item) => item.id !== field.id)
           );
           const sort = getViewSort(view);
-          const settingsJson = {
+          const settingsJson: Record<string, unknown> = {
             ...view.settingsJson,
             columns,
-            ...(sort.fieldCode === field.code ? { sort: undefined } : {}),
           };
+          if (sort.fieldCode === field.code) {
+            delete settingsJson.sort;
+          }
+          if (settingsJson.groupByFieldCode === field.code) {
+            delete settingsJson.groupByFieldCode;
+          }
+          if (settingsJson.dateFieldCode === field.code) {
+            delete settingsJson.dateFieldCode;
+          }
+          if (settingsJson.metricFieldCode === field.code) {
+            delete settingsJson.metricFieldCode;
+          }
 
           return {
             ...view,
@@ -1095,6 +1134,21 @@ export default function TableDesignerPage() {
                   const columns = getViewColumnCodes(view, fields);
                   const sort = getViewSort(view);
                   const filters = getViewFilters(view, fields);
+                  const groupByFieldCode = getViewSettingFieldCode(
+                    view,
+                    fields,
+                    "groupByFieldCode"
+                  );
+                  const dateFieldCode = getViewSettingFieldCode(
+                    view,
+                    fields,
+                    "dateFieldCode"
+                  );
+                  const metricFieldCode = getViewSettingFieldCode(
+                    view,
+                    fields,
+                    "metricFieldCode"
+                  );
 
                   return (
                     <div
@@ -1113,6 +1167,9 @@ export default function TableDesignerPage() {
                             {VIEW_META[view.viewType].label} / {columns.length || fields.length} 列
                             {sort.fieldCode ? ` / ${sort.fieldCode} ${sort.direction}` : ""}
                             {filters.length > 0 ? ` / ${filters.length} フィルタ` : ""}
+                            {groupByFieldCode ? ` / 分類 ${groupByFieldCode}` : ""}
+                            {dateFieldCode ? ` / 日付 ${dateFieldCode}` : ""}
+                            {metricFieldCode ? ` / 指標 ${metricFieldCode}` : ""}
                           </div>
                         </div>
                         <div className="flex shrink-0 gap-2">
@@ -1128,6 +1185,21 @@ export default function TableDesignerPage() {
                                 columnCodes: columns,
                                 sortFieldCode: sort.fieldCode,
                                 sortDirection: sort.direction,
+                                groupByFieldCode: getViewSettingFieldCode(
+                                  view,
+                                  fields,
+                                  "groupByFieldCode"
+                                ),
+                                dateFieldCode: getViewSettingFieldCode(
+                                  view,
+                                  fields,
+                                  "dateFieldCode"
+                                ),
+                                metricFieldCode: getViewSettingFieldCode(
+                                  view,
+                                  fields,
+                                  "metricFieldCode"
+                                ),
                                 filters,
                               });
                             }}
@@ -1238,6 +1310,97 @@ export default function TableDesignerPage() {
                     </div>
                   </div>
                 </div>
+
+                {viewForm.viewType !== "list" && (
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {(viewForm.viewType === "kanban" ||
+                      viewForm.viewType === "chart") && (
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                          分類フィールド
+                        </label>
+                        <select
+                          value={viewForm.groupByFieldCode}
+                          onChange={(event) =>
+                            setViewForm((current) => ({
+                              ...current,
+                              groupByFieldCode: event.target.value,
+                            }))
+                          }
+                          disabled={!activeTable || isSavingView}
+                          className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="">自動判定</option>
+                          {fields.map((field) => (
+                            <option key={field.id} value={field.code}>
+                              {field.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {viewForm.viewType === "calendar" && (
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                          日付フィールド
+                        </label>
+                        <select
+                          value={viewForm.dateFieldCode}
+                          onChange={(event) =>
+                            setViewForm((current) => ({
+                              ...current,
+                              dateFieldCode: event.target.value,
+                            }))
+                          }
+                          disabled={!activeTable || isSavingView}
+                          className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="">自動判定</option>
+                          {fields
+                            .filter(
+                              (field) =>
+                                field.fieldType === "date" ||
+                                field.fieldType === "datetime"
+                            )
+                            .map((field) => (
+                              <option key={field.id} value={field.code}>
+                                {field.name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {(viewForm.viewType === "chart" || viewForm.viewType === "kpi") && (
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                          指標フィールド
+                        </label>
+                        <select
+                          value={viewForm.metricFieldCode}
+                          onChange={(event) =>
+                            setViewForm((current) => ({
+                              ...current,
+                              metricFieldCode: event.target.value,
+                            }))
+                          }
+                          disabled={!activeTable || isSavingView}
+                          className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="">件数を使う</option>
+                          {fields
+                            .filter((field) => field.fieldType === "number")
+                            .map((field) => (
+                              <option key={field.id} value={field.code}>
+                                {field.name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">

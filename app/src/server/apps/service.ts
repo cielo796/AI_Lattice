@@ -30,6 +30,11 @@ const FIELD_TYPES: FieldType[] = [
 
 const VIEW_TYPES: AppViewType[] = ["list", "kanban", "calendar", "chart", "kpi"];
 const VIEW_FILTER_OPERATORS = ["equals", "contains", "not_empty"] as const;
+const VIEW_FIELD_CODE_SETTING_KEYS = [
+  "groupByFieldCode",
+  "dateFieldCode",
+  "metricFieldCode",
+] as const;
 const FORM_FIELD_WIDTHS = ["half", "full"] as const;
 type ViewFilterOperator = (typeof VIEW_FILTER_OPERATORS)[number];
 type FormFieldWidth = (typeof FORM_FIELD_WIDTHS)[number];
@@ -832,6 +837,37 @@ function normalizeViewFilters(
     );
 }
 
+function normalizeOptionalViewFieldCode(
+  value: unknown,
+  fieldByCode: Map<string, { code: string; fieldType: FieldType }>,
+  fieldName: string,
+  allowedFieldTypes?: FieldType[]
+) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    throw new AppsServiceError(`${fieldName} はフィールドコードで指定してください。`, 400);
+  }
+
+  const fieldCode = value.trim();
+  if (!fieldCode) {
+    return undefined;
+  }
+
+  const field = fieldByCode.get(fieldCode);
+  if (!field) {
+    throw new AppsServiceError(`${fieldName} "${fieldCode}" が見つかりません。`, 400);
+  }
+
+  if (allowedFieldTypes && !allowedFieldTypes.includes(field.fieldType)) {
+    throw new AppsServiceError(`${fieldName} "${fieldCode}" のフィールド型が不正です。`, 400);
+  }
+
+  return fieldCode;
+}
+
 async function normalizeViewSettings(
   user: User,
   appId: string,
@@ -849,10 +885,16 @@ async function normalizeViewSettings(
       appId,
       tableId,
     },
-    select: { code: true },
+    select: { code: true, fieldType: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
-  const availableFieldCodes = new Set(fields.map((field) => field.code));
+  const fieldByCode = new Map(
+    fields.map((field) => [
+      field.code,
+      field as typeof field & { fieldType: FieldType },
+    ])
+  );
+  const availableFieldCodes = new Set(fieldByCode.keys());
   const columns = normalizeFieldCodeList(
     settingsJson.columns,
     availableFieldCodes,
@@ -860,11 +902,31 @@ async function normalizeViewSettings(
   );
   const sort = normalizeViewSort(settingsJson.sort, availableFieldCodes);
   const filters = normalizeViewFilters(settingsJson.filters, availableFieldCodes);
+  const groupByFieldCode = normalizeOptionalViewFieldCode(
+    settingsJson.groupByFieldCode,
+    fieldByCode,
+    "グループ化フィールド"
+  );
+  const dateFieldCode = normalizeOptionalViewFieldCode(
+    settingsJson.dateFieldCode,
+    fieldByCode,
+    "日付フィールド",
+    ["date", "datetime"]
+  );
+  const metricFieldCode = normalizeOptionalViewFieldCode(
+    settingsJson.metricFieldCode,
+    fieldByCode,
+    "指標フィールド",
+    ["number"]
+  );
 
   return {
     ...(columns !== undefined ? { columns } : {}),
     ...(sort ? { sort } : {}),
     ...(filters !== undefined ? { filters } : {}),
+    ...(groupByFieldCode ? { groupByFieldCode } : {}),
+    ...(dateFieldCode ? { dateFieldCode } : {}),
+    ...(metricFieldCode ? { metricFieldCode } : {}),
   };
 }
 
@@ -1036,10 +1098,23 @@ function replaceFieldCodeInViewSettings(
     : settings.filters;
 
   if (!changed) {
-    return undefined;
+    const hasSettingFieldChange = VIEW_FIELD_CODE_SETTING_KEYS.some(
+      (key) => settings[key] === previousCode
+    );
+
+    if (!hasSettingFieldChange) {
+      return undefined;
+    }
   }
 
   const nextSettings: Record<string, unknown> = { ...settings, columns, filters };
+  for (const key of VIEW_FIELD_CODE_SETTING_KEYS) {
+    if (nextSettings[key] === previousCode) {
+      nextSettings[key] = nextCode;
+      changed = true;
+    }
+  }
+
   if (sort) {
     nextSettings.sort = sort;
   } else {
@@ -1098,10 +1173,23 @@ function removeFieldCodeFromViewSettings(value: unknown, fieldCode: string) {
     : settings.filters;
 
   if (!changed) {
-    return undefined;
+    const hasSettingFieldChange = VIEW_FIELD_CODE_SETTING_KEYS.some(
+      (key) => settings[key] === fieldCode
+    );
+
+    if (!hasSettingFieldChange) {
+      return undefined;
+    }
   }
 
   const nextSettings: Record<string, unknown> = { ...settings, columns, filters };
+  for (const key of VIEW_FIELD_CODE_SETTING_KEYS) {
+    if (nextSettings[key] === fieldCode) {
+      delete nextSettings[key];
+      changed = true;
+    }
+  }
+
   if (sort) {
     nextSettings.sort = sort;
   } else {
@@ -1202,6 +1290,37 @@ export async function getAppForUser(user: User, appId: string) {
   await ensureDemoBuilderData();
   const app = await getAppOrThrow(user, appId);
   return toApp(app);
+}
+
+export async function getAppByCodeForUser(user: User, appCode: string) {
+  await ensureDemoBuilderData();
+
+  const normalizedCode = assertNonEmpty(appCode, "App code");
+  const prisma = getPrismaClient();
+  const app = await prisma.app.findFirst({
+    where: {
+      tenantId: user.tenantId,
+      code: normalizedCode,
+    },
+    include: {
+      tables: {
+        select: { code: true },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 1,
+      },
+      _count: {
+        select: {
+          tables: true,
+        },
+      },
+    },
+  });
+
+  if (!app) {
+    throw new AppsServiceError("アプリが見つかりません", 404);
+  }
+
+  return toAppSummary(app);
 }
 
 export async function createAppForUser(user: User, input: CreateAppInput) {

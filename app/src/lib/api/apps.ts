@@ -76,6 +76,10 @@ function appPath(appId: string) {
   return `/api/apps/${appId}`;
 }
 
+function appByCodePath(appCode: string) {
+  return `/api/apps/by-code/${encodeURIComponent(appCode)}`;
+}
+
 function appBlueprintPath() {
   return "/api/apps/blueprints";
 }
@@ -118,6 +122,10 @@ function formItemPath(appId: string, tableId: string, formId: string) {
 
 export async function listApps() {
   return apiFetch<App[]>("/api/apps");
+}
+
+export async function getAppByCode(appCode: string) {
+  return apiFetch<App>(appByCodePath(appCode));
 }
 
 export async function generateAppBlueprint(prompt: string) {
