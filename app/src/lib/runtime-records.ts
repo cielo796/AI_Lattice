@@ -37,6 +37,12 @@ function getStringValue(data: Record<string, unknown>, key: string) {
   return "";
 }
 
+export function getRecordDisplayNumber(record: AppRecord | null | undefined) {
+  return typeof record?.recordNo === "number" && Number.isFinite(record.recordNo)
+    ? `レコード${record.recordNo}`
+    : "";
+}
+
 export function getRecordIdentifier(record: AppRecord | null | undefined) {
   const data = getRecordData(record);
 
@@ -47,6 +53,7 @@ export function getRecordIdentifier(record: AppRecord | null | undefined) {
     getStringValue(data, "claim_id") ||
     getStringValue(data, "request_id") ||
     getStringValue(data, "application_id") ||
+    getRecordDisplayNumber(record) ||
     record?.id ||
     "レコード"
   );

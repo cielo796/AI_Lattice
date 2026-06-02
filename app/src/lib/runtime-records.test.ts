@@ -6,6 +6,7 @@ import {
   getReferenceRecordLabel,
   getReferenceTableId,
   getReferenceTableCode,
+  getRecordDisplayNumber,
   getRecordCustomer,
   getRecordIdentifier,
   getRecordTitle,
@@ -60,6 +61,26 @@ describe("runtime-records field labels", () => {
     expect(getRecordIdentifier(record)).toBe("EXPENSE-001");
     expect(getRecordTitle(record)).toBe("大阪出張交通費");
     expect(getRecordCustomer(record)).toBe("田中 太郎");
+  });
+
+  it("falls back to the display record number before the internal id", () => {
+    const record: AppRecord = {
+      id: "941f00d6-49a4-4279-8a7e-69857df622e7",
+      tenantId: "tenant_1",
+      appId: "app_1",
+      tableId: "table_1",
+      recordNo: 7,
+      status: "active",
+      data: {},
+      createdBy: "user_1",
+      updatedBy: "user_1",
+      createdAt: "2026-04-24T00:00:00.000Z",
+      updatedAt: "2026-04-24T00:00:00.000Z",
+    };
+
+    expect(getRecordDisplayNumber(record)).toBe("レコード7");
+    expect(getRecordIdentifier(record)).toBe("レコード7");
+    expect(getRecordTitle(record)).toBe("レコード7");
   });
 
   it("reads the configured reference table code", () => {

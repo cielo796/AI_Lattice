@@ -765,6 +765,7 @@ export async function createAppFromBlueprint(
             tenantId: user.tenantId,
             appId,
             tableId,
+            recordNo: recordIndex + 1,
             status: getSampleRecordStatus(data, recordIndex),
             dataJson: toJsonObject(data),
             createdById: user.id,

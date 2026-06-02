@@ -52,6 +52,7 @@ export async function ensureDemoRecordData() {
       });
       const existingTableIds = new Set(existingTables.map((table) => table.id));
       const seededRecordIds = new Set<string>();
+      const nextRecordNoByTableId = new Map<string, number>();
 
       for (const record of mockRecords) {
         if (!existingTableIds.has(record.tableId)) {
@@ -64,12 +65,16 @@ export async function ensureDemoRecordData() {
         });
 
         if (!existingRecord) {
+          const recordNo = nextRecordNoByTableId.get(record.tableId) ?? 1;
+          nextRecordNoByTableId.set(record.tableId, recordNo + 1);
+
           await prisma.appRecord.create({
             data: {
               id: record.id,
               tenantId: record.tenantId,
               appId: record.appId,
               tableId: record.tableId,
+              recordNo,
               status: record.status,
               dataJson: toJsonObject(record.data),
               createdById: record.createdBy,

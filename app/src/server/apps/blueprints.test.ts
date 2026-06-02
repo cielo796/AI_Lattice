@@ -279,6 +279,7 @@ describe("apps blueprints", () => {
         data: expect.objectContaining({
           appId: expect.any(String),
           tableId: expect.any(String),
+          recordNo: 1,
           status: "pending",
           dataJson: expect.objectContaining({
             id: "TICKETS-001",
