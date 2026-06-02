@@ -3,6 +3,7 @@ export interface AppRecord {
   tenantId: string;
   appId: string;
   tableId: string;
+  recordNo?: number;
   status: string;
   data: { [key: string]: unknown };
   createdBy: string;

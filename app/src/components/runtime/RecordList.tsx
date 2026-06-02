@@ -42,6 +42,7 @@ interface RecordListProps {
   views?: AppView[];
   activeViewId?: string;
   selectedId?: string;
+  isFullWidth?: boolean;
   isLoading?: boolean;
   onViewChange?: (viewId: string) => void;
   onSelect: (record: AppRecord) => void;
@@ -259,6 +260,7 @@ export function RecordList({
   views = [],
   activeViewId,
   selectedId,
+  isFullWidth = false,
   isLoading = false,
   onViewChange,
   onSelect,
@@ -309,8 +311,13 @@ export function RecordList({
   return (
     <div
       className={cn(
-        "flex w-full shrink-0 flex-col border-b border-outline-variant bg-surface xl:border-b-0 xl:border-r",
-        isListView ? "xl:w-80" : "xl:w-[44rem] 2xl:w-[48rem]"
+        "flex w-full flex-col border-b border-outline-variant bg-surface xl:border-b-0",
+        isFullWidth
+          ? "min-w-0 flex-1"
+          : [
+              "shrink-0 xl:border-r",
+              isListView ? "xl:w-80" : "xl:w-[44rem] 2xl:w-[48rem]",
+            ]
       )}
     >
       <div className="border-b border-outline-variant p-3">

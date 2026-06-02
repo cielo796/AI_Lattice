@@ -270,6 +270,7 @@ function toAppRecord(record: {
   tenantId: string;
   appId: string;
   tableId: string;
+  recordNo?: number | null;
   status: string;
   dataJson: Prisma.JsonValue;
   createdById: string;
@@ -283,6 +284,7 @@ function toAppRecord(record: {
     tenantId: record.tenantId,
     appId: record.appId,
     tableId: record.tableId,
+    recordNo: record.recordNo ?? undefined,
     status: record.status,
     data: toDataObject(record.dataJson),
     createdBy: record.createdById,
@@ -905,6 +907,22 @@ export async function getRuntimeTableMeta(
   };
 }
 
+async function getNextRecordNoForTable(
+  prisma: ReturnType<typeof getPrismaClient>,
+  tableId: string
+) {
+  const result = await prisma.appRecord.aggregate({
+    where: { tableId },
+    _max: { recordNo: true },
+  });
+
+  return (result._max.recordNo ?? 0) + 1;
+}
+
+function isPrismaUniqueError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
 export async function createRecordForTable(
   user: User,
   appCode: string,
@@ -920,18 +938,37 @@ export async function createRecordForTable(
     assertRecordData(input.data)
   );
   const prisma = getPrismaClient();
-  const record = await prisma.appRecord.create({
-    data: {
-      id: crypto.randomUUID(),
-      tenantId: user.tenantId,
-      appId: app.id,
-      tableId: table.id,
-      status: input.status?.trim() || "active",
-      dataJson: toJsonObject(data),
-      createdById: user.id,
-      updatedById: user.id,
-    },
-  });
+  const status = input.status?.trim() || "active";
+  let record: Awaited<ReturnType<typeof prisma.appRecord.create>> | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const recordNo = await getNextRecordNoForTable(prisma, table.id);
+
+    try {
+      record = await prisma.appRecord.create({
+        data: {
+          id: crypto.randomUUID(),
+          tenantId: user.tenantId,
+          appId: app.id,
+          tableId: table.id,
+          recordNo,
+          status,
+          dataJson: toJsonObject(data),
+          createdById: user.id,
+          updatedById: user.id,
+        },
+      });
+      break;
+    } catch (error) {
+      if (!isPrismaUniqueError(error) || attempt === 2) {
+        throw error;
+      }
+    }
+  }
+
+  if (!record) {
+    throw new RecordsServiceError("Could not allocate a record number", 409);
+  }
 
   await recordAuditLog(user, {
     actionType: "RECORD_CREATE",

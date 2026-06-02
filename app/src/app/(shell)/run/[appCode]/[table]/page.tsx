@@ -219,20 +219,6 @@ export default function RuntimeViewPage() {
         }
 
         setRecords(nextRecords);
-        setSelectedId((current) => {
-          if (
-            requestedRecordId &&
-            nextRecords.some((record) => record.id === requestedRecordId)
-          ) {
-            return requestedRecordId;
-          }
-
-          if (current && nextRecords.some((record) => record.id === current)) {
-            return current;
-          }
-
-          return nextRecords[0]?.id ?? null;
-        });
         setError(null);
       } catch (nextError) {
         if (cancelled) {
@@ -261,7 +247,20 @@ export default function RuntimeViewPage() {
     return () => {
       cancelled = true;
     };
-  }, [appCode, refreshKey, requestedRecordId, tableCode]);
+  }, [appCode, refreshKey, tableCode]);
+
+  useEffect(() => {
+    if (!requestedRecordId) {
+      setSelectedId(null);
+      return;
+    }
+
+    setSelectedId(
+      records.some((record) => record.id === requestedRecordId)
+        ? requestedRecordId
+        : null
+    );
+  }, [records, requestedRecordId]);
 
   useEffect(() => {
     if (!appCode || !tableCode) {
@@ -331,6 +330,28 @@ export default function RuntimeViewPage() {
 
     const query = nextSearchParams.toString();
     router.replace(`${pathname}${query ? `?${query}` : ""}`, { scroll: false });
+  }
+
+  function buildRuntimeHref(recordId: string | null) {
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    if (recordId) {
+      nextSearchParams.set("recordId", recordId);
+    } else {
+      nextSearchParams.delete("recordId");
+    }
+
+    const query = nextSearchParams.toString();
+    return `${pathname}${query ? `?${query}` : ""}`;
+  }
+
+  function openRecordDetail(record: AppRecord) {
+    setSelectedId(record.id);
+    router.push(buildRuntimeHref(record.id), { scroll: false });
+  }
+
+  function clearRecordDetail() {
+    setSelectedId(null);
+    router.replace(buildRuntimeHref(null), { scroll: false });
   }
 
   useEffect(() => {
@@ -565,7 +586,7 @@ export default function RuntimeViewPage() {
       setIsSavingRecord(true);
       const record = await createRecord(appCode, tableCode, input);
       setRecords((current) => [record, ...current]);
-      setSelectedId(record.id);
+      openRecordDetail(record);
       setComments([]);
       setAttachments([]);
       setApprovals([]);
@@ -644,7 +665,7 @@ export default function RuntimeViewPage() {
 
       const nextRecords = records.filter((record) => record.id !== selectedRecord.id);
       setRecords(nextRecords);
-      setSelectedId(nextRecords[0]?.id ?? null);
+      clearRecordDetail();
       setComments([]);
       setAttachments([]);
       setApprovals([]);
@@ -774,71 +795,93 @@ export default function RuntimeViewPage() {
       />
 
       <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
-        <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
-          <RecordList
-            records={resolvedRecords}
-            fields={tableMeta?.fields ?? []}
-            views={tableMeta?.views ?? []}
-            activeViewId={activeViewId}
-            selectedId={selectedId ?? undefined}
-            isLoading={isLoadingRecords}
-            onViewChange={handleViewChange}
-            onSelect={(record) => setSelectedId(record.id)}
-          />
+        <div className="flex min-h-0 flex-1 flex-col">
+          {error && (
+            <div className="border-b border-error/20 bg-error/10 px-4 py-3 text-sm text-error md:px-8">
+              {error}
+            </div>
+          )}
 
-          <div className="flex min-w-0 flex-1 flex-col">
-            {error && (
-              <div className="border-b border-error/20 bg-error/10 px-4 py-3 text-sm text-error md:px-8">
-                {error}
-              </div>
-            )}
-
-            {shouldRenderRecordPanel && (
-              <RecordCreatePanel
-                key={
-                  recordPanelMode === "edit"
-                    ? `edit-${selectedRecord?.id ?? "none"}`
-                    : "create"
-                }
-                appCode={appCode}
+          <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+            {!selectedRecord && (
+              <RecordList
+                records={resolvedRecords}
                 fields={tableMeta?.fields ?? []}
-                forms={tableMeta?.forms ?? []}
-                mode={recordPanelMode ?? "create"}
-                initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
-                tableName={tableMeta?.table.name}
-                isSubmitting={isSavingRecord}
-                onClose={() => setRecordPanelMode(null)}
-                onSubmit={
-                  recordPanelMode === "edit" ? handleUpdateRecord : handleCreateRecord
-                }
+                views={tableMeta?.views ?? []}
+                activeViewId={activeViewId}
+                selectedId={selectedId ?? undefined}
+                isFullWidth={!shouldRenderRecordPanel}
+                isLoading={isLoadingRecords}
+                onViewChange={handleViewChange}
+                onSelect={openRecordDetail}
               />
             )}
 
-            <RecordDetail
-              appCode={appCode}
-              runtimeBasePath="/run"
-              record={selectedRecord}
-              fieldDefinitions={tableMeta?.fields}
-              referenceLabelsByField={referenceLabelsByField}
-              referenceRecordsByField={referenceRecordsByField}
-              referenceFieldsByField={referenceFieldsByField}
-              backReferenceGroups={backReferenceGroups}
-              isLoadingBackReferences={isLoadingBackReferences}
-              comments={comments}
-              attachments={attachments}
-              approvals={approvals}
-              isLoadingActivity={isLoadingActivity}
-              isLoadingApprovals={isLoadingActivity}
-              isSubmittingComment={isSubmittingComment}
-              isUploadingAttachment={isUploadingAttachment}
-              isDeletingRecord={isDeletingRecord}
-              deletingAttachmentId={deletingAttachmentId}
-              onAddComment={handleAddComment}
-              onAddAttachment={handleAddAttachment}
-              onEditRecord={() => setRecordPanelMode("edit")}
-              onDeleteRecord={handleDeleteRecord}
-              onDeleteAttachment={handleDeleteAttachment}
-            />
+            {(shouldRenderRecordPanel || selectedRecord) && (
+              <div className="flex min-w-0 flex-1 flex-col">
+                {selectedRecord && (
+                  <div className="border-b border-outline-variant bg-surface px-4 py-3 md:px-8">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearRecordDetail}
+                    >
+                      <Icon name="arrow_back" size="sm" />
+                      一覧へ戻る
+                    </Button>
+                  </div>
+                )}
+
+                {shouldRenderRecordPanel && (
+                  <RecordCreatePanel
+                    key={
+                      recordPanelMode === "edit"
+                        ? `edit-${selectedRecord?.id ?? "none"}`
+                        : "create"
+                    }
+                    appCode={appCode}
+                    fields={tableMeta?.fields ?? []}
+                    forms={tableMeta?.forms ?? []}
+                    mode={recordPanelMode ?? "create"}
+                    initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
+                    tableName={tableMeta?.table.name}
+                    isSubmitting={isSavingRecord}
+                    onClose={() => setRecordPanelMode(null)}
+                    onSubmit={
+                      recordPanelMode === "edit" ? handleUpdateRecord : handleCreateRecord
+                    }
+                  />
+                )}
+
+                {selectedRecord && (
+                  <RecordDetail
+                    appCode={appCode}
+                    runtimeBasePath="/run"
+                    record={selectedRecord}
+                    fieldDefinitions={tableMeta?.fields}
+                    referenceLabelsByField={referenceLabelsByField}
+                    referenceRecordsByField={referenceRecordsByField}
+                    referenceFieldsByField={referenceFieldsByField}
+                    backReferenceGroups={backReferenceGroups}
+                    isLoadingBackReferences={isLoadingBackReferences}
+                    comments={comments}
+                    attachments={attachments}
+                    approvals={approvals}
+                    isLoadingActivity={isLoadingActivity}
+                    isLoadingApprovals={isLoadingActivity}
+                    isSubmittingComment={isSubmittingComment}
+                    isUploadingAttachment={isUploadingAttachment}
+                    isDeletingRecord={isDeletingRecord}
+                    deletingAttachmentId={deletingAttachmentId}
+                    onAddComment={handleAddComment}
+                    onAddAttachment={handleAddAttachment}
+                    onEditRecord={() => setRecordPanelMode("edit")}
+                    onDeleteRecord={handleDeleteRecord}
+                    onDeleteAttachment={handleDeleteAttachment}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -898,7 +941,7 @@ export default function RuntimeViewPage() {
                   <button
                     key={record.id}
                     type="button"
-                    onClick={() => setSelectedId(record.id)}
+                    onClick={() => openRecordDetail(record)}
                     className="w-full rounded-lg bg-surface-container p-3 text-left transition-colors hover:bg-surface-container-high"
                   >
                     <div className="mb-1 flex items-center justify-between gap-2">

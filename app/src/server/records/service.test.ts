@@ -256,11 +256,13 @@ describe("records service master_ref validation", () => {
           .fn()
           .mockResolvedValueOnce({ id: "customer_1" })
           .mockResolvedValueOnce({ id: "customer_2" }),
+        aggregate: vi.fn().mockResolvedValue({ _max: { recordNo: 0 } }),
         create: vi.fn().mockResolvedValue({
           id: "rec_1",
           tenantId: "tenant_1",
           appId: "app_1",
           tableId: "tbl_tickets",
+          recordNo: 1,
           status: "active",
           dataJson: {
             subject: "Multi customer ticket",
@@ -289,6 +291,7 @@ describe("records service master_ref validation", () => {
     expect(prisma.appRecord.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
+          recordNo: 1,
           dataJson: {
             subject: "Multi customer ticket",
             customers: ["customer_1", "customer_2"],
@@ -449,11 +452,13 @@ describe("records service schema validation", () => {
         ]),
       },
       appRecord: {
+        aggregate: vi.fn().mockResolvedValue({ _max: { recordNo: 0 } }),
         create: vi.fn().mockResolvedValue({
           id: "rec_1",
           tenantId: "tenant_1",
           appId: "app_1",
           tableId: "tbl_tickets",
+          recordNo: 1,
           status: "active",
           dataJson: {
             subject: "Defaulted ticket",
@@ -486,6 +491,7 @@ describe("records service schema validation", () => {
     expect(prisma.appRecord.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
+          recordNo: 1,
           dataJson: {
             subject: "Defaulted ticket",
             priority: "Medium",

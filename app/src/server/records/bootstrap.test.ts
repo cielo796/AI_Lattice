@@ -127,6 +127,14 @@ describe("ensureDemoRecordData", () => {
     await ensureDemoRecordData();
 
     expect(prisma.appRecord.create).toHaveBeenCalledTimes(mockRecords.length);
+    expect(prisma.appRecord.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recordNo: 1,
+        }),
+      })
+    );
     expect(prisma.recordComment.create).toHaveBeenCalledTimes(mockComments.length);
     expect(prisma.attachment.create).toHaveBeenCalledTimes(mockAttachments.length);
   });
