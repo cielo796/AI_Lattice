@@ -8,6 +8,7 @@ import type {
   FieldType,
 } from "@/types/app";
 import type { GeneratedAppBlueprint } from "@/types/ai";
+import type { AppRefinementResult } from "@/types/app-refinement";
 import { apiFetch } from "@/lib/api/client";
 
 export interface CreateTableInput {
@@ -88,6 +89,10 @@ function appGeneratePath() {
   return "/api/apps/generate";
 }
 
+function appRefinePath(appId: string) {
+  return `${appPath(appId)}/refine`;
+}
+
 function tableCollectionPath(appId: string) {
   return `${appPath(appId)}/tables`;
 }
@@ -139,6 +144,16 @@ export async function createAppFromBlueprint(blueprint: GeneratedAppBlueprint) {
   return apiFetch<App>(appBlueprintPath(), {
     method: "POST",
     body: JSON.stringify(blueprint),
+  });
+}
+
+export async function refineApp(
+  appId: string,
+  input: { instruction: string; activeTableCode?: string }
+) {
+  return apiFetch<AppRefinementResult>(appRefinePath(appId), {
+    method: "POST",
+    body: JSON.stringify(input),
   });
 }
 
