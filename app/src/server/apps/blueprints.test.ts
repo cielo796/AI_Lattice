@@ -47,6 +47,18 @@ const validBlueprint = {
           required: true,
           options: ["Critical", "High", "Medium", "Low"],
         },
+        {
+          name: "Due Date",
+          code: "due_date",
+          fieldType: "date" as const,
+          required: false,
+        },
+        {
+          name: "Amount",
+          code: "amount",
+          fieldType: "number" as const,
+          required: false,
+        },
       ],
     },
   ],
@@ -174,6 +186,9 @@ describe("apps blueprints", () => {
       appField: {
         create: vi.fn().mockResolvedValue({ id: "fld-new" }),
       },
+      appView: {
+        create: vi.fn().mockResolvedValue({ id: "view-new" }),
+      },
       appRecord: {
         create: vi.fn().mockResolvedValue({ id: "rec-new" }),
       },
@@ -190,7 +205,74 @@ describe("apps blueprints", () => {
     expect(tx.app.findFirst).toHaveBeenCalledOnce();
     expect(tx.app.create).toHaveBeenCalledOnce();
     expect(tx.appTable.create).toHaveBeenCalledOnce();
-    expect(tx.appField.create).toHaveBeenCalledTimes(2);
+    expect(tx.appField.create).toHaveBeenCalledTimes(4);
+    expect(tx.appView.create).toHaveBeenCalledTimes(5);
+    expect(tx.appView.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: "一覧",
+          viewType: "list",
+          sortOrder: 0,
+          settingsJson: {
+            columns: ["subject", "priority", "due_date", "amount"],
+          },
+        }),
+      })
+    );
+    expect(tx.appView.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: "カンバン",
+          viewType: "kanban",
+          sortOrder: 1,
+          settingsJson: expect.objectContaining({
+            groupByFieldCode: "priority",
+          }),
+        }),
+      })
+    );
+    expect(tx.appView.create).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: "カレンダー",
+          viewType: "calendar",
+          sortOrder: 2,
+          settingsJson: expect.objectContaining({
+            dateFieldCode: "due_date",
+          }),
+        }),
+      })
+    );
+    expect(tx.appView.create).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: "チャート",
+          viewType: "chart",
+          sortOrder: 3,
+          settingsJson: expect.objectContaining({
+            groupByFieldCode: "priority",
+            metricFieldCode: "amount",
+          }),
+        }),
+      })
+    );
+    expect(tx.appView.create).toHaveBeenNthCalledWith(
+      5,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: "KPI",
+          viewType: "kpi",
+          sortOrder: 4,
+          settingsJson: expect.objectContaining({
+            metricFieldCode: "amount",
+          }),
+        }),
+      })
+    );
     expect(tx.appRecord.create).toHaveBeenCalledTimes(SAMPLE_RECORDS_PER_TABLE);
     expect(tx.appRecord.create).toHaveBeenCalledWith(
       expect.objectContaining({

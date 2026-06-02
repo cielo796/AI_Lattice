@@ -16,6 +16,7 @@ import type { User } from "@/types/user";
 const MAX_TABLES = 3;
 const MAX_FIELDS_PER_TABLE = 10;
 const SAMPLE_RECORDS_PER_TABLE = 3;
+const DEFAULT_VIEW_COLUMN_LIMIT = 4;
 const GENERATED_BLUEPRINT_FIELD_TYPES: GeneratedBlueprintFieldType[] = [
   "text",
   "textarea",
@@ -26,6 +27,13 @@ const GENERATED_BLUEPRINT_FIELD_TYPES: GeneratedBlueprintFieldType[] = [
   "select",
 ];
 const OPENAI_MODEL = "gpt-5-mini";
+const GROUP_FIELD_CODES = new Set([
+  "status",
+  "state",
+  "stage",
+  "priority",
+  "approval_status",
+]);
 
 const BLUEPRINT_RESPONSE_SCHEMA = {
   type: "object",
@@ -247,6 +255,87 @@ function getSampleRecordStatus(data: Record<string, unknown>, recordIndex: numbe
   }
 
   return ["pending", "active", "approved"][recordIndex % 3];
+}
+
+function getInitialViewColumns(table: GeneratedBlueprintTable) {
+  return table.fields
+    .slice(0, DEFAULT_VIEW_COLUMN_LIMIT)
+    .map((field) => field.code);
+}
+
+function getInitialGroupField(table: GeneratedBlueprintTable) {
+  return (
+    table.fields.find((field) => GROUP_FIELD_CODES.has(field.code)) ??
+    table.fields.find(
+      (field) => field.fieldType === "select" || field.fieldType === "boolean"
+    )
+  );
+}
+
+function getInitialDateField(table: GeneratedBlueprintTable) {
+  return table.fields.find(
+    (field) => field.fieldType === "date" || field.fieldType === "datetime"
+  );
+}
+
+function getInitialMetricField(table: GeneratedBlueprintTable) {
+  return table.fields.find((field) => field.fieldType === "number");
+}
+
+function buildInitialViewsForTable(table: GeneratedBlueprintTable) {
+  const columns = getInitialViewColumns(table);
+  const groupField = getInitialGroupField(table);
+  const dateField = getInitialDateField(table);
+  const metricField = getInitialMetricField(table);
+  const views: Array<{
+    name: string;
+    viewType: "list" | "kanban" | "calendar" | "chart" | "kpi";
+    settingsJson: Record<string, unknown>;
+  }> = [
+    {
+      name: "一覧",
+      viewType: "list",
+      settingsJson: { columns },
+    },
+  ];
+
+  if (groupField) {
+    views.push({
+      name: "カンバン",
+      viewType: "kanban",
+      settingsJson: { columns, groupByFieldCode: groupField.code },
+    });
+  }
+
+  if (dateField) {
+    views.push({
+      name: "カレンダー",
+      viewType: "calendar",
+      settingsJson: { columns, dateFieldCode: dateField.code },
+    });
+  }
+
+  if (groupField) {
+    views.push({
+      name: "チャート",
+      viewType: "chart",
+      settingsJson: {
+        columns,
+        groupByFieldCode: groupField.code,
+        ...(metricField ? { metricFieldCode: metricField.code } : {}),
+      },
+    });
+  }
+
+  if (metricField) {
+    views.push({
+      name: "KPI",
+      viewType: "kpi",
+      settingsJson: { columns, metricFieldCode: metricField.code },
+    });
+  }
+
+  return views;
 }
 
 function toJsonObject(value: Record<string, unknown>) {
@@ -648,6 +737,21 @@ export async function createAppFromBlueprint(
                 ? { options: field.options ?? [] }
                 : undefined,
             sortOrder: fieldIndex,
+          },
+        });
+      }
+
+      for (const [viewIndex, view] of buildInitialViewsForTable(table).entries()) {
+        await tx.appView.create({
+          data: {
+            id: crypto.randomUUID(),
+            tenantId: user.tenantId,
+            appId,
+            tableId,
+            name: view.name,
+            viewType: view.viewType,
+            settingsJson: toJsonObject(view.settingsJson),
+            sortOrder: viewIndex,
           },
         });
       }

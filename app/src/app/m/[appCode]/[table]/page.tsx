@@ -8,7 +8,12 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { Badge } from "@/components/shared/Badge";
 import { Icon } from "@/components/shared/Icon";
 import { Button } from "@/components/shared/Button";
@@ -31,6 +36,7 @@ import {
   formatFieldKey,
   formatFieldValue,
   formatPriorityLabel,
+  formatRelativeTime,
   formatStatusLabel,
   getDisplayFields,
   getRecordFieldValueText,
@@ -52,9 +58,31 @@ import {
   resolveRecordReferences,
   type ReferenceRecordsByField,
 } from "@/lib/runtime-records";
+import {
+  addMonths,
+  applyViewQuery,
+  filterRecordsByView,
+  formatDateGroupLabel,
+  formatMonthLabel,
+  formatNumber,
+  getCalendarDays,
+  getChartBuckets,
+  getCurrentMonthKey,
+  getDateFieldCode,
+  getFieldDisplayLabel,
+  getGroupFieldCode,
+  getMetricFieldCode,
+  getNumericMetricValues,
+  getViewColumns,
+  getViewFilters,
+  getVisibleFields,
+  groupRecordsByDate,
+  groupRecordsByField,
+  sortRecordsByView,
+} from "@/lib/runtime-views";
 import type { ReferenceLabelsByField } from "@/lib/runtime-records";
 import { useToastStore } from "@/stores/toastStore";
-import type { AppField, RuntimeTableMeta } from "@/types/app";
+import type { AppField, AppViewType, RuntimeTableMeta } from "@/types/app";
 import type {
   AppRecord,
   Attachment,
@@ -62,11 +90,13 @@ import type {
   RecordComment,
 } from "@/types/record";
 
-const tabs = [
-  { id: "all", label: "すべて" },
-  { id: "open", label: "未対応" },
-  { id: "priority", label: "優先度高" },
-];
+const MOBILE_VIEW_META: Record<AppViewType, { label: string; icon: string }> = {
+  list: { label: "一覧", icon: "view_list" },
+  kanban: { label: "カンバン", icon: "view_kanban" },
+  calendar: { label: "カレンダー", icon: "calendar_month" },
+  chart: { label: "チャート", icon: "insert_chart" },
+  kpi: { label: "KPI", icon: "speed" },
+};
 
 type MobileOverlay = "detail" | "create" | null;
 
@@ -399,15 +429,115 @@ function MobileRecordDetailView({
   );
 }
 
+interface MobileRecordCardProps {
+  record: AppRecord;
+  fields: AppField[];
+  visibleColumnCodes: string[];
+  selectedId?: string | null;
+  compact?: boolean;
+  onOpen: (recordId: string) => void;
+}
+
+function MobileRecordCard({
+  record,
+  fields,
+  visibleColumnCodes,
+  selectedId,
+  compact = false,
+  onOpen,
+}: MobileRecordCardProps) {
+  const priority = getRecordPriority(record);
+  const sentiment = getRecordSentiment(record);
+  const isSelected = selectedId === record.id;
+  const visibleFields = getVisibleFields(
+    record,
+    visibleColumnCodes,
+    fields,
+    compact ? 2 : 3
+  );
+
+  return (
+    <button
+      type="button"
+      data-testid={`mobile-record-card-${record.id}`}
+      onClick={() => onOpen(record.id)}
+      className={cn(
+        "block w-full rounded-xl border bg-surface p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all active:scale-[0.99] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)]",
+        isSelected ? "border-primary bg-primary-container/30" : "border-outline-variant",
+        compact && "p-3"
+      )}
+    >
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-[10px] font-mono text-on-surface-variant">
+          {getRecordIdentifier(record)}
+        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {typeof sentiment === "number" && sentiment < -0.5 && (
+            <Badge variant="ai">要確認</Badge>
+          )}
+          {priority && !compact && (
+            <Badge variant={getPriorityVariant(priority)}>
+              {formatPriorityLabel(priority)}
+            </Badge>
+          )}
+          <Badge variant={getStatusVariant(record.status)}>
+            {formatStatusLabel(record.status)}
+          </Badge>
+        </div>
+      </div>
+
+      <h3 className="mb-1.5 line-clamp-2 text-[14px] font-semibold leading-snug tracking-tight text-on-surface">
+        {getRecordTitle(record)}
+      </h3>
+
+      {!compact && (
+        <p className="mb-3 line-clamp-2 text-[12px] leading-relaxed text-on-surface-variant">
+          {getRecordDescription(record) || "説明はありません"}
+        </p>
+      )}
+
+      {visibleFields.length > 0 && (
+        <div className="mb-3 space-y-1">
+          {visibleFields.map((field) => (
+            <div
+              key={field.fieldCode}
+              className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-[11px]"
+            >
+              <span className="truncate text-on-surface-muted">{field.label}</span>
+              <span className="truncate text-on-surface-variant">
+                {formatFieldValue(field.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between border-t border-outline-variant pt-2.5">
+        <span className="text-[10.5px] text-on-surface-muted">
+          {formatRelativeTime(record.updatedAt)}
+        </span>
+        <span className="flex items-center gap-1 text-[10.5px] font-semibold text-primary">
+          <Icon name="visibility" size="sm" />
+          開く
+        </span>
+      </div>
+    </button>
+  );
+}
+
 export default function MobileRuntimePage() {
   const params = useParams<{ appCode: string; table: string }>();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const appCode = getParam(params.appCode);
   const tableCode = getParam(params.table);
   const requestedRecordId = searchParams.get("recordId")?.trim() ?? "";
+  const requestedViewId = searchParams.get("viewId")?.trim() ?? "";
   const pushToast = useToastStore((store) => store.pushToast);
 
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeViewId, setActiveViewId] = useState("");
+  const [calendarMonthKey, setCalendarMonthKey] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState<AppRecord[]>([]);
   const [tableMeta, setTableMeta] = useState<RuntimeTableMeta | null>(null);
@@ -524,6 +654,19 @@ export default function MobileRuntimePage() {
         }
 
         setTableMeta(nextMeta);
+        setActiveViewId((current) => {
+          const fallbackViewId = nextMeta.views[0]?.id ?? "";
+
+          if (requestedViewId) {
+            return nextMeta.views.some((view) => view.id === requestedViewId)
+              ? requestedViewId
+              : fallbackViewId;
+          }
+
+          return current && nextMeta.views.some((view) => view.id === current)
+            ? current
+            : fallbackViewId;
+        });
         setError(null);
       } catch (nextError) {
         if (cancelled) {
@@ -548,7 +691,7 @@ export default function MobileRuntimePage() {
     return () => {
       cancelled = true;
     };
-  }, [appCode, tableCode]);
+  }, [appCode, requestedViewId, tableCode]);
 
   useEffect(() => {
     if (!appCode || !tableCode || !selectedId || activeOverlay !== "detail") {
@@ -743,6 +886,22 @@ export default function MobileRuntimePage() {
     setActiveOverlay("detail");
   }
 
+  function handleViewChange(viewId: string) {
+    setActiveViewId(viewId);
+
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    if (viewId) {
+      nextSearchParams.set("viewId", viewId);
+    } else {
+      nextSearchParams.delete("viewId");
+    }
+
+    const queryString = nextSearchParams.toString();
+    router.replace(`${pathname}${queryString ? `?${queryString}` : ""}`, {
+      scroll: false,
+    });
+  }
+
   async function handleCreateRecord(input: {
     status: string;
     data: Record<string, unknown>;
@@ -833,36 +992,48 @@ export default function MobileRuntimePage() {
     }
   }
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredRecords = resolvedRecords.filter((record) => {
-    if (activeTab === "open" && !record.status.toLowerCase().includes("open")) {
-      return false;
-    }
-
-    if (activeTab === "priority") {
-      const priority = getRecordPriority(record);
-      const variant = priority ? getPriorityVariant(priority) : "default";
-      if (variant !== "error" && variant !== "warning") {
-        return false;
-      }
-    }
-
-    if (!normalizedQuery) {
-      return true;
-    }
-
-    return [
-      getRecordIdentifier(record),
-      getRecordTitle(record),
-      getRecordDescription(record),
-      getRecordPriority(record),
-      record.status,
-    ]
-      .join(" ")
-      .toLowerCase()
-      .includes(normalizedQuery);
-  });
-  const emptyMessage = normalizedQuery
+  const fields = tableMeta?.fields ?? [];
+  const activeView =
+    tableMeta?.views.find((view) => view.id === activeViewId) ??
+    tableMeta?.views[0];
+  const activeViewType = activeView?.viewType ?? "list";
+  const visibleColumnCodes = getViewColumns(activeView, fields);
+  const filteredRecords = applyViewQuery(
+    sortRecordsByView(
+      filterRecordsByView(resolvedRecords, getViewFilters(activeView)),
+      activeView
+    ),
+    visibleColumnCodes,
+    query
+  );
+  const groupFieldCode = getGroupFieldCode(activeView, fields);
+  const dateFieldCode = getDateFieldCode(activeView, fields);
+  const metricFieldCode = getMetricFieldCode(activeView, fields);
+  const metricLabel = metricFieldCode
+    ? getFieldDisplayLabel(metricFieldCode, fields)
+    : "件数";
+  const kanbanGroups = groupRecordsByField(filteredRecords, groupFieldCode, fields);
+  const calendarGroups = groupRecordsByDate(filteredRecords, dateFieldCode);
+  const recordsByDate = new Map(
+    calendarGroups.map((group) => [group.key, group.records] as const)
+  );
+  const firstCalendarMonthKey =
+    calendarGroups.find((group) => group.key !== "日付なし")?.key.slice(0, 7) ??
+    getCurrentMonthKey();
+  const displayedCalendarMonthKey = calendarMonthKey ?? firstCalendarMonthKey;
+  const calendarDays = getCalendarDays(displayedCalendarMonthKey, recordsByDate);
+  const undatedCalendarGroup = calendarGroups.find(
+    (group) => group.key === "日付なし"
+  );
+  const chartBuckets = getChartBuckets(filteredRecords, fields, activeView);
+  const metricValues = getNumericMetricValues(filteredRecords, metricFieldCode);
+  const metricTotal = metricValues.reduce((total, value) => total + value, 0);
+  const metricAverage =
+    metricValues.length > 0 ? metricTotal / metricValues.length : 0;
+  const doneCount = filteredRecords.filter(
+    (record) => getStatusVariant(record.status) === "success"
+  ).length;
+  const emptyMessage = query.trim()
     ? "検索条件に一致するレコードはありません。"
     : "まだレコードがありません。新規レコードから作成できます。";
 
@@ -899,21 +1070,28 @@ export default function MobileRuntimePage() {
 
       <div className="overflow-x-auto border-b border-outline-variant px-4 py-3">
         <div className="flex min-w-max gap-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-wider transition-colors",
-                activeTab === tab.id
-                  ? "bg-primary-container text-on-primary-container"
-                  : "border border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {(tableMeta?.views ?? []).map((view) => {
+            const viewMeta = MOBILE_VIEW_META[view.viewType];
+            const isActive = view.id === activeView?.id;
+
+            return (
+              <button
+                key={view.id}
+                type="button"
+                data-testid={`mobile-runtime-view-tab-${view.id}`}
+                onClick={() => handleViewChange(view.id)}
+                className={cn(
+                  "inline-flex whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-semibold tracking-wider transition-colors",
+                  isActive
+                    ? "bg-primary-container text-on-primary-container"
+                    : "border border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low"
+                )}
+              >
+                <Icon name={viewMeta.icon} size="sm" className="mr-1 text-[14px]" />
+                {view.name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -930,61 +1108,309 @@ export default function MobileRuntimePage() {
           </div>
         )}
 
-        {!isLoadingRecords && filteredRecords.length === 0 && (
+        {!isLoadingRecords && !isLoadingMeta && filteredRecords.length === 0 && (
           <div className="rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low p-6 text-center text-sm text-on-surface-variant">
             {emptyMessage}
           </div>
         )}
 
-        <div className="space-y-3">
-          {filteredRecords.map((record) => {
-            const priority = getRecordPriority(record);
-            const sentiment = getRecordSentiment(record);
+        {!isLoadingRecords &&
+          !isLoadingMeta &&
+          filteredRecords.length > 0 &&
+          activeViewType === "list" && (
+            <div className="space-y-3" data-testid="mobile-runtime-list-view">
+              {filteredRecords.map((record) => (
+                <MobileRecordCard
+                  key={record.id}
+                  record={record}
+                  fields={fields}
+                  visibleColumnCodes={visibleColumnCodes}
+                  selectedId={selectedId}
+                  onOpen={openDetail}
+                />
+              ))}
+            </div>
+          )}
 
-            return (
-              <button
-                key={record.id}
-                type="button"
-                onClick={() => openDetail(record.id)}
-                className="block w-full rounded-xl border border-outline-variant bg-surface p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all active:scale-[0.99] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)]"
-              >
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className="text-[10px] font-mono text-on-surface-variant">
-                    {getRecordIdentifier(record)}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {typeof sentiment === "number" && sentiment < -0.5 && (
-                      <Badge variant="ai">要確認</Badge>
-                    )}
-                    {priority && (
-                      <Badge variant={getPriorityVariant(priority)}>
-                        {formatPriorityLabel(priority)}
-                      </Badge>
-                    )}
+        {!isLoadingRecords &&
+          !isLoadingMeta &&
+          filteredRecords.length > 0 &&
+          activeViewType === "kanban" && (
+            <div
+              className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-4"
+              data-testid="mobile-runtime-kanban-view"
+            >
+              {kanbanGroups.map((group) => (
+                <section
+                  key={group.key}
+                  className="flex max-h-[calc(100vh-16rem)] w-72 shrink-0 flex-col rounded-xl border border-outline-variant bg-surface-container-low"
+                >
+                  <div className="flex items-center justify-between gap-2 border-b border-outline-variant px-3 py-2">
+                    <div className="min-w-0 truncate text-sm font-semibold text-on-surface">
+                      {group.label}
+                    </div>
+                    <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+                      {group.records.length}
+                    </span>
+                  </div>
+                  <div className="space-y-2 overflow-y-auto p-2">
+                    {group.records.map((record) => (
+                      <MobileRecordCard
+                        key={record.id}
+                        record={record}
+                        fields={fields}
+                        visibleColumnCodes={visibleColumnCodes}
+                        selectedId={selectedId}
+                        compact
+                        onOpen={openDetail}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+
+        {!isLoadingRecords &&
+          !isLoadingMeta &&
+          filteredRecords.length > 0 &&
+          activeViewType === "calendar" && (
+            <div className="space-y-3" data-testid="mobile-runtime-calendar-view">
+              <section className="rounded-xl border border-outline-variant bg-surface">
+                <div className="flex items-center justify-between gap-3 border-b border-outline-variant px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-bold text-on-surface">
+                      {formatMonthLabel(displayedCalendarMonthKey)}
+                    </div>
+                    <div className="text-[10px] text-on-surface-variant">
+                      {getFieldDisplayLabel(dateFieldCode, fields)} 別
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCalendarMonthKey((current) =>
+                          addMonths(current ?? displayedCalendarMonthKey, -1)
+                        )
+                      }
+                      className="flex h-8 w-8 items-center justify-center rounded-md border border-outline-variant bg-surface text-on-surface-variant"
+                      aria-label="前月"
+                    >
+                      <Icon name="chevron_left" size="sm" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMonthKey(firstCalendarMonthKey)}
+                      className="h-8 rounded-md border border-outline-variant bg-surface px-2 text-[11px] font-semibold text-on-surface-variant"
+                    >
+                      初期
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCalendarMonthKey((current) =>
+                          addMonths(current ?? displayedCalendarMonthKey, 1)
+                        )
+                      }
+                      className="flex h-8 w-8 items-center justify-center rounded-md border border-outline-variant bg-surface text-on-surface-variant"
+                      aria-label="翌月"
+                    >
+                      <Icon name="chevron_right" size="sm" />
+                    </button>
                   </div>
                 </div>
-
-                <h3 className="mb-1.5 text-[14px] font-semibold leading-snug tracking-tight text-on-surface">
-                  {getRecordTitle(record)}
-                </h3>
-
-                <p className="mb-3 line-clamp-2 text-[12px] leading-relaxed text-on-surface-variant">
-                  {getRecordDescription(record) || "説明はありません"}
-                </p>
-
-                <div className="flex items-center justify-between border-t border-outline-variant pt-2.5">
-                  <span className="text-[10.5px] font-medium text-on-surface-muted">
-                    {formatStatusLabel(record.status)}
-                  </span>
-                  <span className="flex items-center gap-1 text-[10.5px] font-semibold text-primary">
-                    <Icon name="visibility" size="sm" />
-                    開く
-                  </span>
+                <div className="overflow-x-auto p-2">
+                  <div className="min-w-[560px]">
+                    <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-on-surface-muted">
+                      {["日", "月", "火", "水", "木", "金", "土"].map((weekday) => (
+                        <div key={weekday} className="py-2">
+                          {weekday}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 rounded-lg border border-outline-variant">
+                      {calendarDays.map((day) => (
+                        <div
+                          key={day.key}
+                          className={cn(
+                            "min-h-24 border-b border-r border-outline-variant bg-surface p-1.5",
+                            !day.inMonth && "bg-surface-container-low text-on-surface-muted",
+                            day.isToday && "bg-primary-container/30"
+                          )}
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-1">
+                            <span
+                              className={cn(
+                                "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
+                                day.isToday
+                                  ? "bg-primary text-white"
+                                  : "text-on-surface-variant"
+                              )}
+                            >
+                              {day.day}
+                            </span>
+                            {day.records.length > 0 && (
+                              <span className="rounded-full bg-surface-container-high px-1.5 py-0.5 text-[9px] font-semibold text-on-surface-variant">
+                                {day.records.length}
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            {day.records.slice(0, 2).map((record) => (
+                              <button
+                                key={record.id}
+                                type="button"
+                                onClick={() => openDetail(record.id)}
+                                className="block w-full rounded-md bg-primary-container/60 px-1.5 py-1 text-left text-[10px] font-semibold leading-tight text-on-primary-container"
+                              >
+                                <span className="block truncate">
+                                  {getRecordTitle(record)}
+                                </span>
+                              </button>
+                            ))}
+                            {day.records.length > 2 && (
+                              <div className="rounded-md bg-surface-container-high px-1.5 py-1 text-[9px] font-semibold text-on-surface-variant">
+                                +{day.records.length - 2}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </button>
-            );
-          })}
-        </div>
+              </section>
+
+              {undatedCalendarGroup && undatedCalendarGroup.records.length > 0 && (
+                <section className="rounded-xl border border-outline-variant bg-surface-container-low">
+                  <div className="flex items-center justify-between gap-2 border-b border-outline-variant px-3 py-2">
+                    <div className="truncate text-sm font-semibold text-on-surface">
+                      {formatDateGroupLabel(undatedCalendarGroup.label)}
+                    </div>
+                    <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+                      {undatedCalendarGroup.records.length}
+                    </span>
+                  </div>
+                  <div className="space-y-2 p-2">
+                    {undatedCalendarGroup.records.map((record) => (
+                      <MobileRecordCard
+                        key={record.id}
+                        record={record}
+                        fields={fields}
+                        visibleColumnCodes={visibleColumnCodes}
+                        selectedId={selectedId}
+                        compact
+                        onOpen={openDetail}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+
+        {!isLoadingRecords &&
+          !isLoadingMeta &&
+          filteredRecords.length > 0 &&
+          activeViewType === "chart" && (
+            <div className="space-y-3" data-testid="mobile-runtime-chart-view">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-outline-variant bg-surface p-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                    レコード
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-on-surface">
+                    {filteredRecords.length}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface p-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                    指標
+                  </div>
+                  <div className="mt-2 truncate text-sm font-bold text-on-surface">
+                    {metricLabel}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {chartBuckets.map((bucket) => (
+                  <button
+                    key={bucket.key}
+                    type="button"
+                    onClick={() => openDetail(bucket.records[0].id)}
+                    className="w-full rounded-xl border border-outline-variant bg-surface p-3 text-left"
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate text-sm font-semibold text-on-surface">
+                        {bucket.label}
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-on-surface-variant">
+                        {metricFieldCode
+                          ? formatNumber(bucket.value)
+                          : `${bucket.records.length}件`}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-surface-container-high">
+                      <div
+                        className="h-2 rounded-full bg-primary"
+                        style={{ width: `${bucket.percent}%` }}
+                      />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+        {!isLoadingRecords &&
+          !isLoadingMeta &&
+          filteredRecords.length > 0 &&
+          activeViewType === "kpi" && (
+            <div className="space-y-3" data-testid="mobile-runtime-kpi-view">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ["総レコード", filteredRecords.length],
+                  ["完了", doneCount],
+                  [`${metricLabel} 合計`, metricFieldCode ? formatNumber(metricTotal) : "-"],
+                  [
+                    `${metricLabel} 平均`,
+                    metricFieldCode ? formatNumber(metricAverage) : "-",
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-xl border border-outline-variant bg-surface p-4"
+                  >
+                    <div className="truncate text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                      {label}
+                    </div>
+                    <div className="mt-2 truncate text-2xl font-bold text-on-surface">
+                      {value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <section className="rounded-xl border border-outline-variant bg-surface-container-low">
+                <div className="border-b border-outline-variant px-3 py-2 text-sm font-semibold text-on-surface">
+                  最近更新されたレコード
+                </div>
+                <div className="space-y-2 p-2">
+                  {filteredRecords.slice(0, 5).map((record) => (
+                    <MobileRecordCard
+                      key={record.id}
+                      record={record}
+                      fields={fields}
+                      visibleColumnCodes={visibleColumnCodes}
+                      selectedId={selectedId}
+                      compact
+                      onOpen={openDetail}
+                    />
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
       </main>
 
       <nav className="glass-effect fixed bottom-0 left-0 right-0 z-20 flex items-center justify-around py-3">
