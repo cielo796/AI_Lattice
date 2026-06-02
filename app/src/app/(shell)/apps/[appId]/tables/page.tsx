@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { AISidebar } from "@/components/ai/AISidebar";
+import { RefineBar } from "@/components/builder/RefineBar";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
@@ -31,6 +32,7 @@ import {
   listForms,
   listTables,
   listViews,
+  refineApp,
   updateForm,
   updateField,
   updateTable,
@@ -52,6 +54,7 @@ import type {
   AppViewType,
   FieldType,
 } from "@/types/app";
+import type { AppRefinementChange } from "@/types/app-refinement";
 
 type TableFormState = { name: string; code: string; isSystem: boolean };
 type FieldFormState = {
@@ -429,6 +432,11 @@ export default function TableDesignerPage() {
   const [isSavingView, setIsSavingView] = useState(false);
   const [isSavingForm, setIsSavingForm] = useState(false);
   const [isDeletingApp, setIsDeletingApp] = useState(false);
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [isRefining, setIsRefining] = useState(false);
+  const [refinementNotice, setRefinementNotice] = useState<string | null>(null);
+  const [refinementError, setRefinementError] = useState<string | null>(null);
+  const [refinementChanges, setRefinementChanges] = useState<AppRefinementChange[]>([]);
   const [referenceTableFields, setReferenceTableFields] = useState<AppField[]>([]);
   const [isLoadingReferenceTableFields, setIsLoadingReferenceTableFields] =
     useState(false);
@@ -666,6 +674,72 @@ export default function TableDesignerPage() {
       ...EMPTY_FORM_FORM,
       fields: fields.map(getDefaultFormField),
     });
+  }
+
+  async function reloadDesignerData(preferredTableCode?: string) {
+    if (!appId) {
+      return;
+    }
+
+    const nextTables = sortByOrder(await listTables(appId));
+    const preferredTable =
+      nextTables.find((table) => table.code === preferredTableCode) ??
+      nextTables.find((table) => table.id === activeTableId) ??
+      nextTables[0] ??
+      null;
+
+    setTables(nextTables);
+    setActiveTableId(preferredTable?.id ?? null);
+
+    if (!preferredTable) {
+      setFields([]);
+      setViews([]);
+      setForms([]);
+      return;
+    }
+
+    const [nextFields, nextViews, nextForms] = await Promise.all([
+      listFields(appId, preferredTable.id),
+      listViews(appId, preferredTable.id),
+      listForms(appId, preferredTable.id),
+    ]);
+
+    setFields(sortByOrder(nextFields));
+    setViews(sortByOrder(nextViews));
+    setForms(sortByOrder(nextForms));
+  }
+
+  async function onSubmitRefinement() {
+    const instruction = refineInstruction.trim();
+
+    if (!appId || !instruction) {
+      return;
+    }
+
+    try {
+      setIsRefining(true);
+      setRefinementNotice(null);
+      setRefinementError(null);
+      setRefinementChanges([]);
+      const result = await refineApp(appId, {
+        instruction,
+        activeTableCode: activeTable?.code,
+      });
+      setRefinementNotice(result.summary);
+      setRefinementChanges(result.changes);
+      setRefineInstruction("");
+      await reloadDesignerData(result.changes[0]?.tableCode ?? activeTable?.code);
+      resetFieldForm();
+      resetViewForm();
+      resetFormForm();
+      setError(null);
+    } catch (nextError) {
+      setRefinementError(
+        nextError instanceof Error ? nextError.message : "AI修正に失敗しました。"
+      );
+    } finally {
+      setIsRefining(false);
+    }
   }
 
   async function onSubmitTable(event: FormEvent<HTMLFormElement>) {
@@ -1084,7 +1158,7 @@ export default function TableDesignerPage() {
           </form>
         </aside>
 
-        <section className="flex-1 overflow-y-auto bg-surface-container-low px-4 py-6 md:px-6 xl:p-10">
+        <section className="flex-1 overflow-y-auto bg-surface-container-low px-4 pb-32 pt-6 md:px-6 xl:px-10 xl:pb-36 xl:pt-10">
           {wasCreated && (
             <div className="mb-6 rounded-lg border border-success-container bg-success-container/40 px-4 py-3 text-sm font-medium text-on-success-container">
               アプリを作成しました。生成されたスキーマを確認し、必要に応じてテーブルとフィールドを調整してください。
@@ -2178,6 +2252,20 @@ export default function TableDesignerPage() {
           </div>
         </AISidebar>
       </main>
+
+      <RefineBar
+        value={refineInstruction}
+        isSubmitting={isRefining}
+        disabled={isLoadingTables || isDeletingApp}
+        notice={refinementNotice}
+        error={refinementError}
+        changes={refinementChanges}
+        onChange={(value) => {
+          setRefineInstruction(value);
+          setRefinementError(null);
+        }}
+        onSubmit={() => void onSubmitRefinement()}
+      />
     </>
   );
 }
