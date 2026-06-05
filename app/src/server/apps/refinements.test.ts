@@ -353,9 +353,9 @@ describe("app AI refinements", () => {
     );
   });
 
-  it("adds a table before applying later operations to it", async () => {
+  it("rejects table creation operations from legacy refinement plans", async () => {
     const client = makeClient({
-      summary: "Maintenance table was added.",
+      summary: "Maintenance table was requested.",
       operations: [
         {
           action: "add_table",
@@ -377,57 +377,22 @@ describe("app AI refinements", () => {
           formFieldCodes: [],
           helpText: "",
         },
-        {
-          action: "add_field",
-          tableCode: "maintenance-requests",
-          tableName: "",
-          fieldCode: "request_status",
-          fieldName: "Request status",
-          fieldType: "select",
-          setRequired: false,
-          required: false,
-          options: ["open", "in_progress", "done"],
-          viewName: "",
-          viewType: "list",
-          columns: [],
-          groupByFieldCode: "",
-          dateFieldCode: "",
-          metricFieldCode: "",
-          formName: "",
-          formFieldCodes: [],
-          helpText: "",
-        },
       ],
     });
 
-    const result = await refineAppWithAI(
-      user,
-      "app-001",
-      { instruction: "メンテナンス依頼テーブルを追加して" },
-      client
-    );
+    await expect(
+      refineAppWithAI(
+        user,
+        "app-001",
+        { instruction: "Add a maintenance request table" },
+        client
+      )
+    ).rejects.toMatchObject({
+      status: 400,
+    });
 
-    expect(serviceMocks.createTableForApp).toHaveBeenCalledWith(
-      user,
-      "app-001",
-      expect.objectContaining({
-        name: "Maintenance requests",
-        code: "maintenance-requests",
-      })
-    );
-    expect(serviceMocks.createFieldForTable).toHaveBeenCalledWith(
-      user,
-      "app-001",
-      "tbl-maintenance",
-      expect.objectContaining({
-        code: "request_status",
-        fieldType: "select",
-      })
-    );
-    expect(result.changes.map((change) => change.type)).toEqual([
-      "table_created",
-      "field_created",
-    ]);
+    expect(serviceMocks.createTableForApp).not.toHaveBeenCalled();
+    expect(serviceMocks.createFieldForTable).not.toHaveBeenCalled();
   });
 
   it("updates required only when the AI marks it explicit", async () => {
