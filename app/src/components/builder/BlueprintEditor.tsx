@@ -92,7 +92,6 @@ export function BlueprintEditor({
 }: BlueprintEditorProps) {
   const activeTable =
     blueprint.tables.find((table) => table.id === activeTableId) ?? blueprint.tables[0];
-  const canAddTable = blueprint.tables.length < 3;
   const canAddField = activeTable && activeTable.fields.length < 10;
 
   return (
@@ -153,7 +152,7 @@ export function BlueprintEditor({
               テーブル
             </div>
             <div className="text-sm text-on-surface-variant">
-              最大 3 テーブル、各 10 フィールドまで作成できます。
+              1アプリ1テーブル固定です。項目は最大10フィールドまで作成できます。
             </div>
           </div>
           <Button
@@ -161,10 +160,10 @@ export function BlueprintEditor({
             variant="secondary"
             size="sm"
             onClick={onAddTable}
-            disabled={!canAddTable}
+            disabled
           >
-            <Icon name="add" size="sm" />
-            テーブルを追加
+            <Icon name="lock" size="sm" />
+            1テーブル固定
           </Button>
         </div>
 

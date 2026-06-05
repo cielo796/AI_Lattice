@@ -1488,9 +1488,20 @@ export async function createTableForApp(
     throw new AppsServiceError("テーブルコードは必須です", 400);
   }
 
+  const prisma = getPrismaClient();
+  const tableCount = await prisma.appTable.count({
+    where: {
+      appId,
+      tenantId: user.tenantId,
+    },
+  });
+
+  if (tableCount >= 1) {
+    throw new AppsServiceError("1アプリにつきテーブルは1つまでです", 400);
+  }
+
   await ensureUniqueTableCode(user, appId, code);
 
-  const prisma = getPrismaClient();
   const table = await prisma.appTable.create({
     data: {
       id: crypto.randomUUID(),

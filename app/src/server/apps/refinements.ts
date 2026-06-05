@@ -3,7 +3,6 @@ import {
   AppsServiceError,
   createFieldForTable,
   createFormForTable,
-  createTableForApp,
   createViewForTable,
   getAppForUser,
   listFieldsForTable,
@@ -80,7 +79,7 @@ const APP_REFINEMENT_RESPONSE_SCHEMA = {
         properties: {
           action: {
             type: "string",
-            enum: ["add_table", "add_field", "update_field", "add_view", "add_form"],
+            enum: ["add_field", "update_field", "add_view", "add_form"],
           },
           tableCode: { type: "string" },
           tableName: { type: "string" },
@@ -127,8 +126,8 @@ const REFINEMENT_INSTRUCTIONS = [
   "Prefer the current active table when the user does not name a table.",
   "Use kebab-case for new tableCode and snake_case for new field codes.",
   "Do not delete tables, fields, views, forms, or records.",
-  "Use add_table for new tables, add_field for new fields, update_field for changing an existing field name/required/type/options, add_view for new runtime views, and add_form for new forms.",
-  "When adding a table, follow with add_field operations for its important fields using the new tableCode.",
+  "Never create tables. Every app has exactly one table; add fields, views, or forms to the existing table instead.",
+  "Use add_field for new fields, update_field for changing an existing field name/required/type/options, add_view for new runtime views, and add_form for new forms.",
   "For unused operation fields, return an empty string, empty array, or false. For viewType on non-view operations, use list.",
   "For update_field, set setRequired to true only when the instruction explicitly changes whether the field is required.",
   "Keep operations small and directly tied to the instruction.",
@@ -205,7 +204,6 @@ function normalizeRawOperation(value: unknown): AppRefinementOperation | null {
 
   if (
     action !== "add_field" &&
-    action !== "add_table" &&
     action !== "update_field" &&
     action !== "add_view" &&
     action !== "add_form"
@@ -361,26 +359,6 @@ function getPreviewCreatedAt() {
   return "1970-01-01T00:00:00.000Z";
 }
 
-function makePreviewTable(appId: string, operation: AppRefinementOperation): AppTable {
-  const name = operation.tableName || operation.tableCode;
-  const code = operation.tableCode || operation.tableName;
-
-  if (!name || !code) {
-    throw new AppsServiceError("追加するテーブル名またはコードが不足しています。", 400);
-  }
-
-  return {
-    id: `preview-table-${code}`,
-    tenantId: "",
-    appId,
-    name,
-    code,
-    isSystem: false,
-    sortOrder: 0,
-    createdAt: getPreviewCreatedAt(),
-  };
-}
-
 function makePreviewField(
   tableContext: TableContext,
   operation: AppRefinementOperation
@@ -488,24 +466,6 @@ function buildPreviewChanges(input: {
   const changes: AppRefinementChange[] = [];
 
   for (const operation of input.operations) {
-    if (operation.action === "add_table") {
-      const table = makePreviewTable(input.appId, operation);
-      tables.push({
-        table,
-        fields: [],
-        views: [],
-        forms: [],
-      });
-      changes.push({
-        type: "table_created",
-        tableCode: table.code,
-        tableName: table.name,
-        resourceName: table.name,
-        description: `テーブル「${table.name}」を追加します。`,
-      });
-      continue;
-    }
-
     const tableContext = getTableForOperation(
       operation,
       tables,
@@ -600,28 +560,6 @@ async function applyOperation(input: {
   activeTableCode?: string;
 }): Promise<AppRefinementChange | null> {
   const { user, appId, operation, tables, activeTableCode } = input;
-
-  if (operation.action === "add_table") {
-    const table = await createTableForApp(user, appId, {
-      name: operation.tableName || operation.tableCode,
-      code: operation.tableCode || undefined,
-    });
-
-    tables.push({
-      table,
-      fields: [],
-      views: [],
-      forms: [],
-    });
-
-    return {
-      type: "table_created",
-      tableCode: table.code,
-      tableName: table.name,
-      resourceName: table.name,
-      description: `テーブル「${table.name}」を追加しました。`,
-    };
-  }
 
   const tableContext = getTableForOperation(operation, tables, activeTableCode);
 

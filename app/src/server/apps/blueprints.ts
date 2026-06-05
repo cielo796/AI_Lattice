@@ -13,8 +13,7 @@ import type {
 } from "@/types/ai";
 import type { User } from "@/types/user";
 
-const MAX_TABLES = 3;
-const DEFAULT_GENERATED_TABLE_COUNT = 1;
+const MAX_TABLES = 1;
 const MAX_FIELDS_PER_TABLE = 10;
 const SAMPLE_RECORDS_PER_TABLE = 3;
 const DEFAULT_VIEW_COLUMN_LIMIT = 4;
@@ -87,9 +86,8 @@ const GENERATION_INSTRUCTIONS = [
   "You generate internal business app blueprints.",
   "Return JSON only.",
   "Generate a compact but useful first version of the app.",
-  "Create exactly 1 main business table by default.",
-  `Create up to ${MAX_TABLES} tables only when the user explicitly asks for multiple tables, master tables, reference tables, lookup tables, or separated relational data.`,
-  "If you are unsure, keep all fields in the one main table and do not split into customer, employee, product, or status master tables.",
+  "Create exactly 1 main business table. Never create more than one table.",
+  "Keep master-like, reference-like, customer, employee, product, and status data as fields in the one main table.",
   `Create between 1 and ${MAX_FIELDS_PER_TABLE} fields per table.`,
   "Use only these field types: text, textarea, number, date, datetime, boolean, select.",
   "Use snake_case field codes and kebab-case app and table codes.",
@@ -102,7 +100,7 @@ const GENERATION_INSTRUCTIONS = [
 const REPAIR_INSTRUCTIONS = [
   "Repair the previous invalid blueprint into valid JSON that matches the schema exactly.",
   "Keep the same business intent and stay within the same field type restrictions.",
-  "Preserve the app default: one main table unless the original prompt explicitly asks for multiple, master, reference, lookup, or relational tables.",
+  "Return exactly one table. Never return multiple tables.",
   "Return JSON only.",
 ].join(" ");
 
@@ -480,7 +478,8 @@ function parseOpenAIResponse(response: { output_text?: string }) {
 }
 
 function promptExplicitlyAllowsMultipleTables(prompt: string) {
-  return MULTI_TABLE_PROMPT_PATTERN.test(prompt);
+  MULTI_TABLE_PROMPT_PATTERN.test(prompt);
+  return false;
 }
 
 function containsJapanese(value: string) {
@@ -503,7 +502,7 @@ function applySingleTableGenerationDefault(
   prompt: string
 ) {
   if (
-    blueprint.tables.length <= DEFAULT_GENERATED_TABLE_COUNT ||
+    blueprint.tables.length <= MAX_TABLES ||
     promptExplicitlyAllowsMultipleTables(prompt)
   ) {
     return blueprint;
@@ -512,7 +511,7 @@ function applySingleTableGenerationDefault(
   return {
     ...blueprint,
     aiInsight: appendSingleTableInsight(blueprint, prompt),
-    tables: blueprint.tables.slice(0, DEFAULT_GENERATED_TABLE_COUNT),
+    tables: blueprint.tables.slice(0, MAX_TABLES),
   };
 }
 
@@ -593,13 +592,6 @@ export function normalizeGeneratedAppBlueprint(
     throw new AppsServiceError("Blueprint must contain at least one table", 400);
   }
 
-  if (blueprint.tables.length > MAX_TABLES) {
-    throw new AppsServiceError(
-      `Blueprint exceeds the ${MAX_TABLES} table limit`,
-      400
-    );
-  }
-
   const tables = blueprint.tables.map((table, index) =>
     normalizeGeneratedTable(table, index)
   );
@@ -620,8 +612,14 @@ export function normalizeGeneratedAppBlueprint(
     name,
     code,
     description,
-    aiInsight,
-    tables,
+    aiInsight:
+      tables.length > MAX_TABLES
+        ? appendSingleTableInsight(
+            { name, code, description, aiInsight, tables },
+            [name, description, aiInsight, tables[0]?.name].join(" ")
+          )
+        : aiInsight,
+    tables: tables.slice(0, MAX_TABLES),
   };
 }
 

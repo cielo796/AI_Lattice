@@ -1,7 +1,6 @@
 import type { AppViewType, FieldType } from "@/types/app";
 
 export type AppRefinementOperationAction =
-  | "add_table"
   | "add_field"
   | "update_field"
   | "add_view"
@@ -29,7 +28,6 @@ export interface AppRefinementOperation {
 }
 
 export type AppRefinementChangeType =
-  | "table_created"
   | "field_created"
   | "field_updated"
   | "view_created"

@@ -113,7 +113,7 @@ describe("apps blueprints", () => {
     expect(client.responses.create).toHaveBeenCalledOnce();
   });
 
-  it("keeps only the main table unless the prompt asks for separated tables", async () => {
+  it("keeps only the main table when OpenAI returns multiple tables", async () => {
     const client = {
       responses: {
         create: vi.fn().mockResolvedValue({
@@ -126,10 +126,10 @@ describe("apps blueprints", () => {
 
     expect(blueprint.tables).toHaveLength(1);
     expect(blueprint.tables[0].code).toBe("tickets");
-    expect(blueprint.aiInsight).toContain("1テーブル構成");
+    expect(blueprint.aiInsight).toContain("one main table");
   });
 
-  it("keeps multiple tables when the prompt explicitly asks for master tables", async () => {
+  it("keeps only the main table even when the prompt asks for master tables", async () => {
     const client = {
       responses: {
         create: vi.fn().mockResolvedValue({
@@ -143,11 +143,9 @@ describe("apps blueprints", () => {
       client
     );
 
-    expect(blueprint.tables).toHaveLength(2);
-    expect(blueprint.tables.map((table) => table.code)).toEqual([
-      "tickets",
-      "customers",
-    ]);
+    expect(blueprint.tables).toHaveLength(1);
+    expect(blueprint.tables[0].code).toBe("tickets");
+    expect(blueprint.aiInsight).toContain("one main table");
   });
 
   it("repairs invalid blueprint data with a second OpenAI request", async () => {
