@@ -96,3 +96,30 @@ export interface AIFlowHistoryItem {
   type: "system" | "ai" | "user";
   status?: "completed" | "pending" | "proposed";
 }
+
+export interface AIExecutionLog {
+  id: string;
+  tenantId: string;
+  appId?: string;
+  appName?: string;
+  appCode?: string;
+  recordId?: string;
+  promptTemplateVersionId?: string;
+  promptTemplateKey?: string;
+  promptTemplateName?: string;
+  promptTemplateVersion?: number;
+  actorId: string;
+  actorName?: string;
+  operation: string;
+  provider: string;
+  modelName: string;
+  status: "success" | "error";
+  inputJson?: Record<string, unknown>;
+  outputJson?: Record<string, unknown>;
+  errorMessage?: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  durationMs?: number;
+  createdAt: string;
+}

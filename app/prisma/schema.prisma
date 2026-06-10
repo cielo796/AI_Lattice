@@ -41,6 +41,11 @@ enum ApprovalStatus {
   rejected
 }
 
+enum AIExecutionStatus {
+  success
+  error
+}
+
 enum FieldType {
   text
   textarea
@@ -73,14 +78,17 @@ model Tenant {
   createdAt DateTime     @default(now()) @map("created_at")
   updatedAt DateTime     @updatedAt @map("updated_at")
 
-  users     User[]
-  apps      App[]
-  auditLogs AuditLog[]
-  workflows Workflow[]
-  approvals Approval[]
-  views     AppView[]
-  forms     AppForm[]
-  openAISettings TenantOpenAISettings?
+  users                  User[]
+  apps                   App[]
+  auditLogs              AuditLog[]
+  workflows              Workflow[]
+  approvals              Approval[]
+  views                  AppView[]
+  forms                  AppForm[]
+  aiExecutionLogs        AiExecutionLog[]
+  promptTemplates        PromptTemplate[]
+  promptTemplateVersions PromptTemplateVersion[]
+  openAISettings         TenantOpenAISettings?
 
   @@map("tenants")
 }
@@ -98,6 +106,81 @@ model TenantOpenAISettings {
   @@map("tenant_openai_settings")
 }
 
+model PromptTemplate {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  key         String
+  name        String
+  operation   String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions PromptTemplateVersion[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, operation])
+  @@map("prompt_templates")
+}
+
+model PromptTemplateVersion {
+  id                 String   @id @default(cuid())
+  tenantId           String   @map("tenant_id")
+  promptTemplateId   String   @map("prompt_template_id")
+  version            Int
+  modelName          String   @map("model_name")
+  instructions       String
+  responseSchemaJson Json?    @map("response_schema_json")
+  isActive           Boolean  @default(false) @map("is_active")
+  createdById        String?  @map("created_by_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  promptTemplate PromptTemplate   @relation(fields: [promptTemplateId], references: [id], onDelete: Cascade)
+  createdBy      User?            @relation("PromptTemplateVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  executionLogs  AiExecutionLog[]
+
+  @@unique([promptTemplateId, version])
+  @@index([tenantId, isActive])
+  @@index([createdById])
+  @@map("prompt_template_versions")
+}
+
+model AiExecutionLog {
+  id                      String            @id @default(cuid())
+  tenantId                String            @map("tenant_id")
+  appId                   String?           @map("app_id")
+  recordId                String?           @map("record_id")
+  promptTemplateVersionId String?           @map("prompt_template_version_id")
+  actorId                 String            @map("actor_id")
+  operation               String
+  provider                String            @default("openai")
+  modelName               String            @map("model_name")
+  status                  AIExecutionStatus @default(success)
+  inputJson               Json?             @map("input_json")
+  outputJson              Json?             @map("output_json")
+  errorMessage            String?           @map("error_message")
+  promptTokens            Int               @default(0) @map("prompt_tokens")
+  completionTokens        Int               @default(0) @map("completion_tokens")
+  totalTokens             Int               @default(0) @map("total_tokens")
+  durationMs              Int?              @map("duration_ms")
+  createdAt               DateTime          @default(now()) @map("created_at")
+
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  app                   App?                   @relation(fields: [appId], references: [id], onDelete: SetNull)
+  promptTemplateVersion PromptTemplateVersion? @relation(fields: [promptTemplateVersionId], references: [id], onDelete: SetNull)
+  actor                 User                   @relation("AIExecutionLogActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, operation, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@index([appId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([promptTemplateVersionId])
+  @@map("ai_execution_logs")
+}
+
 model User {
   id           String     @id @default(cuid())
   tenantId     String     @map("tenant_id")
@@ -110,17 +193,19 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  tenant              Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sessions            Session[]
-  createdApps         App[]           @relation("AppCreatedBy")
-  createdRecords      AppRecord[]     @relation("AppRecordCreatedBy")
-  updatedRecords      AppRecord[]     @relation("AppRecordUpdatedBy")
-  recordComments      RecordComment[] @relation("RecordCommentCreatedBy")
-  uploadedAttachments Attachment[]    @relation("AttachmentUploadedBy")
-  createdWorkflows    Workflow[]      @relation("WorkflowCreatedBy")
-  requestedApprovals  Approval[]      @relation("ApprovalRequestedBy")
-  assignedApprovals   Approval[]      @relation("ApprovalApprover")
-  actedApprovals      Approval[]      @relation("ApprovalActedBy")
+  tenant                        Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions                      Session[]
+  createdApps                   App[]                   @relation("AppCreatedBy")
+  createdRecords                AppRecord[]             @relation("AppRecordCreatedBy")
+  updatedRecords                AppRecord[]             @relation("AppRecordUpdatedBy")
+  recordComments                RecordComment[]         @relation("RecordCommentCreatedBy")
+  uploadedAttachments           Attachment[]            @relation("AttachmentUploadedBy")
+  createdWorkflows              Workflow[]              @relation("WorkflowCreatedBy")
+  requestedApprovals            Approval[]              @relation("ApprovalRequestedBy")
+  assignedApprovals             Approval[]              @relation("ApprovalApprover")
+  actedApprovals                Approval[]              @relation("ApprovalActedBy")
+  aiExecutionLogs               AiExecutionLog[]        @relation("AIExecutionLogActor")
+  createdPromptTemplateVersions PromptTemplateVersion[] @relation("PromptTemplateVersionCreatedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -155,15 +240,16 @@ model App {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy User        @relation("AppCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  tables    AppTable[]
-  fields    AppField[]
-  records   AppRecord[]
-  workflows Workflow[]
-  approvals Approval[]
-  views     AppView[]
-  forms     AppForm[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy       User             @relation("AppCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  tables          AppTable[]
+  fields          AppField[]
+  records         AppRecord[]
+  workflows       Workflow[]
+  approvals       Approval[]
+  views           AppView[]
+  forms           AppForm[]
+  aiExecutionLogs AiExecutionLog[]
 
   @@unique([tenantId, code])
   @@index([tenantId])

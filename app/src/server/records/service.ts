@@ -112,6 +112,16 @@ function getReferenceTableCode(settings: Record<string, unknown> | undefined) {
   return typeof referenceTableCode === "string" ? referenceTableCode.trim() : "";
 }
 
+function getReferenceAppCode(settings: Record<string, unknown> | undefined) {
+  const referenceAppCode = settings?.referenceAppCode;
+  return typeof referenceAppCode === "string" ? referenceAppCode.trim() : "";
+}
+
+function getReferenceAppId(settings: Record<string, unknown> | undefined) {
+  const referenceAppId = settings?.referenceAppId;
+  return typeof referenceAppId === "string" ? referenceAppId.trim() : "";
+}
+
 function getReferenceTableId(settings: Record<string, unknown> | undefined) {
   const referenceTableId = settings?.referenceTableId;
   if (typeof referenceTableId === "string" && referenceTableId.trim()) {
@@ -128,6 +138,37 @@ function isMultiReference(settings: Record<string, unknown> | undefined) {
 
 function shouldShowBackReference(settings: Record<string, unknown> | undefined) {
   return settings?.showBackReference === true;
+}
+
+function referencesTargetApp(
+  settings: Record<string, unknown> | undefined,
+  sourceApp: { id: string; code: string },
+  targetApp: { id: string; code: string }
+) {
+  const referenceAppId = getReferenceAppId(settings);
+  const referenceAppCode = getReferenceAppCode(settings);
+
+  if (referenceAppId || referenceAppCode) {
+    return referenceAppId === targetApp.id || referenceAppCode === targetApp.code;
+  }
+
+  return sourceApp.id === targetApp.id || sourceApp.code === targetApp.code;
+}
+
+function referencesTargetTable(
+  settings: Record<string, unknown> | undefined,
+  sourceApp: { id: string; code: string },
+  targetApp: { id: string; code: string },
+  targetTable: { id: string; code: string }
+) {
+  if (!referencesTargetApp(settings, sourceApp, targetApp)) {
+    return false;
+  }
+
+  return (
+    getReferenceTableId(settings) === targetTable.id ||
+    getReferenceTableCode(settings) === targetTable.code
+  );
 }
 
 function getSelectOptions(settings: Record<string, unknown> | undefined) {
@@ -695,6 +736,7 @@ async function validateReferenceFieldsForRecord(
     return data;
   }
 
+  const appCache = new Map<string, { id: string; code: string }>();
   const tableCache = new Map<string, { id: string; code: string; name: string }>();
   const recordExistsCache = new Map<string, boolean>();
 
@@ -719,6 +761,8 @@ async function validateReferenceFieldsForRecord(
     }
     const referenceTableId = getReferenceTableId(settings);
     const referenceTableCode = getReferenceTableCode(settings);
+    const referenceAppId = getReferenceAppId(settings);
+    const referenceAppCode = getReferenceAppCode(settings);
 
     if (!referenceTableId && !referenceTableCode) {
       throw new RecordsServiceError(
@@ -727,16 +771,50 @@ async function validateReferenceFieldsForRecord(
       );
     }
 
+    const appCacheKey = referenceAppId
+      ? `id:${referenceAppId}`
+      : referenceAppCode
+        ? `code:${referenceAppCode}`
+        : `id:${appId}`;
+    let referenceApp = appCache.get(appCacheKey);
+
+    if (!referenceApp) {
+      const matchedApp = await prisma.app.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          ...(referenceAppId
+            ? { id: referenceAppId }
+            : referenceAppCode
+              ? { code: referenceAppCode }
+              : { id: appId }),
+        },
+        select: {
+          id: true,
+          code: true,
+        },
+      });
+
+      if (!matchedApp) {
+        throw new RecordsServiceError(
+          `Referenced app for field "${field.name}" was not found`,
+          400
+        );
+      }
+
+      referenceApp = matchedApp;
+      appCache.set(appCacheKey, matchedApp);
+    }
+
     const tableCacheKey = referenceTableId
-      ? `id:${referenceTableId}`
-      : `code:${referenceTableCode}`;
+      ? `${referenceApp.id}:id:${referenceTableId}`
+      : `${referenceApp.id}:code:${referenceTableCode}`;
     let referenceTable = tableCache.get(tableCacheKey);
 
     if (!referenceTable) {
       const matchedTable = await prisma.appTable.findFirst({
         where: {
           tenantId: user.tenantId,
-          appId,
+          appId: referenceApp.id,
           ...(referenceTableId
             ? { id: referenceTableId }
             : { code: referenceTableCode }),
@@ -760,7 +838,7 @@ async function validateReferenceFieldsForRecord(
     }
 
     for (const referenceRecordId of referenceRecordIds) {
-      const recordCacheKey = `${referenceTable.id}:${referenceRecordId}`;
+      const recordCacheKey = `${referenceApp.id}:${referenceTable.id}:${referenceRecordId}`;
       let referenceRecordExists = recordExistsCache.get(recordCacheKey);
 
       if (referenceRecordExists === undefined) {
@@ -769,7 +847,7 @@ async function validateReferenceFieldsForRecord(
             where: {
               id: referenceRecordId,
               tenantId: user.tenantId,
-              appId,
+              appId: referenceApp.id,
               tableId: referenceTable.id,
               deletedAt: null,
             },
@@ -1032,13 +1110,19 @@ export async function listBackReferencesForRecord(
   const referenceFields = await prisma.appField.findMany({
     where: {
       tenantId: user.tenantId,
-      appId: app.id,
       fieldType: "master_ref",
     },
     select: {
       code: true,
       name: true,
       settingsJson: true,
+      app: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      },
       table: {
         select: {
           id: true,
@@ -1056,10 +1140,7 @@ export async function listBackReferencesForRecord(
       return false;
     }
 
-    return (
-      getReferenceTableId(settings) === table.id ||
-      getReferenceTableCode(settings) === table.code
-    );
+    return referencesTargetTable(settings, field.app, app, table);
   });
 
   if (activeReferenceFields.length === 0) {
@@ -1068,14 +1149,21 @@ export async function listBackReferencesForRecord(
 
   const recordsByTableId = Object.fromEntries(
     await Promise.all(
-      [...new Set(activeReferenceFields.map((field) => field.table.id))].map(
-        async (sourceTableId) => [
-          sourceTableId,
+      [
+        ...new Map(
+          activeReferenceFields.map((field) => [
+            `${field.app.id}:${field.table.id}`,
+            { appId: field.app.id, tableId: field.table.id },
+          ])
+        ).values(),
+      ].map(
+        async (source) => [
+          `${source.appId}:${source.tableId}`,
           await prisma.appRecord.findMany({
             where: {
               tenantId: user.tenantId,
-              appId: app.id,
-              tableId: sourceTableId,
+              appId: source.appId,
+              tableId: source.tableId,
               deletedAt: null,
             },
             orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
@@ -1086,17 +1174,20 @@ export async function listBackReferencesForRecord(
   ) as Record<string, Array<Parameters<typeof toAppRecord>[0]>>;
 
   return activeReferenceFields
-    .map((field) => {
+    .map((field): RecordBackReferenceGroup | null => {
       const settings = toSettingsJson(field.settingsJson);
-      const matchedRecords = (recordsByTableId[field.table.id] ?? []).filter((sourceRecord) => {
-        const rawValue = toDataObject(sourceRecord.dataJson)[field.code];
-        const referenceRecordIds = getReferenceRecordIds(
-          rawValue,
-          isMultiReference(settings)
-        );
+      const sourceKey = `${field.app.id}:${field.table.id}`;
+      const matchedRecords = (recordsByTableId[sourceKey] ?? []).filter(
+        (sourceRecord) => {
+          const rawValue = toDataObject(sourceRecord.dataJson)[field.code];
+          const referenceRecordIds = getReferenceRecordIds(
+            rawValue,
+            isMultiReference(settings)
+          );
 
-        return referenceRecordIds?.includes(record.id) ?? false;
-      });
+          return referenceRecordIds?.includes(record.id) ?? false;
+        }
+      );
 
       if (matchedRecords.length === 0) {
         return null;
@@ -1105,6 +1196,9 @@ export async function listBackReferencesForRecord(
       return {
         fieldCode: field.code,
         fieldName: field.name,
+        sourceAppId: field.app.id,
+        sourceAppCode: field.app.code,
+        sourceAppName: field.app.name,
         sourceTableId: field.table.id,
         sourceTableCode: field.table.code,
         sourceTableName: field.table.name,

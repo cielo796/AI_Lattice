@@ -106,6 +106,7 @@ describe("apps blueprints", () => {
 
     const blueprint = await generateBlueprintFromPrompt(
       "Support desk for incident triage",
+      user,
       client
     );
 
@@ -122,7 +123,7 @@ describe("apps blueprints", () => {
       },
     };
 
-    const blueprint = await generateBlueprintFromPrompt("営業日報アプリ", client);
+    const blueprint = await generateBlueprintFromPrompt("営業日報アプリ", user, client);
 
     expect(blueprint.tables).toHaveLength(1);
     expect(blueprint.tables[0].code).toBe("tickets");
@@ -140,6 +141,7 @@ describe("apps blueprints", () => {
 
     const blueprint = await generateBlueprintFromPrompt(
       "問い合わせテーブルと顧客マスタを別テーブルで管理するアプリ",
+      user,
       client
     );
 
@@ -167,6 +169,7 @@ describe("apps blueprints", () => {
 
     const blueprint = await generateBlueprintFromPrompt(
       "Support desk for incident triage",
+      user,
       client
     );
 
@@ -182,7 +185,7 @@ describe("apps blueprints", () => {
     };
 
     await expect(
-      generateBlueprintFromPrompt("Support desk for incident triage", client)
+      generateBlueprintFromPrompt("Support desk for incident triage", user, client)
     ).rejects.toMatchObject({
       status: 504,
       message: expect.stringContaining("OpenAI リクエストがタイムアウト"),

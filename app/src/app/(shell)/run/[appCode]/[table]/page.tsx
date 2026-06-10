@@ -32,6 +32,7 @@ import {
   formatRelativeTime,
   formatPriorityLabel,
   formatStatusLabel,
+  getReferenceAppCode,
   getReferenceDisplayFieldCode,
   getReferenceRecordLabel,
   getReferenceTableCode,
@@ -370,16 +371,18 @@ export default function RuntimeViewPage() {
         .filter((field) => field.fieldType === "master_ref")
         .map((field) => ({
           fieldCode: field.code,
+          appCode: getReferenceAppCode(field) || appCode,
           tableCode: getReferenceTableCode(field),
           displayFieldCode: getReferenceDisplayFieldCode(field),
         }))
         .filter(
           (field): field is {
             fieldCode: string;
+            appCode: string;
             tableCode: string;
             displayFieldCode: string;
           } =>
-            Boolean(field.tableCode)
+            Boolean(field.appCode && field.tableCode)
         );
 
       if (referenceFields.length === 0) {
@@ -390,23 +393,27 @@ export default function RuntimeViewPage() {
       }
 
       try {
-        const uniqueTableCodes = [
-          ...new Set(referenceFields.map((field) => field.tableCode)),
+        const getTargetKey = (field: { appCode: string; tableCode: string }) =>
+          `${field.appCode}:${field.tableCode}`;
+        const uniqueReferenceTargets = [
+          ...new Map(
+            referenceFields.map((field) => [getTargetKey(field), field])
+          ).values(),
         ];
-        const [recordsByTableCode, metaByTableCode] = await Promise.all([
+        const [recordsByTargetKey, metaByTargetKey] = await Promise.all([
           Object.fromEntries(
             await Promise.all(
-              uniqueTableCodes.map(async (referenceTableCode) => [
-                referenceTableCode,
-                await listRecords(appCode, referenceTableCode),
+              uniqueReferenceTargets.map(async (field) => [
+                getTargetKey(field),
+                await listRecords(field.appCode, field.tableCode),
               ])
             )
           ) as Record<string, AppRecord[]>,
           Object.fromEntries(
             await Promise.all(
-              uniqueTableCodes.map(async (referenceTableCode) => [
-                referenceTableCode,
-                await getRuntimeTableMeta(appCode, referenceTableCode),
+              uniqueReferenceTargets.map(async (field) => [
+                getTargetKey(field),
+                await getRuntimeTableMeta(field.appCode, field.tableCode),
               ])
             )
           ) as Record<string, RuntimeTableMeta>,
@@ -420,7 +427,8 @@ export default function RuntimeViewPage() {
         const nextReferenceRecords: ReferenceRecordsByField = {};
         const nextReferenceFields: ReferenceFieldsByField = {};
         for (const referenceField of referenceFields) {
-          const records = recordsByTableCode[referenceField.tableCode] ?? [];
+          const targetKey = getTargetKey(referenceField);
+          const records = recordsByTargetKey[targetKey] ?? [];
           nextReferenceLabels[referenceField.fieldCode] = Object.fromEntries(
             records.map((record) => [
               record.id,
@@ -431,7 +439,7 @@ export default function RuntimeViewPage() {
             records.map((record) => [record.id, record])
           );
           nextReferenceFields[referenceField.fieldCode] =
-            metaByTableCode[referenceField.tableCode]?.fields ?? [];
+            metaByTargetKey[targetKey]?.fields ?? [];
         }
 
         setReferenceLabelsByField(nextReferenceLabels);

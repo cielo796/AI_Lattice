@@ -1024,21 +1024,24 @@ stitch/
 - `/m/:appCode/:table`
 - `/admin/approvals`
 - `/admin/audit-logs`
+- `/admin/openai`
 
 Current implementation snapshot:
 
-- Working API routes: auth login/logout/me, apps/tables/fields CRUD, runtime records/comments/attachments, audit logs, and AI app blueprint generation
-- DB-backed today: auth, session, apps, tables, fields, records, comments, attachments, and audit logs
-- Still pending: workflow persistence/execution, approvals persistence, Runtime AI persistence, Model Gateway abstraction, publish/versioning, RBAC, settings/admin screens, and broader E2E coverage
+- Working API routes: auth login/logout/me, DB health, apps/tables/fields/views/forms CRUD, app-by-code lookup, AI app blueprint generation/save, AI app refinement preview/apply, runtime records/comments/attachments/back-references/meta, workflow CRUD, approval list/create/decision, audit logs, and tenant OpenAI settings.
+- DB-backed today: auth, sessions, apps, tables, fields, views, forms, records with record numbers, comments, attachments, audit logs, workflows, approvals, and tenant OpenAI settings.
+- Workflow / Approval status: workflows are persisted and connected to the editor; active create/update/status_change workflows with an approval node can create pending approvals, move records to pending status, and approval/rejection decisions update record status with system comments and audit logs.
+- AI status: Prompt to App and app refinement are OpenAI-backed through the Model Gateway, can use tenant-specific encrypted OpenAI keys, and persist AI execution logs. Prompt template/version tables exist, but prompt template CRUD and active-template execution are not implemented yet.
+- Still pending: Runtime AI execution/persistence, prompt template management, publish/versioning, RBAC, app settings, admin users/roles/tenant screens, full workflow engine behaviors beyond the approval-node path, and broader E2E coverage.
 
-ただし、Workflow / Approvals / 一部 AI / Governance 領域はまだ **UIモック + mockデータ** または限定実装であり、以下は未実装または限定実装である:
+ただし、Runtime AI / AI Governance / Publish / RBAC / 一部 Admin 領域はまだ **UIモック + mockデータ** または限定実装であり、以下は未実装または限定実装である:
 
-- Workflow / Approvals のバックエンド API と DB 永続化
 - App / Table レベルの RBAC
-- Model Gateway 経由の AI 実行と AI 実行ログ
+- Prompt Template の版管理 UI/API と Gateway からの active template 解決
 - Runtime AI（レコード要約 / 次アクション / 返信案）の実行系
 - Publish / Versioning
-- `/apps/:id/settings`、`/admin/users`、`/admin/roles`、`/admin/ai-logs` などの管理画面
+- `/apps/:id/settings`、`/admin/users`、`/admin/roles`、`/admin/tenant` などの管理画面
+- Workflow engine の条件分岐、通知、API call、AI action、schedule/webhook 実行
 
 ### Implementation Strategy
 
@@ -1199,15 +1202,24 @@ Current implementation snapshot:
 4. records / comments / attachments の Prisma-backed CRUD
 5. Prompt to App の OpenAI 接続と app blueprint 保存
 6. audit logs の DB 永続化と `/admin/audit-logs` 接続
+7. views / forms の Prisma-backed CRUD と table designer への統合
+8. workflow / approvals の Prisma-backed CRUD と `/apps/:id/workflows` / `/admin/approvals` 接続
+9. record create / update / status_change から approval workflow を起動し、承認判断で record status を更新する最小実行系
+10. tenant OpenAI settings の暗号化保存、環境変数フォールバック、`/admin/openai` 接続
+11. App refinement の AI preview / apply 導線
+12. table ごとの record number 採番と runtime 表示
+13. Model Gateway 経由の AI 実行、AI execution log 永続化、`/admin/ai-logs` 接続
+14. `prompt_templates` / `prompt_template_versions` の DB モデルと migration
 
 ### Updated Immediate Next Steps
 
-1. workflow / approvals を DB-backed にする
-2. Workflow 実行から承認待ちを生成し、承認 / 却下で record status を更新する
-3. AI app builder と runtime AI を Model Gateway 前提に差し替える
-4. AI 実行ログ、プロンプトテンプレート版管理、Human-in-the-Loop 承認導線を追加する
-5. publish / versioning / RBAC / app settings を追加する
-6. E2E テストを追加して主要ユースケース（AI app builder → record CRUD → workflow approval → audit）を固定する
+1. Runtime AI（レコード要約 / 次アクション / 返信案）を Model Gateway 上に実装する
+2. Prompt Template の CRUD / active version 解決 / Gateway からの利用を追加する
+3. AI 提案の Human-in-the-Loop 承認導線を追加する
+4. publish / versioning / RBAC / app settings を追加する
+5. Workflow engine を approval node 以外（条件分岐、通知、API call、AI action、schedule/webhook）へ拡張する
+6. `/admin/users`、`/admin/roles`、`/admin/tenant` を実装する
+7. E2E テストを追加して主要ユースケース（AI app builder → AI refine → record CRUD → workflow approval → audit）を固定する
 
 ## Implementation Update (2026-04-14)
 
@@ -1243,7 +1255,7 @@ Current implementation snapshot:
 - Demo password:
   `demo`
 
-### Current implementation status
+### Implementation status as of 2026-05-13
 
 - DB-backed and working:
   auth, session, apps, tables, fields, records, comments, attachments, audit logs
@@ -1251,6 +1263,35 @@ Current implementation snapshot:
   AI app builder is OpenAI-backed, but still calls OpenAI directly instead of a Model Gateway and does not persist full AI execution logs or prompt template versions.
 - Not DB-backed yet or not implemented:
   workflow persistence/execution, approvals, Runtime AI execution/persistence, Model Gateway, publish/versioning, RBAC, app settings, admin users/roles/AI logs, broader E2E coverage
+
+## Implementation Update (2026-06-10)
+
+### Completed since 2026-05-13
+
+- Added Prisma-backed workflow and approval persistence with route handlers for workflow CRUD, admin approval lists/decisions, and record-level approval lists/creation.
+- Connected `/apps/:id/workflows` to DB-backed workflow data, including default workflow bootstrap, status/trigger editing, definition persistence, approval counts, and delete support.
+- Connected record create/update/status_change operations to active approval workflows. Approval nodes now create pending approvals, set records to pending status, create system comments, and write audit logs.
+- Connected `/admin/approvals` to DB-backed approvals. Approve/reject decisions update approval state, record status, system comments, and audit logs.
+- Added tenant OpenAI settings persistence with encrypted API key storage, environment fallback, audit logging, and `/admin/openai`.
+- Added app view and app form metadata models, migrations, CRUD APIs, and table designer UI integration.
+- Added AI app refinement preview/apply flows that propose and apply table/field/view changes from natural language.
+- Added per-table record numbers and runtime display support.
+- Added a Model Gateway wrapper around OpenAI Responses API calls, with normalized model errors and best-effort AI execution logging.
+- Added `ai_execution_logs`, `prompt_templates`, and `prompt_template_versions` Prisma models and migration.
+- Added `/api/admin/ai-logs`, `/admin/ai-logs`, and sidebar navigation for AI execution log inspection.
+- Added cross-app `master_ref` support within a tenant: builder fields can reference tables in another app, runtime labels/links resolve across apps, record validation checks referenced records in the target app, and reverse references can surface records from another app.
+- Expanded focused test coverage around workflows/approvals, OpenAI settings, app views/forms, app refinements, record numbers, DB health, and runtime routes.
+
+### Current implementation status (2026-06-10)
+
+- DB-backed and working:
+  auth, sessions, apps, tables, fields, cross-app master references, views, forms, records with record numbers, comments, attachments, back-references, workflows, approvals, audit logs, AI execution logs, and tenant OpenAI settings.
+- Partially implemented:
+  Workflow execution supports the approval-node path for create/update/status_change triggers, but does not yet execute full condition branching, notifications, API calls, AI actions, schedule triggers, or webhook triggers.
+- Partially implemented:
+  Prompt to App and app refinement are Model Gateway-backed and persist AI execution logs, but prompt templates are only modeled in the database and are not yet editable or resolved at runtime.
+- Not implemented:
+  Runtime AI execution/persistence, prompt template management, publish/versioning, RBAC, app settings, admin users/roles/tenant screens, and broad E2E coverage.
 
 ### Definition of Done
 

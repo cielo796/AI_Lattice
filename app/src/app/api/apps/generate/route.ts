@@ -21,8 +21,7 @@ export async function POST(request: Request) {
     input = await parseJsonBody<GenerateBlueprintInput>(request);
     const blueprint = await generateBlueprintFromPrompt(
       input.prompt ?? "",
-      undefined,
-      user.tenantId
+      user
     );
     return NextResponse.json(blueprint);
   } catch (error) {

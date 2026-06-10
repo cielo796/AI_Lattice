@@ -3,6 +3,8 @@ import {
   buildReferenceRecordHref,
   formatFieldKey,
   getFieldDisplayName,
+  getReferenceAppCode,
+  getReferenceAppId,
   getReferenceRecordLabel,
   getReferenceTableId,
   getReferenceTableCode,
@@ -101,6 +103,23 @@ describe("runtime-records field labels", () => {
         },
       })
     ).toBe("tbl_customers");
+  });
+
+  it("reads the configured reference app id and code", () => {
+    expect(
+      getReferenceAppId({
+        settingsJson: {
+          referenceAppId: "app_crm",
+        },
+      })
+    ).toBe("app_crm");
+    expect(
+      getReferenceAppCode({
+        settingsJson: {
+          referenceAppCode: "crm",
+        },
+      })
+    ).toBe("crm");
   });
 
   it("resolves master_ref values to referenced record titles", () => {

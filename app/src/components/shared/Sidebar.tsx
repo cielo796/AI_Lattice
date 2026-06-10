@@ -153,6 +153,7 @@ function SidebarContent({
           ]
         : []),
       { href: "/admin/openai", icon: "key", label: "OpenAI 設定" },
+      { href: "/admin/ai-logs", icon: "auto_awesome", label: "AI実行ログ" },
       { href: "/admin/approvals", icon: "approval", label: "承認" },
       { href: "/admin/audit-logs", icon: "admin_panel_settings", label: "監査ログ" },
     ],
