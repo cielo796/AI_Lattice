@@ -268,6 +268,16 @@ function getReferenceTableCode(settings: Record<string, unknown> | undefined) {
   return typeof referenceTableCode === "string" ? referenceTableCode.trim() : "";
 }
 
+function getReferenceAppCode(settings: Record<string, unknown> | undefined) {
+  const referenceAppCode = settings?.referenceAppCode;
+  return typeof referenceAppCode === "string" ? referenceAppCode.trim() : "";
+}
+
+function getReferenceAppId(settings: Record<string, unknown> | undefined) {
+  const referenceAppId = settings?.referenceAppId;
+  return typeof referenceAppId === "string" ? referenceAppId.trim() : "";
+}
+
 function getReferenceTableId(settings: Record<string, unknown> | undefined) {
   const referenceTableId = settings?.referenceTableId;
   if (typeof referenceTableId === "string" && referenceTableId.trim()) {
@@ -302,6 +312,37 @@ function isMultiReference(settings: Record<string, unknown> | undefined) {
 
 function shouldShowBackReference(settings: Record<string, unknown> | undefined) {
   return settings?.showBackReference === true;
+}
+
+function referencesTargetApp(
+  settings: Record<string, unknown> | undefined,
+  sourceApp: { id: string; code: string },
+  targetApp: { id: string; code: string }
+) {
+  const referenceAppId = getReferenceAppId(settings);
+  const referenceAppCode = getReferenceAppCode(settings);
+
+  if (referenceAppId || referenceAppCode) {
+    return referenceAppId === targetApp.id || referenceAppCode === targetApp.code;
+  }
+
+  return sourceApp.id === targetApp.id || sourceApp.code === targetApp.code;
+}
+
+function referencesTargetTable(
+  settings: Record<string, unknown> | undefined,
+  sourceApp: { id: string; code: string },
+  targetApp: { id: string; code: string },
+  targetTable: { id: string; code: string }
+) {
+  if (!referencesTargetApp(settings, sourceApp, targetApp)) {
+    return false;
+  }
+
+  return (
+    getReferenceTableId(settings) === targetTable.id ||
+    getReferenceTableCode(settings) === targetTable.code
+  );
 }
 
 function toAppField(field: {
@@ -666,16 +707,37 @@ async function normalizeFieldSettings(
 
   const referenceTableId = getReferenceTableId(settingsJson);
   const referenceTableCode = getReferenceTableCode(settingsJson);
+  const referenceAppId = getReferenceAppId(settingsJson);
+  const referenceAppCode = getReferenceAppCode(settingsJson);
 
   if (!referenceTableId && !referenceTableCode) {
     throw new AppsServiceError("参照先テーブルが指定されていません", 400);
   }
 
   const prisma = getPrismaClient();
+  const referenceApp = await prisma.app.findFirst({
+    where: {
+      tenantId: user.tenantId,
+      ...(referenceAppId
+        ? { id: referenceAppId }
+        : referenceAppCode
+          ? { code: referenceAppCode }
+          : { id: appId }),
+    },
+    select: {
+      id: true,
+      code: true,
+    },
+  });
+
+  if (!referenceApp) {
+    throw new AppsServiceError("Referenced app was not found", 400);
+  }
+
   const referenceTable = await prisma.appTable.findFirst({
     where: {
       tenantId: user.tenantId,
-      appId,
+      appId: referenceApp.id,
       ...(referenceTableId ? { id: referenceTableId } : { code: referenceTableCode }),
     },
     select: {
@@ -691,7 +753,7 @@ async function normalizeFieldSettings(
   const referenceFields = await prisma.appField.findMany({
     where: {
       tenantId: user.tenantId,
-      appId,
+      appId: referenceApp.id,
       tableId: referenceTable.id,
     },
     select: {
@@ -721,6 +783,8 @@ async function normalizeFieldSettings(
   );
 
   return {
+    referenceAppId: referenceApp.id,
+    referenceAppCode: referenceApp.code,
     referenceTableId: referenceTable.id,
     referenceTableCode: referenceTable.code,
     ...(displayFieldCode ? { displayFieldCode } : {}),
@@ -1554,6 +1618,7 @@ export async function updateTableForApp(
 
   await ensureUniqueTableCode(user, appId, nextCode, existingTable.id);
 
+  const existingApp = await getAppOrThrow(user, appId);
   const prisma = getPrismaClient();
   const table = await prisma.$transaction(async (tx) => {
     const updatedTable = await tx.appTable.update({
@@ -1573,11 +1638,16 @@ export async function updateTableForApp(
     const referenceFields = await tx.appField.findMany({
       where: {
         tenantId: user.tenantId,
-        appId,
         fieldType: "master_ref",
       },
       select: {
         id: true,
+        app: {
+          select: {
+            id: true,
+            code: true,
+          },
+        },
         settingsJson: true,
       },
     });
@@ -1588,13 +1658,7 @@ export async function updateTableForApp(
         return [];
       }
 
-      const referenceTableId = getReferenceTableId(settings);
-      const referenceTableCode = getReferenceTableCode(settings);
-
-      if (
-        referenceTableId !== existingTable.id &&
-        referenceTableCode !== existingTable.code
-      ) {
+      if (!referencesTargetTable(settings, field.app, existingApp, existingTable)) {
         return [];
       }
 
@@ -1604,6 +1668,8 @@ export async function updateTableForApp(
           data: {
             settingsJson: toJsonObject({
               ...settings,
+              referenceAppId: existingApp.id,
+              referenceAppCode: existingApp.code,
               referenceTableId: existingTable.id,
               referenceTableCode: nextCode,
             }),
@@ -1650,25 +1716,28 @@ export async function deleteTableForApp(
   await ensureDemoBuilderData();
 
   const existingTable = await getTableOrThrow(user, appId, tableId);
+  const existingApp = await getAppOrThrow(user, appId);
   const prisma = getPrismaClient();
   const referenceFields = await prisma.appField.findMany({
     where: {
       tenantId: user.tenantId,
-      appId,
       fieldType: "master_ref",
     },
     select: {
       name: true,
+      app: {
+        select: {
+          id: true,
+          code: true,
+        },
+      },
       settingsJson: true,
     },
   });
 
   const blockingField = referenceFields.find((field) => {
     const settings = toSettingsJson(field.settingsJson);
-    return (
-      getReferenceTableId(settings) === existingTable.id ||
-      getReferenceTableCode(settings) === existingTable.code
-    );
+    return referencesTargetTable(settings, field.app, existingApp, existingTable);
   });
 
   if (blockingField) {

@@ -16,6 +16,9 @@ export const REQUIRED_DATABASE_TABLES = [
   "attachments",
   "workflows",
   "approvals",
+  "prompt_templates",
+  "prompt_template_versions",
+  "ai_execution_logs",
   "audit_logs",
 ] as const;
 

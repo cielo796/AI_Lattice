@@ -18,6 +18,7 @@ import {
   getRecordDescription,
   getRecordTitle,
   getRecordFieldValueText,
+  getReferenceAppCode,
   getReferenceLookupFieldCodes,
   getReferenceTableCode,
   getReferenceValueIds,
@@ -166,6 +167,7 @@ export function RecordDetail({
     const rawValue = record?.data?.[key];
 
     if (appCode && fieldDefinition?.fieldType === "master_ref") {
+      const referenceAppCode = getReferenceAppCode(fieldDefinition) || appCode;
       const referenceTableCode = getReferenceTableCode(fieldDefinition);
       const referenceRecordIds = getReferenceValueIds(rawValue);
 
@@ -177,7 +179,7 @@ export function RecordDetail({
                 key={referenceRecordId}
                 href={buildReferenceRecordHref(
                   runtimeBasePath,
-                  appCode,
+                  referenceAppCode,
                   referenceTableCode,
                   referenceRecordId
                 )}

@@ -1,7 +1,10 @@
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
+import {
+  generateJsonWithModelGateway,
+  type ModelGatewayClientLike,
+} from "@/server/ai/model-gateway";
 import { recordAuditLog } from "@/server/audit/service";
 import { getPrismaClient } from "@/server/db/prisma";
-import { getOpenAIClient } from "@/server/openai/client";
 import { AppsServiceError } from "@/server/apps/service";
 import type { Prisma } from "@prisma/client";
 import type { App } from "@/types/app";
@@ -105,26 +108,6 @@ const REPAIR_INSTRUCTIONS = [
 ].join(" ");
 
 class InvalidGeneratedBlueprintError extends AppsServiceError {}
-
-type OpenAIClientLike = {
-  responses: {
-    create: (params: {
-      model: string;
-      instructions: string;
-      input: string;
-      text: {
-        format: {
-          type: "json_schema";
-          name: string;
-          strict: true;
-          schema: typeof BLUEPRINT_RESPONSE_SCHEMA;
-        };
-      };
-    }) => Promise<{
-      output_text?: string;
-    }>;
-  };
-};
 
 function normalizeIdentifier(value: string, separator: "-" | "_") {
   return value
@@ -457,8 +440,8 @@ function normalizeGeneratedTable(
   };
 }
 
-function parseOpenAIResponse(response: { output_text?: string }) {
-  const raw = response.output_text?.trim();
+function parseOpenAIResponse(response: { outputText?: string }) {
+  const raw = response.outputText?.trim();
 
   if (!raw) {
     throw new InvalidGeneratedBlueprintError(
@@ -512,61 +495,6 @@ function applySingleTableGenerationDefault(
     ...blueprint,
     aiInsight: appendSingleTableInsight(blueprint, prompt),
     tables: blueprint.tables.slice(0, MAX_TABLES),
-  };
-}
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function getOpenAIRequestStatus(error: unknown) {
-  return typeof error === "object" &&
-    error !== null &&
-    "status" in error &&
-    typeof error.status === "number"
-    ? error.status
-    : undefined;
-}
-
-function toOpenAIRequestError(error: unknown) {
-  const message = getErrorMessage(error);
-  const status = getOpenAIRequestStatus(error);
-
-  if (/timed out|timeout/i.test(message)) {
-    return new AppsServiceError(
-      "OpenAI リクエストがタイムアウトしました。もう一度試すか OPENAI_TIMEOUT_MS を増やしてください。",
-      504
-    );
-  }
-
-  if (status === 401) {
-    return new AppsServiceError("OpenAI API キーが拒否されました", 503);
-  }
-
-  if (status === 429) {
-    return new AppsServiceError("OpenAI のレート制限を超えました。時間をおいて再試行してください。", 429);
-  }
-
-  if (typeof status === "number") {
-    return new AppsServiceError(`OpenAI リクエストに失敗しました: ${message}`, 502);
-  }
-
-  return new AppsServiceError(`OpenAI リクエストに失敗しました: ${message}`, 502);
-}
-
-function createGenerationRequest(instructions: string, input: string) {
-  return {
-    model: OPENAI_MODEL,
-    instructions,
-    input,
-    text: {
-      format: {
-        type: "json_schema" as const,
-        name: "generated_app_blueprint",
-        strict: true as const,
-        schema: BLUEPRINT_RESPONSE_SCHEMA,
-      },
-    },
   };
 }
 
@@ -624,18 +552,27 @@ export function normalizeGeneratedAppBlueprint(
 }
 
 async function requestBlueprint(
-  client: OpenAIClientLike,
+  user: Pick<User, "id" | "tenantId" | "name" | "email">,
+  client: ModelGatewayClientLike | undefined,
   instructions: string,
-  input: string
+  input: string,
+  operation: string
 ) {
-  let response: { output_text?: string };
-
-  try {
-    response = await client.responses.create(createGenerationRequest(instructions, input));
-  } catch (error) {
-    throw toOpenAIRequestError(error);
-  }
-
+  const response = await generateJsonWithModelGateway(
+    {
+      user,
+      operation,
+      model: OPENAI_MODEL,
+      instructions,
+      input,
+      responseFormatName: "generated_app_blueprint",
+      responseSchema: BLUEPRINT_RESPONSE_SCHEMA,
+      metadata: {
+        inputLength: input.length,
+      },
+    },
+    client
+  );
   const parsed = parseOpenAIResponse(response);
 
   try {
@@ -680,15 +617,20 @@ function toCreatedAppSummary(app: {
 
 export async function generateBlueprintFromPrompt(
   prompt: string,
-  client?: OpenAIClientLike,
-  tenantId?: string
+  user: Pick<User, "id" | "tenantId" | "name" | "email">,
+  client?: ModelGatewayClientLike
 ) {
   const trimmedPrompt = assertString(prompt, "Prompt");
-  const openAIClient = client ?? (await getOpenAIClient(tenantId));
 
   try {
     return applySingleTableGenerationDefault(
-      await requestBlueprint(openAIClient, GENERATION_INSTRUCTIONS, trimmedPrompt),
+      await requestBlueprint(
+        user,
+        client,
+        GENERATION_INSTRUCTIONS,
+        trimmedPrompt,
+        "app_blueprint.generate"
+      ),
       trimmedPrompt
     );
   } catch (error) {
@@ -705,7 +647,13 @@ export async function generateBlueprintFromPrompt(
 
     try {
       return applySingleTableGenerationDefault(
-        await requestBlueprint(openAIClient, REPAIR_INSTRUCTIONS, repairInput),
+        await requestBlueprint(
+          user,
+          client,
+          REPAIR_INSTRUCTIONS,
+          repairInput,
+          "app_blueprint.repair"
+        ),
         trimmedPrompt
       );
     } catch (repairError) {

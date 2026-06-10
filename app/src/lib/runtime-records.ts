@@ -172,6 +172,20 @@ export function getReferenceTableCode(
   return typeof referenceTableCode === "string" ? referenceTableCode : "";
 }
 
+export function getReferenceAppCode(
+  field: Pick<AppField, "settingsJson">
+) {
+  const referenceAppCode = field.settingsJson?.referenceAppCode;
+  return typeof referenceAppCode === "string" ? referenceAppCode : "";
+}
+
+export function getReferenceAppId(
+  field: Pick<AppField, "settingsJson">
+) {
+  const referenceAppId = field.settingsJson?.referenceAppId;
+  return typeof referenceAppId === "string" ? referenceAppId : "";
+}
+
 export function getReferenceTableId(
   field: Pick<AppField, "settingsJson">
 ) {

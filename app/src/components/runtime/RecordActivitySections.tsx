@@ -73,13 +73,15 @@ export function RecordActivitySections({
           <div className={compact ? "space-y-2" : "space-y-3"}>
             {backReferenceGroups.map((group) => (
               <div
-                key={`${group.sourceTableId}:${group.fieldCode}`}
+                key={`${group.sourceAppId ?? appCode}:${group.sourceTableId}:${group.fieldCode}`}
                 className={activityCardClass}
               >
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-bold text-on-surface">
-                      {group.sourceTableName}
+                      {group.sourceAppName
+                        ? `${group.sourceAppName} / ${group.sourceTableName}`
+                        : group.sourceTableName}
                     </div>
                     <div className="text-[11px] text-on-surface-variant">
                       {group.fieldName}
@@ -93,7 +95,7 @@ export function RecordActivitySections({
                       key={backReferenceRecord.id}
                       href={buildReferenceRecordHref(
                         runtimeBasePath,
-                        appCode ?? "",
+                        group.sourceAppCode ?? appCode ?? "",
                         group.sourceTableCode,
                         backReferenceRecord.id
                       )}

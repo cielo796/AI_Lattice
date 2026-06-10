@@ -38,6 +38,9 @@ export interface Attachment {
 export interface RecordBackReferenceGroup {
   fieldCode: string;
   fieldName: string;
+  sourceAppId?: string;
+  sourceAppCode?: string;
+  sourceAppName?: string;
   sourceTableId: string;
   sourceTableCode: string;
   sourceTableName: string;

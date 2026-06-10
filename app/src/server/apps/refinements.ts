@@ -1,5 +1,9 @@
 import { recordAuditLog } from "@/server/audit/service";
 import {
+  generateJsonWithModelGateway,
+  type ModelGatewayClientLike,
+} from "@/server/ai/model-gateway";
+import {
   AppsServiceError,
   createFieldForTable,
   createFormForTable,
@@ -11,7 +15,6 @@ import {
   listViewsForTable,
   updateFieldForTable,
 } from "@/server/apps/service";
-import { getOpenAIClient } from "@/server/openai/client";
 import type { AppField, AppForm, AppTable, AppView, AppViewType, FieldType } from "@/types/app";
 import type {
   AppRefinementChange,
@@ -133,24 +136,6 @@ const REFINEMENT_INSTRUCTIONS = [
   "Keep operations small and directly tied to the instruction.",
 ].join(" ");
 
-type OpenAIClientLike = {
-  responses: {
-    create: (params: {
-      model: string;
-      instructions: string;
-      input: string;
-      text: {
-        format: {
-          type: "json_schema";
-          name: string;
-          strict: true;
-          schema: typeof APP_REFINEMENT_RESPONSE_SCHEMA;
-        };
-      };
-    }) => Promise<{ output_text?: string }>;
-  };
-};
-
 type RawRefinementResponse = {
   summary: string;
   operations: AppRefinementOperation[];
@@ -184,8 +169,8 @@ function normalizeStringArray(value: unknown) {
     : [];
 }
 
-function parseOpenAIResponse(response: { output_text?: string }) {
-  const raw = response.output_text?.trim();
+function parseOpenAIResponse(response: { outputText?: string }) {
+  const raw = response.outputText?.trim();
 
   if (!raw) {
     throw new AppsServiceError("OpenAI returned an empty refinement response", 502);
@@ -436,22 +421,24 @@ async function loadAppContext(user: User, appId: string) {
 }
 
 async function requestRefinementPlan(
-  client: OpenAIClientLike,
+  user: Pick<User, "id" | "tenantId" | "name" | "email">,
+  appId: string,
+  client: ModelGatewayClientLike | undefined,
   input: string
 ): Promise<RawRefinementResponse> {
-  const response = await client.responses.create({
+  const response = await generateJsonWithModelGateway({
+    user,
+    appId,
+    operation: "app_refinement.preview",
     model: OPENAI_MODEL,
     instructions: REFINEMENT_INSTRUCTIONS,
     input,
-    text: {
-      format: {
-        type: "json_schema",
-        name: "app_refinement_operations",
-        strict: true,
-        schema: APP_REFINEMENT_RESPONSE_SCHEMA,
-      },
+    responseFormatName: "app_refinement_operations",
+    responseSchema: APP_REFINEMENT_RESPONSE_SCHEMA,
+    metadata: {
+      inputLength: input.length,
     },
-  });
+  }, client);
 
   return normalizeRefinementResponse(parseOpenAIResponse(response));
 }
@@ -683,7 +670,7 @@ export async function refineAppWithAI(
   user: User,
   appId: string,
   input: { instruction?: string; activeTableCode?: string },
-  client?: OpenAIClientLike
+  client?: ModelGatewayClientLike
 ): Promise<AppRefinementResult> {
   const preview = await generateAppRefinementPreview(user, appId, input, client);
 
@@ -699,7 +686,7 @@ export async function generateAppRefinementPreview(
   user: User,
   appId: string,
   input: { instruction?: string; activeTableCode?: string },
-  client?: OpenAIClientLike
+  client?: ModelGatewayClientLike
 ): Promise<AppRefinementPreview> {
   const instruction = input.instruction?.trim();
 
@@ -708,9 +695,10 @@ export async function generateAppRefinementPreview(
   }
 
   const { app, tables } = await loadAppContext(user, appId);
-  const openAIClient = client ?? (await getOpenAIClient(user.tenantId));
   const plan = await requestRefinementPlan(
-    openAIClient,
+    user,
+    appId,
+    client,
     buildPromptInput({
       instruction,
       activeTableCode: input.activeTableCode,

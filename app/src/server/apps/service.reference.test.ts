@@ -42,6 +42,7 @@ describe("apps service reference field support", () => {
         findFirst: vi.fn().mockResolvedValue({
           id: "app_1",
           tenantId: "tenant_1",
+          code: "support-desk",
         }),
       },
       appTable: {
@@ -84,6 +85,8 @@ describe("apps service reference field support", () => {
           uniqueFlag: false,
           defaultValue: null,
           settingsJson: {
+            referenceAppId: "app_1",
+            referenceAppCode: "support-desk",
             referenceTableId: "tbl_customers",
             referenceTableCode: "customers",
             displayFieldCode: "name",
@@ -114,6 +117,8 @@ describe("apps service reference field support", () => {
     });
 
     expect(field.settingsJson).toEqual({
+      referenceAppId: "app_1",
+      referenceAppCode: "support-desk",
       referenceTableId: "tbl_customers",
       referenceTableCode: "customers",
       displayFieldCode: "name",
@@ -125,6 +130,8 @@ describe("apps service reference field support", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           settingsJson: {
+            referenceAppId: "app_1",
+            referenceAppCode: "support-desk",
             referenceTableId: "tbl_customers",
             referenceTableCode: "customers",
             displayFieldCode: "name",
@@ -135,6 +142,92 @@ describe("apps service reference field support", () => {
         }),
       })
     );
+  });
+
+  it("normalizes master_ref settings for another app in the same tenant", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce({
+            id: "app_1",
+            tenantId: "tenant_1",
+            code: "support-desk",
+          })
+          .mockResolvedValueOnce({
+            id: "app_crm",
+            tenantId: "tenant_1",
+            code: "crm",
+          }),
+      },
+      appTable: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce({
+            id: "tbl_tickets",
+            tenantId: "tenant_1",
+            appId: "app_1",
+            name: "Tickets",
+            code: "tickets",
+            isSystem: false,
+            sortOrder: 0,
+            createdAt: new Date("2026-04-24T00:00:00.000Z"),
+          })
+          .mockResolvedValueOnce({
+            id: "tbl_accounts",
+            code: "accounts",
+          }),
+      },
+      appField: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ sortOrder: 1 }),
+        findMany: vi.fn().mockResolvedValue([{ code: "name" }]),
+        create: vi.fn().mockResolvedValue({
+          id: "fld_account",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          tableId: "tbl_tickets",
+          name: "Account",
+          code: "account",
+          fieldType: "master_ref",
+          required: false,
+          uniqueFlag: false,
+          defaultValue: null,
+          settingsJson: {
+            referenceAppId: "app_crm",
+            referenceAppCode: "crm",
+            referenceTableId: "tbl_accounts",
+            referenceTableCode: "accounts",
+            displayFieldCode: "name",
+          },
+          sortOrder: 2,
+          createdAt: new Date("2026-04-24T00:00:00.000Z"),
+        }),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    const field = await createFieldForTable(user, "app_1", "tbl_tickets", {
+      name: "Account",
+      code: "account",
+      fieldType: "master_ref",
+      settingsJson: {
+        referenceAppId: "app_crm",
+        referenceTableId: "tbl_accounts",
+        displayFieldCode: "name",
+      },
+    });
+
+    expect(field.settingsJson).toEqual({
+      referenceAppId: "app_crm",
+      referenceAppCode: "crm",
+      referenceTableId: "tbl_accounts",
+      referenceTableCode: "accounts",
+      displayFieldCode: "name",
+    });
   });
 
   it("updates referenced field settings when a table code changes", async () => {
@@ -155,7 +248,13 @@ describe("apps service reference field support", () => {
         findMany: vi.fn().mockResolvedValue([
           {
             id: "fld_customer",
+            app: {
+              id: "app_1",
+              code: "support-desk",
+            },
             settingsJson: {
+              referenceAppId: "app_1",
+              referenceAppCode: "support-desk",
               referenceTableId: "tbl_customers",
               referenceTableCode: "customers",
               displayFieldCode: "name",
@@ -175,6 +274,7 @@ describe("apps service reference field support", () => {
         findFirst: vi.fn().mockResolvedValue({
           id: "app_1",
           tenantId: "tenant_1",
+          code: "support-desk",
         }),
       },
       appTable: {
@@ -208,6 +308,8 @@ describe("apps service reference field support", () => {
       where: { id: "fld_customer" },
       data: {
         settingsJson: {
+          referenceAppId: "app_1",
+          referenceAppCode: "support-desk",
           referenceTableId: "tbl_customers",
           referenceTableCode: "accounts",
           displayFieldCode: "name",
@@ -225,6 +327,7 @@ describe("apps service reference field support", () => {
         findFirst: vi.fn().mockResolvedValue({
           id: "app_1",
           tenantId: "tenant_1",
+          code: "support-desk",
         }),
       },
       appTable: {
@@ -244,7 +347,13 @@ describe("apps service reference field support", () => {
         findMany: vi.fn().mockResolvedValue([
           {
             name: "Customer",
+            app: {
+              id: "app_1",
+              code: "support-desk",
+            },
             settingsJson: {
+              referenceAppId: "app_1",
+              referenceAppCode: "support-desk",
               referenceTableId: "tbl_customers",
               referenceTableCode: "customers",
             },

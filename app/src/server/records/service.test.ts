@@ -209,6 +209,102 @@ describe("records service master_ref validation", () => {
     });
   });
 
+  it("allows create when a referenced record exists in another app", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce({
+            id: "app_1",
+            tenantId: "tenant_1",
+            code: "support-desk",
+          })
+          .mockResolvedValueOnce({
+            id: "app_crm",
+            tenantId: "tenant_1",
+            code: "crm",
+          }),
+      },
+      appTable: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce({
+            id: "tbl_tickets",
+            tenantId: "tenant_1",
+            appId: "app_1",
+            code: "tickets",
+            name: "Tickets",
+          })
+          .mockResolvedValueOnce({
+            id: "tbl_accounts",
+            code: "accounts",
+            name: "Accounts",
+          }),
+      },
+      appField: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            code: "account",
+            name: "Account",
+            fieldType: "master_ref",
+            required: false,
+            uniqueFlag: false,
+            defaultValue: null,
+            settingsJson: {
+              referenceAppId: "app_crm",
+              referenceAppCode: "crm",
+              referenceTableId: "tbl_accounts",
+              referenceTableCode: "accounts",
+            },
+          },
+        ]),
+      },
+      appRecord: {
+        findFirst: vi.fn().mockResolvedValue({ id: "account_1" }),
+        aggregate: vi.fn().mockResolvedValue({ _max: { recordNo: 0 } }),
+        create: vi.fn().mockResolvedValue({
+          id: "rec_1",
+          tenantId: "tenant_1",
+          appId: "app_1",
+          tableId: "tbl_tickets",
+          recordNo: 1,
+          status: "active",
+          dataJson: {
+            subject: "Cross app ticket",
+            account: "account_1",
+          },
+          createdById: "user_1",
+          updatedById: "user_1",
+          createdAt: new Date("2026-04-24T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T00:00:00.000Z"),
+          deletedAt: null,
+        }),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    const record = await createRecordForTable(user, "support-desk", "tickets", {
+      status: "active",
+      data: {
+        subject: "Cross app ticket",
+        account: "account_1",
+      },
+    });
+
+    expect(record.data.account).toBe("account_1");
+    expect(prisma.appRecord.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: "account_1",
+        tenantId: "tenant_1",
+        appId: "app_crm",
+        tableId: "tbl_accounts",
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+  });
+
   it("allows multiple referenced records when the field is configured as multiple", async () => {
     const prisma = {
       app: {
@@ -364,6 +460,11 @@ describe("records service master_ref validation", () => {
               referenceTableCode: "customers",
               showBackReference: true,
             },
+            app: {
+              id: "app_1",
+              code: "support-desk",
+              name: "Support Desk",
+            },
             table: {
               id: "tbl_tickets",
               code: "tickets",
@@ -386,6 +487,110 @@ describe("records service master_ref validation", () => {
     expect(groups).toEqual([
       expect.objectContaining({
         fieldCode: "customer",
+        sourceAppCode: "support-desk",
+        sourceTableCode: "tickets",
+        records: [
+          expect.objectContaining({
+            id: "ticket_1",
+          }),
+        ],
+      }),
+    ]);
+  });
+
+  it("lists reverse references from another app", async () => {
+    const prisma = {
+      app: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "app_crm",
+          tenantId: "tenant_1",
+          code: "crm",
+        }),
+      },
+      appTable: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "tbl_accounts",
+          tenantId: "tenant_1",
+          appId: "app_crm",
+          code: "accounts",
+          name: "Accounts",
+        }),
+      },
+      appRecord: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "account_1",
+          tenantId: "tenant_1",
+          appId: "app_crm",
+          tableId: "tbl_accounts",
+          status: "active",
+          dataJson: {
+            name: "ACME",
+          },
+          createdById: "user_1",
+          updatedById: "user_1",
+          createdAt: new Date("2026-04-24T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-24T00:00:00.000Z"),
+          deletedAt: null,
+        }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "ticket_1",
+            tenantId: "tenant_1",
+            appId: "app_support",
+            tableId: "tbl_tickets",
+            status: "open",
+            dataJson: {
+              subject: "Follow up",
+              account: "account_1",
+            },
+            createdById: "user_1",
+            updatedById: "user_1",
+            createdAt: new Date("2026-04-24T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-24T00:00:00.000Z"),
+            deletedAt: null,
+          },
+        ]),
+      },
+      appField: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            code: "account",
+            name: "Account",
+            settingsJson: {
+              referenceAppId: "app_crm",
+              referenceAppCode: "crm",
+              referenceTableId: "tbl_accounts",
+              referenceTableCode: "accounts",
+              showBackReference: true,
+            },
+            app: {
+              id: "app_support",
+              code: "support-desk",
+              name: "Support Desk",
+            },
+            table: {
+              id: "tbl_tickets",
+              code: "tickets",
+              name: "Tickets",
+            },
+          },
+        ]),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    const groups = await listBackReferencesForRecord(
+      user,
+      "crm",
+      "accounts",
+      "account_1"
+    );
+
+    expect(groups).toEqual([
+      expect.objectContaining({
+        fieldCode: "account",
+        sourceAppCode: "support-desk",
         sourceTableCode: "tickets",
         records: [
           expect.objectContaining({

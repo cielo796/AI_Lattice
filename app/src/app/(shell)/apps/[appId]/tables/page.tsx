@@ -12,6 +12,7 @@ import { Input } from "@/components/shared/Input";
 import { TopBar } from "@/components/shared/TopBar";
 import { cn } from "@/lib/cn";
 import {
+  getReferenceAppId,
   getReferenceDisplayFieldCode,
   getReferenceLookupFieldCodes,
   getReferenceTableId,
@@ -28,6 +29,7 @@ import {
   deleteField,
   deleteTable,
   deleteView,
+  listApps,
   listFields,
   listForms,
   listTables,
@@ -47,6 +49,7 @@ import {
 } from "@/lib/api/apps";
 import { apiFetch } from "@/lib/api/client";
 import type {
+  App,
   AppField,
   AppForm,
   AppTable,
@@ -68,6 +71,7 @@ type FieldFormState = {
   required: boolean;
   uniqueFlag: boolean;
   optionsText: string;
+  referenceAppId: string;
   referenceTableId: string;
   displayFieldCode: string;
   lookupFieldCodes: string[];
@@ -111,6 +115,7 @@ const EMPTY_FIELD_FORM: FieldFormState = {
   required: false,
   uniqueFlag: false,
   optionsText: "",
+  referenceAppId: "",
   referenceTableId: "",
   displayFieldCode: "",
   lookupFieldCodes: [],
@@ -439,6 +444,7 @@ export default function TableDesignerPage() {
   const wasCreated = searchParams.get("created") === "1";
 
   const [tables, setTables] = useState<AppTable[]>([]);
+  const [apps, setApps] = useState<App[]>([]);
   const [fields, setFields] = useState<AppField[]>([]);
   const [views, setViews] = useState<AppView[]>([]);
   const [forms, setForms] = useState<AppForm[]>([]);
@@ -470,13 +476,23 @@ export default function TableDesignerPage() {
   const [refinementPreview, setRefinementPreview] =
     useState<AppRefinementPreview | null>(null);
   const [referenceTableFields, setReferenceTableFields] = useState<AppField[]>([]);
+  const [referenceTables, setReferenceTables] = useState<AppTable[]>([]);
+  const [isLoadingReferenceTables, setIsLoadingReferenceTables] = useState(false);
   const [isLoadingReferenceTableFields, setIsLoadingReferenceTableFields] =
     useState(false);
 
   const activeTable = tables.find((table) => table.id === activeTableId) ?? null;
-  const referenceTableOptions = tables.filter((table) => table.id !== activeTableId);
+  const selectedReferenceAppId = fieldForm.referenceAppId || appId;
+  const activeReferenceApp =
+    apps.find((app) => app.id === selectedReferenceAppId) ?? null;
+  const selectedReferenceTables =
+    selectedReferenceAppId === appId ? tables : referenceTables;
+  const referenceTableOptions = selectedReferenceTables.filter(
+    (table) => !(selectedReferenceAppId === appId && table.id === activeTableId)
+  );
   const activeReferenceTable =
-    tables.find((table) => table.id === fieldForm.referenceTableId) ?? null;
+    selectedReferenceTables.find((table) => table.id === fieldForm.referenceTableId) ??
+    null;
 
   useEffect(() => {
     if (!appId) {
@@ -490,18 +506,24 @@ export default function TableDesignerPage() {
     async function loadTablesForApp() {
       try {
         setIsLoadingTables(true);
-        const nextTables = sortByOrder(await listTables(appId));
+        const [nextTables, nextApps] = await Promise.all([
+          listTables(appId),
+          listApps(),
+        ]);
         if (cancelled) return;
-        setTables(nextTables);
+        const sortedTables = sortByOrder(nextTables);
+        setTables(sortedTables);
+        setApps(nextApps);
         setActiveTableId((current) =>
-          current && nextTables.some((table) => table.id === current)
+          current && sortedTables.some((table) => table.id === current)
             ? current
-            : (nextTables[0]?.id ?? null)
+            : (sortedTables[0]?.id ?? null)
         );
         setError(null);
       } catch (nextError) {
         if (!cancelled) {
           setTables([]);
+          setApps([]);
           setActiveTableId(null);
           setError(nextError instanceof Error ? nextError.message : "テーブルの読み込みに失敗しました。");
         }
@@ -621,7 +643,91 @@ export default function TableDesignerPage() {
   }, [fields]);
 
   useEffect(() => {
-    if (!appId || fieldForm.fieldType !== "master_ref" || !fieldForm.referenceTableId) {
+    if (fieldForm.fieldType !== "master_ref" || fieldForm.referenceAppId || !appId) {
+      return;
+    }
+
+    setFieldForm((current) =>
+      current.fieldType === "master_ref" && !current.referenceAppId
+        ? { ...current, referenceAppId: appId }
+        : current
+    );
+  }, [appId, fieldForm.fieldType, fieldForm.referenceAppId]);
+
+  useEffect(() => {
+    if (!appId || fieldForm.fieldType !== "master_ref") {
+      setReferenceTables([]);
+      setIsLoadingReferenceTables(false);
+      return;
+    }
+
+    const referenceAppId = fieldForm.referenceAppId || appId;
+
+    if (!referenceAppId || referenceAppId === appId) {
+      setReferenceTables([]);
+      setIsLoadingReferenceTables(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadReferenceTables() {
+      try {
+        setIsLoadingReferenceTables(true);
+        const nextTables = sortByOrder(await listTables(referenceAppId));
+
+        if (cancelled) {
+          return;
+        }
+
+        setReferenceTables(nextTables);
+        setFieldForm((current) => {
+          if (
+            current.fieldType !== "master_ref" ||
+            (current.referenceAppId || appId) !== referenceAppId ||
+            !current.referenceTableId ||
+            nextTables.some((table) => table.id === current.referenceTableId)
+          ) {
+            return current;
+          }
+
+          return {
+            ...current,
+            referenceTableId: "",
+            displayFieldCode: "",
+            lookupFieldCodes: [],
+          };
+        });
+      } catch (nextError) {
+        if (!cancelled) {
+          setReferenceTables([]);
+          setError(
+            nextError instanceof Error
+              ? nextError.message
+              : "参照先テーブルの読み込みに失敗しました。"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingReferenceTables(false);
+        }
+      }
+    }
+
+    void loadReferenceTables();
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, fieldForm.fieldType, fieldForm.referenceAppId]);
+
+  useEffect(() => {
+    const referenceAppId = fieldForm.referenceAppId || appId;
+
+    if (
+      !referenceAppId ||
+      fieldForm.fieldType !== "master_ref" ||
+      !fieldForm.referenceTableId
+    ) {
       setReferenceTableFields([]);
       setIsLoadingReferenceTableFields(false);
       return;
@@ -633,7 +739,7 @@ export default function TableDesignerPage() {
       try {
         setIsLoadingReferenceTableFields(true);
         const nextFields = sortByOrder(
-          await listFields(appId, fieldForm.referenceTableId)
+          await listFields(referenceAppId, fieldForm.referenceTableId)
         );
 
         if (cancelled) {
@@ -683,7 +789,12 @@ export default function TableDesignerPage() {
     return () => {
       cancelled = true;
     };
-  }, [appId, fieldForm.fieldType, fieldForm.referenceTableId]);
+  }, [
+    appId,
+    fieldForm.fieldType,
+    fieldForm.referenceAppId,
+    fieldForm.referenceTableId,
+  ]);
 
   function resetTableForm() {
     setEditingTableId(null);
@@ -868,12 +979,24 @@ export default function TableDesignerPage() {
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
-    const referenceTable = tables.find((table) => table.id === fieldForm.referenceTableId);
+    const referenceAppId = fieldForm.referenceAppId || appId;
+    const referenceApp = apps.find((app) => app.id === referenceAppId);
+    const referenceTable = referenceTableOptions.find(
+      (table) => table.id === fieldForm.referenceTableId
+    );
 
-    if (fieldForm.fieldType === "master_ref" && !referenceTable) {
-      setError("参照先テーブルを選択してください。");
-      setIsSavingField(false);
-      return;
+    if (fieldForm.fieldType === "master_ref") {
+      if (!referenceApp) {
+        setError("参照先アプリを選択してください。");
+        setIsSavingField(false);
+        return;
+      }
+
+      if (!referenceTable) {
+        setError("参照先テーブルを選択してください。");
+        setIsSavingField(false);
+        return;
+      }
     }
 
     try {
@@ -887,8 +1010,10 @@ export default function TableDesignerPage() {
           settingsJson:
             fieldForm.fieldType === "select"
               ? { options }
-              : fieldForm.fieldType === "master_ref" && referenceTable
+              : fieldForm.fieldType === "master_ref" && referenceApp && referenceTable
                 ? {
+                    referenceAppId: referenceApp.id,
+                    referenceAppCode: referenceApp.code,
                     referenceTableId: referenceTable.id,
                     referenceTableCode: referenceTable.code,
                     displayFieldCode: fieldForm.displayFieldCode || undefined,
@@ -915,8 +1040,10 @@ export default function TableDesignerPage() {
           settingsJson:
             fieldForm.fieldType === "select"
               ? { options }
-              : fieldForm.fieldType === "master_ref" && referenceTable
+              : fieldForm.fieldType === "master_ref" && referenceApp && referenceTable
                 ? {
+                    referenceAppId: referenceApp.id,
+                    referenceAppCode: referenceApp.code,
                     referenceTableId: referenceTable.id,
                     referenceTableCode: referenceTable.code,
                     displayFieldCode: fieldForm.displayFieldCode || undefined,
@@ -1993,6 +2120,10 @@ export default function TableDesignerPage() {
                         fieldType: event.target.value as FieldType,
                         optionsText:
                           event.target.value === "select" ? current.optionsText : "",
+                        referenceAppId:
+                          event.target.value === "master_ref"
+                            ? current.referenceAppId || appId
+                            : "",
                         referenceTableId:
                           event.target.value === "master_ref"
                             ? current.referenceTableId
@@ -2027,32 +2158,29 @@ export default function TableDesignerPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
-                    {fieldForm.fieldType === "master_ref" ? "参照先テーブル" : "選択肢"}
+                    {fieldForm.fieldType === "master_ref" ? "参照先アプリ" : "選択肢"}
                   </label>
                   {fieldForm.fieldType === "master_ref" ? (
                     <select
-                      value={fieldForm.referenceTableId}
+                      value={fieldForm.referenceAppId || appId}
                       onChange={(event) =>
                         setFieldForm((current) => ({
                           ...current,
-                          referenceTableId: event.target.value,
+                          referenceAppId: event.target.value,
+                          referenceTableId: "",
                           displayFieldCode: "",
                           lookupFieldCodes: [],
                         }))
                       }
-                      disabled={
-                        !activeTable || isSavingField || referenceTableOptions.length === 0
-                      }
+                      disabled={!activeTable || isSavingField || apps.length === 0}
                       className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
                       <option value="">
-                        {referenceTableOptions.length > 0
-                          ? "参照先テーブルを選択"
-                          : "参照可能なテーブルがありません"}
+                        {apps.length > 0 ? "参照先アプリを選択" : "アプリがありません"}
                       </option>
-                      {referenceTableOptions.map((table) => (
-                        <option key={table.id} value={table.id}>
-                          {table.name} ({table.code})
+                      {apps.map((app) => (
+                        <option key={app.id} value={app.id}>
+                          {app.name} ({app.code})
                         </option>
                       ))}
                     </select>
@@ -2074,6 +2202,43 @@ export default function TableDesignerPage() {
                 </div>
                 {fieldForm.fieldType === "master_ref" && (
                   <>
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                        参照先テーブル
+                      </label>
+                      <select
+                        value={fieldForm.referenceTableId}
+                        onChange={(event) =>
+                          setFieldForm((current) => ({
+                            ...current,
+                            referenceTableId: event.target.value,
+                            displayFieldCode: "",
+                            lookupFieldCodes: [],
+                          }))
+                        }
+                        disabled={
+                          !activeTable ||
+                          isSavingField ||
+                          !activeReferenceApp ||
+                          isLoadingReferenceTables ||
+                          referenceTableOptions.length === 0
+                        }
+                        className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="">
+                          {isLoadingReferenceTables
+                            ? "参照先テーブルを読み込み中..."
+                            : referenceTableOptions.length > 0
+                              ? "参照先テーブルを選択"
+                              : "参照可能なテーブルがありません"}
+                        </option>
+                        {referenceTableOptions.map((table) => (
+                          <option key={table.id} value={table.id}>
+                            {table.name} ({table.code})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="space-y-2">
                       <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                         表示フィールド
@@ -2271,6 +2436,7 @@ export default function TableDesignerPage() {
                           required: field.required,
                           uniqueFlag: field.uniqueFlag,
                           optionsText: getFieldOptions(field).join(", "),
+                          referenceAppId: getReferenceAppId(field) || appId,
                           referenceTableId: getReferenceTableId(field),
                           displayFieldCode: getReferenceDisplayFieldCode(field),
                           lookupFieldCodes: getReferenceLookupFieldCodes(field),
