@@ -202,3 +202,45 @@ export async function deleteAttachment(
     }
   );
 }
+
+export interface RuntimeAINextAction {
+  label: string;
+  description: string;
+  priority: "high" | "medium" | "low";
+}
+
+export interface RuntimeAIReplyDraft {
+  subject: string;
+  body: string;
+}
+
+export type RuntimeAIActionType = "summarize" | "next_actions" | "reply_draft";
+
+export interface RuntimeAIExecution {
+  action: RuntimeAIActionType;
+  summary?: string;
+  keyPoints?: string[];
+  nextActions?: RuntimeAINextAction[];
+  replyDraft?: RuntimeAIReplyDraft;
+  modelName: string;
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
+
+export async function executeRecordAI(
+  appCode: string,
+  tableCode: string,
+  recordId: string,
+  action: RuntimeAIActionType
+) {
+  return apiFetch<RuntimeAIExecution>(
+    `${recordPath(appCode, tableCode, recordId)}/ai`,
+    {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }
+  );
+}

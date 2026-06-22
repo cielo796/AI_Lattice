@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Icon } from "./Icon";
 import { Avatar } from "./Avatar";
 import { useAuthStore } from "@/stores/authStore";
@@ -54,22 +55,22 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
           </div>
         )}
         <div className="relative hidden sm:block">
-          <button
-            type="button"
+          <Link
+            href="/notifications"
             className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
             aria-label="通知"
           >
             <Icon name="notifications" />
-          </button>
+          </Link>
           <span className="pointer-events-none absolute right-2 top-2 h-2 w-2 rounded-full bg-primary ring-2 ring-surface" />
         </div>
-        <button
-          type="button"
+        <Link
+          href="/settings/profile"
           className="hidden h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface md:flex"
           aria-label="設定"
         >
           <Icon name="settings" />
-        </button>
+        </Link>
         <div className="ml-1 flex items-center">
           <Avatar name={avatarName} size="md" />
         </div>

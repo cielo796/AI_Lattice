@@ -52,6 +52,66 @@ const DEMO_USERS = [
   },
 ] as const;
 
+const DEMO_ROLE_PRESETS = [
+  {
+    id: "role-tenant-admin",
+    name: "Tenant Admin",
+    roleType: "tenant_admin" as const,
+    permissions: ["*"],
+  },
+  {
+    id: "role-app-admin",
+    name: "App Admin",
+    roleType: "app_admin" as const,
+    permissions: [
+      "app:read",
+      "app:write",
+      "app:publish",
+      "table:read",
+      "table:write",
+      "record:read",
+      "record:write",
+      "workflow:read",
+      "workflow:manage",
+      "approval:manage",
+      "ai:execute",
+      "notifications:read",
+    ],
+  },
+  {
+    id: "role-approver",
+    name: "Approver",
+    roleType: "approver" as const,
+    permissions: [
+      "app:read",
+      "table:read",
+      "record:read",
+      "approval:manage",
+      "notifications:read",
+    ],
+  },
+  {
+    id: "role-user",
+    name: "User",
+    roleType: "user" as const,
+    permissions: [
+      "app:read",
+      "table:read",
+      "record:read",
+      "record:write",
+      "workflow:read",
+      "ai:execute",
+      "notifications:read",
+    ],
+  },
+  {
+    id: "role-viewer",
+    name: "Viewer",
+    roleType: "viewer" as const,
+    permissions: ["app:read", "table:read", "record:read", "notifications:read"],
+  },
+] as const;
+
 let bootstrapPromise: Promise<void> | null = null;
 
 async function seedDemoAuthData() {
@@ -103,6 +163,83 @@ async function seedDemoAuthData() {
         ...(existingUser.passwordHash ? {} : { passwordHash }),
       },
     });
+  }
+
+  for (const role of DEMO_ROLE_PRESETS) {
+    await prisma.role.upsert({
+      where: {
+        tenantId_name: {
+          tenantId: DEMO_TENANT_ID,
+          name: role.name,
+        },
+      },
+      update: {
+        roleType: role.roleType,
+        permissionsJson: role.permissions,
+        isSystem: true,
+      },
+      create: {
+        id: role.id,
+        tenantId: DEMO_TENANT_ID,
+        name: role.name,
+        roleType: role.roleType,
+        permissionsJson: role.permissions,
+        isSystem: true,
+      },
+    });
+  }
+
+  const tenantAdminRole = await prisma.role.findUnique({
+    where: {
+      tenantId_name: {
+        tenantId: DEMO_TENANT_ID,
+        name: "Tenant Admin",
+      },
+    },
+    select: { id: true },
+  });
+  const userRole = await prisma.role.findUnique({
+    where: {
+      tenantId_name: {
+        tenantId: DEMO_TENANT_ID,
+        name: "User",
+      },
+    },
+    select: { id: true },
+  });
+
+  for (const demoUser of DEMO_USERS) {
+    const roleId =
+      demoUser.email === "admin@acme.com" ||
+      demoUser.email === "marcus.chen@acme.com"
+        ? tenantAdminRole?.id
+        : userRole?.id;
+
+    if (!roleId) {
+      continue;
+    }
+
+    const existingAssignment = await prisma.userRole.findFirst({
+      where: {
+        tenantId: DEMO_TENANT_ID,
+        userId: demoUser.id,
+        roleId,
+        appId: null,
+        tableId: null,
+      },
+      select: { id: true },
+    });
+
+    if (!existingAssignment) {
+      await prisma.userRole.create({
+        data: {
+          id: crypto.randomUUID(),
+          tenantId: DEMO_TENANT_ID,
+          userId: demoUser.id,
+          roleId,
+        },
+      });
+    }
   }
 }
 

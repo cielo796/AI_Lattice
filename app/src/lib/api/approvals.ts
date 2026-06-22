@@ -34,6 +34,25 @@ export async function listApprovals(options: ListApprovalsOptions = {}) {
   return apiFetch<Approval[]>(approvalsPath(options));
 }
 
+export async function listRuntimeApprovals(
+  appCode: string,
+  options: ListApprovalsOptions = {}
+) {
+  const params = new URLSearchParams();
+
+  if (options.status && options.status !== "all") {
+    params.set("status", options.status);
+  }
+  if (options.limit) {
+    params.set("limit", String(options.limit));
+  }
+
+  const query = params.toString();
+  return apiFetch<Approval[]>(
+    `/api/run/${encodeURIComponent(appCode)}/approvals${query ? `?${query}` : ""}`
+  );
+}
+
 export async function updateApprovalDecision(
   approvalId: string,
   input: UpdateApprovalDecisionInput

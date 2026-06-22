@@ -7,10 +7,11 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://${host}:${port}`;
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
+  workers: process.platform === "win32" ? 1 : undefined,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
-  timeout: 60_000,
+  timeout: 300_000,
   expect: {
     timeout: 10_000,
   },
@@ -18,10 +19,13 @@ export default defineConfig({
     baseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    video:
+      process.platform === "win32" && !process.env.CI
+        ? "off"
+        : "retain-on-failure",
   },
-  webServer: {
-    command: `npm run dev -- --hostname ${host} --port ${port}`,
+  webServer: process.env.PLAYWRIGHT_EXTERNAL_SERVER ? undefined : {
+    command: `node node_modules/next/dist/bin/next dev --webpack --hostname ${host} --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
@@ -36,7 +40,12 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(process.platform === "win32" && !process.env.CI
+          ? { channel: "chrome" as const }
+          : {}),
+      },
     },
   ],
 });

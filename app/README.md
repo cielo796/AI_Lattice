@@ -34,3 +34,12 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Scheduled workflows
+
+Set `CRON_SECRET` and configure an external scheduler to send a POST request at the desired cadence:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "https://your-host/api/internal/workflows/schedules/run?limit=100" -Headers @{ Authorization = "Bearer $env:CRON_SECRET" }
+```
+
+The endpoint executes active `schedule` workflows for non-deleted records. Set `tableId` or `tableCode` in the trigger node config to scope a workflow to one table; without either value, all app tables are processed. `limit` is capped at 500 records per request.

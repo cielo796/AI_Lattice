@@ -87,3 +87,36 @@ export interface RuntimeTableMeta {
   views: AppView[];
   forms: AppForm[];
 }
+
+export interface RuntimeAppTableSummary {
+  id: string;
+  name: string;
+  code: string;
+  recordCount: number;
+  fieldCount: number;
+  viewCount: number;
+  formCount: number;
+  viewTypes: AppViewType[];
+}
+
+export interface RuntimeAppOverview {
+  app: App;
+  tables: RuntimeAppTableSummary[];
+  totals: {
+    records: number;
+    pendingApprovals: number;
+  };
+}
+
+export interface AppVersionSummary {
+  id: string;
+  tenantId: string;
+  appId: string;
+  versionNo: number;
+  publishedByName?: string;
+  publishedAt: string;
+  createdAt: string;
+  tableCount: number;
+  viewCount: number;
+  workflowCount: number;
+}

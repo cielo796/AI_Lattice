@@ -141,6 +141,21 @@ function SidebarContent({
       ...(currentApp
         ? [
             {
+              href: `/run/${currentApp.code}`,
+              icon: "home_app_logo",
+              label: "アプリトップ",
+            },
+            {
+              href: `/run/${currentApp.code}/dashboard`,
+              icon: "dashboard",
+              label: "ダッシュボード",
+            },
+            {
+              href: `/run/${currentApp.code}/approvals`,
+              icon: "approval",
+              label: "アプリ承認",
+            },
+            {
               href: `/apps/${currentApp.id}/tables`,
               icon: "table_chart",
               label: "テーブル",
@@ -150,11 +165,28 @@ function SidebarContent({
               icon: "account_tree",
               label: "ワークフロー",
             },
+            {
+              href: `/apps/${currentApp.id}/settings`,
+              icon: "settings",
+              label: "アプリ設定",
+            },
+            {
+              href: `/apps/${currentApp.id}/permissions`,
+              icon: "shield_person",
+              label: "権限設計",
+            },
           ]
         : []),
+      { href: "/tenants", icon: "domain", label: "テナント" },
+      { href: "/admin/approvals", icon: "approval", label: "承認" },
+      { href: "/notifications", icon: "notifications", label: "通知" },
+      { href: "/settings/profile", icon: "person", label: "プロフィール" },
+      { href: "/admin/users", icon: "group", label: "ユーザー管理" },
+      { href: "/admin/roles", icon: "admin_panel_settings", label: "ロール管理" },
+      { href: "/admin/tenant", icon: "domain", label: "テナント設定" },
+      { href: "/admin/prompt-templates", icon: "text_snippet", label: "Prompt Template" },
       { href: "/admin/openai", icon: "key", label: "OpenAI 設定" },
       { href: "/admin/ai-logs", icon: "auto_awesome", label: "AI実行ログ" },
-      { href: "/admin/approvals", icon: "approval", label: "承認" },
       { href: "/admin/audit-logs", icon: "admin_panel_settings", label: "監査ログ" },
     ],
     [currentApp]
@@ -229,7 +261,10 @@ function SidebarContent({
 
       <nav className="flex-1 space-y-0.5">
         {navItems.map((item) => {
-          const isActive = pathname?.startsWith(item.href);
+          const isRuntimeRoot = /^\/run\/[^/]+$/.test(item.href);
+          const isActive = isRuntimeRoot
+            ? pathname === item.href
+            : pathname?.startsWith(item.href);
 
           return (
             <Link

@@ -3,6 +3,7 @@ import {
   listAuditLogsForUser,
   MAX_AUDIT_LOG_LIMIT,
 } from "@/server/audit/service";
+import { requirePermission } from "@/server/admin/rbac";
 import {
   requireAuthenticatedUser,
   toRouteErrorResponse,
@@ -22,6 +23,7 @@ function parseLimit(value: string | null) {
 export async function GET(request: Request) {
   try {
     const user = await requireAuthenticatedUser();
+    await requirePermission(user, "admin:audit_logs");
     const url = new URL(request.url);
     const logs = await listAuditLogsForUser(user, {
       limit: parseLimit(url.searchParams.get("limit")),

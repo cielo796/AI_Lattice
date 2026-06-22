@@ -7,19 +7,24 @@ import {
 } from "@/server/workflows/service";
 import type { User } from "@/types/user";
 
-const { getPrismaClient, recordAuditLog, ensureDemoBuilderData } = vi.hoisted(
-  () => ({
+const {
+  getPrismaClient,
+  recordAuditFailure,
+  recordAuditLog,
+  ensureDemoBuilderData,
+} = vi.hoisted(() => ({
     getPrismaClient: vi.fn(),
+    recordAuditFailure: vi.fn(),
     recordAuditLog: vi.fn(),
     ensureDemoBuilderData: vi.fn().mockResolvedValue(undefined),
-  })
-);
+  }));
 
 vi.mock("@/server/db/prisma", () => ({
   getPrismaClient,
 }));
 
 vi.mock("@/server/audit/service", () => ({
+  recordAuditFailure,
   recordAuditLog,
 }));
 
@@ -129,6 +134,9 @@ describe("workflows service", () => {
 
   it("creates pending approvals for active workflows with approval nodes", async () => {
     const prisma = {
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: "user_1" }),
+      },
       workflow: {
         findMany: vi.fn().mockResolvedValue([workflowRecord]),
       },
@@ -137,9 +145,32 @@ describe("workflows service", () => {
         create: vi.fn().mockResolvedValue(approvalRecord()),
       },
       appRecord: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "rec_1",
+          status: "active",
+          dataJson: { title: "問い合わせ" },
+        }),
         update: vi.fn().mockResolvedValue({
           id: "rec_1",
           status: "pending_approval",
+        }),
+      },
+      notification: {
+        create: vi.fn().mockResolvedValue({
+          id: "notification_1",
+          tenantId: "tenant_1",
+          recipientId: "user_1",
+          actorId: "user_1",
+          appId: "app_1",
+          recordId: "rec_1",
+          type: "workflow",
+          title: "Notify stakeholders",
+          body: "Notify related users after the approval decision.",
+          href: "/run/support-desk/tickets?recordId=rec_1",
+          readAt: null,
+          createdAt: new Date("2026-05-13T00:00:00.000Z"),
+          actor: { name: "Owner", email: "owner@example.com" },
+          app: { name: "Support Desk" },
         }),
       },
       recordComment: {
@@ -201,6 +232,81 @@ describe("workflows service", () => {
     expect(recordAuditLog).toHaveBeenCalledWith(
       user,
       expect.objectContaining({ actionType: "APPROVAL_CREATE" })
+    );
+  });
+
+  it("executes status update workflow nodes without approvals", async () => {
+    const statusWorkflow = {
+      ...workflowRecord,
+      id: "wf_status",
+      definitionJson: {
+        nodes: [
+          {
+            id: "trigger",
+            type: "triggerNode",
+            data: { label: "Updated", nodeType: "trigger" as const },
+          },
+          {
+            id: "status",
+            type: "notificationNode",
+            data: {
+              label: "Move to triage",
+              nodeType: "status_update" as const,
+              config: { status: "triage" },
+            },
+          },
+        ],
+        edges: [{ id: "edge", source: "trigger", target: "status" }],
+      },
+    };
+    const prisma = {
+      workflow: {
+        findMany: vi.fn().mockResolvedValue([statusWorkflow]),
+      },
+      approval: {
+        findFirst: vi.fn(),
+        create: vi.fn(),
+      },
+      appRecord: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "rec_1",
+          status: "active",
+          dataJson: { title: "問い合わせ" },
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: "rec_1",
+          status: "triage",
+        }),
+      },
+      recordComment: {
+        create: vi.fn().mockResolvedValue({ id: "comment_1" }),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    const approvals = await runApprovalWorkflowsForRecord(user, {
+      appId: "app_1",
+      appCode: "support-desk",
+      tableId: "tbl_1",
+      tableCode: "tickets",
+      tableName: "Tickets",
+      recordId: "rec_1",
+      recordTitle: "問い合わせ",
+      triggerTypes: ["update"],
+    });
+
+    expect(approvals).toEqual([]);
+    expect(prisma.appRecord.update).toHaveBeenCalledWith({
+      where: { id: "rec_1" },
+      data: {
+        status: "triage",
+        updatedById: "user_1",
+      },
+    });
+    expect(recordAuditLog).toHaveBeenCalledWith(
+      user,
+      expect.objectContaining({ actionType: "WORKFLOW_STATUS_UPDATE" })
     );
   });
 
