@@ -3,9 +3,11 @@ import type {
   AppField,
   AppForm,
   AppTable,
+  AppVersionSummary,
   AppView,
   AppViewType,
   FieldType,
+  RuntimeAppOverview,
 } from "@/types/app";
 import type { GeneratedAppBlueprint } from "@/types/ai";
 import type {
@@ -143,6 +145,41 @@ export async function listApps() {
 
 export async function getAppByCode(appCode: string) {
   return apiFetch<App>(appByCodePath(appCode));
+}
+
+export async function getRuntimeAppOverview(appCode: string) {
+  return apiFetch<RuntimeAppOverview>(
+    `/api/run/${encodeURIComponent(appCode)}/overview`
+  );
+}
+
+export async function getApp(appId: string) {
+  return apiFetch<App>(appPath(appId));
+}
+
+export interface UpdateAppInput {
+  name?: string;
+  code?: string;
+  description?: string;
+  icon?: string;
+  status?: App["status"];
+}
+
+export async function updateApp(appId: string, input: UpdateAppInput) {
+  return apiFetch<App>(appPath(appId), {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function publishApp(appId: string) {
+  return apiFetch<AppVersionSummary>(`${appPath(appId)}/publish`, {
+    method: "POST",
+  });
+}
+
+export async function listAppVersions(appId: string) {
+  return apiFetch<AppVersionSummary[]>(`${appPath(appId)}/versions`);
 }
 
 export async function generateAppBlueprint(prompt: string) {

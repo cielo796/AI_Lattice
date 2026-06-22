@@ -7,6 +7,8 @@ import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { TopBar } from "@/components/shared/TopBar";
 import { cn } from "@/lib/cn";
+import { listAIExecutionLogs } from "@/lib/api/ai-logs";
+import { listApprovals } from "@/lib/api/approvals";
 import { deleteApp, listApps } from "@/lib/api/apps";
 import { useAuthStore } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
@@ -25,12 +27,51 @@ function getAppHref(app: App) {
 }
 
 export default function HomePage() {
-  const userName = useAuthStore((store) => store.user?.name ?? "Marcus");
+  const userName = useAuthStore((store) => store.user?.name);
   const pushToast = useToastStore((store) => store.pushToast);
   const [apps, setApps] = useState<App[]>([]);
   const [appsError, setAppsError] = useState<string | null>(null);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
   const [deletingAppId, setDeletingAppId] = useState<string | null>(null);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState<number | null>(
+    null
+  );
+  const [todayAICount, setTodayAICount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDashboardStats() {
+      const [approvalsResult, aiLogsResult] = await Promise.allSettled([
+        listApprovals({ status: "pending", limit: 200 }),
+        listAIExecutionLogs({ limit: 200 }),
+      ]);
+
+      if (!active) {
+        return;
+      }
+
+      if (approvalsResult.status === "fulfilled") {
+        setPendingApprovalCount(approvalsResult.value.length);
+      }
+
+      if (aiLogsResult.status === "fulfilled") {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        setTodayAICount(
+          aiLogsResult.value.filter(
+            (log) => new Date(log.createdAt) >= todayStart
+          ).length
+        );
+      }
+    }
+
+    void loadDashboardStats();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -98,30 +139,36 @@ export default function HomePage() {
     }
   }
 
+  const publishedCount = apps.filter((app) => app.status === "published").length;
+  const draftCount = apps.filter((app) => app.status === "draft").length;
   const statCards = [
     {
       label: "公開中のアプリ",
-      value: String(apps.length),
+      value: isLoadingApps ? "—" : String(publishedCount),
       icon: "apps",
       accent: "text-[#f06a6a] bg-[#ffe4e0]",
+      href: "/home",
+    },
+    {
+      label: "下書きのアプリ",
+      value: isLoadingApps ? "—" : String(draftCount),
+      icon: "edit_note",
+      accent: "text-[#1f3d7a] bg-[#dde7f9]",
+      href: "/home",
     },
     {
       label: "承認待ち",
-      value: "12",
+      value: pendingApprovalCount === null ? "—" : String(pendingApprovalCount),
       icon: "pending_actions",
       accent: "text-[#6e4a14] bg-[#fdecd1]",
+      href: "/admin/approvals",
     },
     {
       label: "本日の AI 実行",
-      value: "284",
+      value: todayAICount === null ? "—" : String(todayAICount),
       icon: "auto_awesome",
       accent: "text-[#3b257a] bg-[#ece5fc]",
-    },
-    {
-      label: "未対応チケット",
-      value: "8",
-      icon: "confirmation_number",
-      accent: "text-[#1f3d7a] bg-[#dde7f9]",
+      href: "/admin/ai-logs",
     },
   ];
 
@@ -143,7 +190,7 @@ export default function HomePage() {
       <main className="mx-auto max-w-7xl px-6 py-8 pt-20 md:px-10">
         <div className="mb-10">
           <h2 className="mb-2 font-headline text-3xl font-extrabold tracking-tight text-on-surface md:text-4xl">
-            おかえりなさい、{userName}
+            {userName ? `おかえりなさい、${userName}` : "おかえりなさい"}
           </h2>
           <p className="text-[15px] text-on-surface-variant">
             AI で業務アプリを設計し、ワークフローを整理しながら日々の運用を
@@ -153,8 +200,9 @@ export default function HomePage() {
 
         <div className="mb-12 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {statCards.map((stat) => (
-            <div
+            <Link
               key={stat.label}
+              href={stat.href}
               className="group rounded-xl border border-outline-variant bg-surface p-5 transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]"
             >
               <div className="mb-3 flex items-center justify-between">
@@ -163,7 +211,7 @@ export default function HomePage() {
                 </span>
                 <span
                   className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-lg",
+                    "flex h-8 w-8 items-center justify-center rounded-lg transition-transform group-hover:scale-105",
                     stat.accent
                   )}
                 >
@@ -173,7 +221,7 @@ export default function HomePage() {
               <div className="font-headline text-[28px] font-extrabold tracking-tight text-on-surface">
                 {stat.value}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 
@@ -291,32 +339,62 @@ export default function HomePage() {
 
         <div className="mt-12">
           <h3 className="mb-5 font-headline text-xl font-bold tracking-tight text-on-surface">
-            AI からの提案
+            クイックアクション
           </h3>
-          <div className="overflow-hidden rounded-xl border border-tertiary-container bg-tertiary-container/40 p-5">
-            <div className="flex items-start gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tertiary text-white shadow-sm">
-                <Icon name="auto_awesome" filled size="md" />
-              </div>
-              <div className="flex-1">
-                <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-tertiary-container px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider text-on-tertiary-container">
-                  <Icon name="auto_awesome" size="sm" />
-                  おすすめ
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {[
+              {
+                href: "/apps/new/ai",
+                icon: "auto_awesome",
+                title: "AI でアプリを作成",
+                description:
+                  "業務内容を文章で説明すると、テーブル・ビュー・ワークフローの下書きを自動生成します。",
+                accent: "bg-tertiary text-white",
+                border: "border-tertiary-container bg-tertiary-container/40",
+              },
+              {
+                href: "/admin/approvals",
+                icon: "approval",
+                title: "承認を処理する",
+                description:
+                  "ワークフローから届いた承認依頼を確認し、承認・差戻しを行います。",
+                accent: "bg-[#f1bd6c] text-[#6e4a14]",
+                border: "border-outline-variant bg-surface",
+              },
+              {
+                href: "/admin/ai-logs",
+                icon: "monitoring",
+                title: "AI 利用状況を確認",
+                description:
+                  "AI 実行の履歴・トークン使用量・エラーを監査ログとあわせて追跡します。",
+                accent: "bg-[#4573d2] text-white",
+                border: "border-outline-variant bg-surface",
+              },
+            ].map((action) => (
+              <Link
+                key={action.href}
+                href={action.href}
+                className={cn(
+                  "group rounded-xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_8px_rgba(15,23,42,0.06),0_16px_40px_rgba(15,23,42,0.08)]",
+                  action.border
+                )}
+              >
+                <div
+                  className={cn(
+                    "mb-3 flex h-10 w-10 items-center justify-center rounded-lg shadow-sm transition-transform group-hover:scale-105",
+                    action.accent
+                  )}
+                >
+                  <Icon name={action.icon} filled size="md" />
                 </div>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-on-surface">
-                  未解決の高優先度チケットに沿ったビューを追加すると、サポートチームの
-                  優先順位インシデントをより早く追いかけられます。
+                <div className="mb-1 font-headline text-[15px] font-bold tracking-tight text-on-surface">
+                  {action.title}
+                </div>
+                <p className="text-[12.5px] leading-relaxed text-on-surface-variant">
+                  {action.description}
                 </p>
-                <div className="mt-3 flex gap-2">
-                  <Button size="sm" variant="primary">
-                    確認する
-                  </Button>
-                  <Button size="sm" variant="ghost">
-                    後で
-                  </Button>
-                </div>
-              </div>
-            </div>
+              </Link>
+            ))}
           </div>
         </div>
       </main>

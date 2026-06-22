@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/admin/ai-logs/route";
 import { AppsServiceError } from "@/server/apps/service";
 
-const { listAIExecutionLogsForUser, requireAuthenticatedUser } = vi.hoisted(() => ({
-  listAIExecutionLogsForUser: vi.fn(),
-  requireAuthenticatedUser: vi.fn(),
-}));
+const { listAIExecutionLogsForUser, requireAuthenticatedUser, requirePermission } =
+  vi.hoisted(() => ({
+    listAIExecutionLogsForUser: vi.fn(),
+    requireAuthenticatedUser: vi.fn(),
+    requirePermission: vi.fn(),
+  }));
 
 vi.mock("@/app/api/_helpers", async () => {
   const actual = await vi.importActual<typeof import("@/app/api/_helpers")>(
@@ -23,6 +25,10 @@ vi.mock("@/server/ai/model-gateway", () => ({
   listAIExecutionLogsForUser,
 }));
 
+vi.mock("@/server/admin/rbac", () => ({
+  requirePermission,
+}));
+
 const user = {
   id: "u-001",
   tenantId: "t-001",
@@ -32,6 +38,7 @@ describe("GET /api/admin/ai-logs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireAuthenticatedUser.mockResolvedValue(user);
+    requirePermission.mockResolvedValue(undefined);
   });
 
   it("returns 401 when unauthenticated", async () => {

@@ -229,7 +229,9 @@ export function RecordActivitySections({
                   <div className="flex items-center gap-2">
                     {comment.isSystem && <Badge variant="info">システム</Badge>}
                     <span className="text-[13px] font-semibold text-on-surface">
-                      {comment.isSystem ? "システムイベント" : comment.createdBy}
+                      {comment.isSystem
+                        ? "システムイベント"
+                        : comment.createdByName ?? comment.createdBy}
                     </span>
                   </div>
                   <span

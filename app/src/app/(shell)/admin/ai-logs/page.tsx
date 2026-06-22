@@ -27,6 +27,9 @@ const operationLabels: Record<string, string> = {
   "app_blueprint.generate": "アプリ生成",
   "app_blueprint.repair": "生成修復",
   "app_refinement.preview": "AI修正案",
+  "record.summarize": "レコード要約",
+  "record.next_actions": "次アクション提案",
+  "record.reply_draft": "返信案生成",
 };
 
 function getStatusVariant(status: AIExecutionLog["status"]): BadgeVariant {

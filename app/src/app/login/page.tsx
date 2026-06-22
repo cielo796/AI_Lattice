@@ -106,7 +106,7 @@ export default function LoginPage() {
             )}
 
             <div className="border-t border-outline-variant pt-4 text-center text-[12px] text-on-surface-muted">
-              デモモード ・ 任意の認証情報でログインできます
+              デモアカウント: marcus.chen@acme.com ／ パスワード: demo
             </div>
           </form>
         </div>

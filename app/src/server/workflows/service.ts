@@ -1,8 +1,18 @@
 import { Prisma } from "@prisma/client";
+import { requirePermission } from "@/server/admin/rbac";
 import { AppsServiceError } from "@/server/apps/service";
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
-import { recordAuditLog } from "@/server/audit/service";
+import { recordAuditFailure, recordAuditLog } from "@/server/audit/service";
+import {
+  executeRuntimeAIAction,
+  isRuntimeAIAction,
+  type RuntimeAIExecution,
+} from "@/server/ai/runtime-ai";
 import { getPrismaClient } from "@/server/db/prisma";
+import {
+  createNotificationsForUsers,
+  listWorkflowNotificationRecipients,
+} from "@/server/notifications/service";
 import type { Approval } from "@/types/record";
 import type {
   Workflow,
@@ -47,6 +57,12 @@ export interface UpdateApprovalDecisionInput {
 export interface ListApprovalsOptions {
   status?: Approval["status"];
   limit?: number;
+  appId?: string;
+}
+
+export interface RunWorkflowForRecordInput {
+  tableId: string;
+  recordId: string;
 }
 
 export interface RunApprovalWorkflowInput {
@@ -58,6 +74,7 @@ export interface RunApprovalWorkflowInput {
   recordId: string;
   recordTitle: string;
   triggerTypes: Workflow["triggerType"][];
+  workflowIds?: string[];
 }
 
 const WORKFLOW_TRIGGER_TYPES: Workflow["triggerType"][] = [
@@ -501,6 +518,379 @@ function findApprovalNode(definitionJson: Prisma.JsonValue) {
   return definition.nodes.find((node) => node.data.nodeType === "approval");
 }
 
+function getWorkflowNodes(definitionJson: Prisma.JsonValue) {
+  return normalizeWorkflowDefinition(definitionJson).nodes;
+}
+
+function getRecordDataValue(
+  record: { status: string; dataJson: Prisma.JsonValue },
+  fieldCode: string | undefined
+) {
+  if (!fieldCode || fieldCode === "status") {
+    return record.status;
+  }
+
+  return toDataObject(record.dataJson)[fieldCode];
+}
+
+function compareConditionValue(
+  actual: unknown,
+  operator: string,
+  expected: string | undefined
+) {
+  const actualText = actual === null || actual === undefined ? "" : String(actual);
+  const expectedText = expected ?? "";
+
+  if (operator === "not_empty") {
+    return actualText.trim().length > 0;
+  }
+
+  if (operator === "empty") {
+    return actualText.trim().length === 0;
+  }
+
+  if (operator === "contains") {
+    return actualText.toLowerCase().includes(expectedText.toLowerCase());
+  }
+
+  if (operator === "not_equals") {
+    return actualText !== expectedText;
+  }
+
+  if (operator === "greater_than" || operator === "less_than") {
+    const actualNumber = Number(actual);
+    const expectedNumber = Number(expectedText);
+
+    if (!Number.isFinite(actualNumber) || !Number.isFinite(expectedNumber)) {
+      return false;
+    }
+
+    return operator === "greater_than"
+      ? actualNumber > expectedNumber
+      : actualNumber < expectedNumber;
+  }
+
+  return actualText === expectedText;
+}
+
+function conditionNodeMatches(
+  node: WorkflowDefinition["nodes"][number],
+  record: { status: string; dataJson: Prisma.JsonValue }
+) {
+  const config = node.data.config;
+  const fieldCode =
+    getConfigString(config, "fieldCode") ??
+    getConfigString(config, "statusFieldCode") ??
+    "status";
+  const operator = getConfigString(config, "operator") ?? "equals";
+  const expected =
+    getConfigString(config, "value") ??
+    getConfigString(config, "expectedValue") ??
+    getConfigString(config, "status");
+
+  if (!config || Object.keys(config).length === 0) {
+    return true;
+  }
+
+  return compareConditionValue(
+    getRecordDataValue(record, fieldCode),
+    operator,
+    expected
+  );
+}
+
+function renderWorkflowTemplate(
+  template: string | undefined,
+  input: RunApprovalWorkflowInput
+) {
+  const fallback = template ?? "";
+  const values: Record<string, string> = {
+    appCode: input.appCode,
+    tableCode: input.tableCode,
+    tableName: input.tableName,
+    recordId: input.recordId,
+    recordTitle: input.recordTitle,
+  };
+
+  return fallback.replace(/\{\{\s*(\w+)\s*\}\}/g, (_match, key: string) => {
+    return values[key] ?? "";
+  });
+}
+
+function formatAIWorkflowResult(result: RuntimeAIExecution) {
+  if (result.summary) {
+    return `AI summary: ${result.summary}`;
+  }
+
+  if (result.nextActions?.length) {
+    return `AI next actions:\n${result.nextActions
+      .map((action) => `- ${action.label}: ${action.description}`)
+      .join("\n")}`;
+  }
+
+  if (result.replyDraft) {
+    return `AI reply draft:\n${result.replyDraft.subject}\n${result.replyDraft.body}`;
+  }
+
+  return "AI workflow action completed.";
+}
+
+async function recordWorkflowNodeFailure(
+  user: User,
+  workflow: { id: string; name: string },
+  node: WorkflowDefinition["nodes"][number],
+  error: unknown
+) {
+  await recordAuditFailure(
+    user,
+    {
+      actionType: "WORKFLOW_NODE_EXECUTE",
+      resourceType: "workflow",
+      resourceId: workflow.id,
+      resourceName: workflow.name,
+      detailJson: {
+        nodeId: node.id,
+        nodeType: node.data.nodeType,
+        nodeLabel: node.data.label,
+      },
+    },
+    error
+  );
+}
+
+async function executeNotificationNode(
+  user: User,
+  input: RunApprovalWorkflowInput,
+  workflow: { id: string; name: string },
+  node: WorkflowDefinition["nodes"][number]
+) {
+  const config = node.data.config;
+  const recipients = await listWorkflowNotificationRecipients(
+    user,
+    config,
+    user.id
+  );
+  const title =
+    renderWorkflowTemplate(getConfigString(config, "title"), input) ||
+    node.data.label ||
+    "Workflow notification";
+  const body =
+    renderWorkflowTemplate(getConfigString(config, "body"), input) ||
+    node.data.description ||
+    `${input.tableName}「${input.recordTitle}」で workflow が実行されました。`;
+
+  await createNotificationsForUsers(
+    user,
+    recipients.map((recipientId) => ({
+      recipientId,
+      actorId: user.id,
+      appId: input.appId,
+      recordId: input.recordId,
+      type: "workflow",
+      title,
+      body,
+      href: `/run/${input.appCode}/${input.tableCode}?recordId=${input.recordId}`,
+    }))
+  );
+
+  await recordAuditLog(user, {
+    actionType: "WORKFLOW_NOTIFICATION_SEND",
+    resourceType: "workflow",
+    resourceId: workflow.id,
+    resourceName: workflow.name,
+    detailJson: {
+      nodeId: node.id,
+      recipientIds: recipients,
+      title,
+    },
+  });
+}
+
+async function executeStatusUpdateNode(
+  user: User,
+  input: RunApprovalWorkflowInput,
+  workflow: { id: string; name: string },
+  node: WorkflowDefinition["nodes"][number]
+) {
+  const nextStatus =
+    getConfigString(node.data.config, "status") ??
+    getConfigString(node.data.config, "recordStatus");
+
+  if (!nextStatus) {
+    return;
+  }
+
+  const prisma = getPrismaClient();
+  await prisma.appRecord.update({
+    where: { id: input.recordId },
+    data: {
+      status: nextStatus,
+      updatedById: user.id,
+    },
+  });
+  await prisma.recordComment.create({
+    data: {
+      id: crypto.randomUUID(),
+      tenantId: user.tenantId,
+      recordId: input.recordId,
+      commentText: `Workflow "${workflow.name}" changed record status to ${nextStatus}.`,
+      createdById: user.id,
+      isSystem: true,
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "WORKFLOW_STATUS_UPDATE",
+    resourceType: "record",
+    resourceId: input.recordId,
+    resourceName: input.recordTitle,
+    detailJson: {
+      workflowId: workflow.id,
+      nodeId: node.id,
+      status: nextStatus,
+    },
+  });
+}
+
+async function executeApiCallNode(
+  user: User,
+  input: RunApprovalWorkflowInput,
+  workflow: { id: string; name: string },
+  node: WorkflowDefinition["nodes"][number]
+) {
+  const url = getConfigString(node.data.config, "url");
+
+  if (!url) {
+    return;
+  }
+
+  const method = (
+    getConfigString(node.data.config, "method") ?? "POST"
+  ).toUpperCase();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body:
+        method === "GET"
+          ? undefined
+          : JSON.stringify({
+              workflowId: workflow.id,
+              workflowName: workflow.name,
+              appId: input.appId,
+              appCode: input.appCode,
+              tableId: input.tableId,
+              tableCode: input.tableCode,
+              recordId: input.recordId,
+              recordTitle: input.recordTitle,
+            }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new WorkflowsServiceError(
+        `Workflow API call failed with ${response.status}`,
+        502
+      );
+    }
+
+    await recordAuditLog(user, {
+      actionType: "WORKFLOW_API_CALL",
+      resourceType: "workflow",
+      resourceId: workflow.id,
+      resourceName: workflow.name,
+      detailJson: {
+        nodeId: node.id,
+        url,
+        method,
+        status: response.status,
+      },
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function executeAIActionNode(
+  user: User,
+  input: RunApprovalWorkflowInput,
+  workflow: { id: string; name: string },
+  node: WorkflowDefinition["nodes"][number]
+) {
+  const action = getConfigString(node.data.config, "action") ?? "summarize";
+
+  if (!isRuntimeAIAction(action)) {
+    throw new WorkflowsServiceError("Workflow AI action is invalid", 400);
+  }
+
+  const result = await executeRuntimeAIAction(
+    user,
+    input.appCode,
+    input.tableCode,
+    input.recordId,
+    action
+  );
+  const prisma = getPrismaClient();
+
+  await prisma.recordComment.create({
+    data: {
+      id: crypto.randomUUID(),
+      tenantId: user.tenantId,
+      recordId: input.recordId,
+      commentText: formatAIWorkflowResult(result),
+      createdById: user.id,
+      isSystem: true,
+    },
+  });
+
+  await recordAuditLog(user, {
+    actionType: "WORKFLOW_AI_ACTION",
+    resourceType: "workflow",
+    resourceId: workflow.id,
+    resourceName: workflow.name,
+    detailJson: {
+      nodeId: node.id,
+      action,
+      modelName: result.modelName,
+      totalTokens: result.usage.totalTokens,
+    },
+    aiInvolvement: "assisted",
+  });
+}
+
+async function executeWorkflowSideEffectNode(
+  user: User,
+  input: RunApprovalWorkflowInput,
+  workflow: { id: string; name: string },
+  node: WorkflowDefinition["nodes"][number]
+) {
+  try {
+    if (node.data.nodeType === "notification") {
+      await executeNotificationNode(user, input, workflow, node);
+      return;
+    }
+
+    if (node.data.nodeType === "status_update") {
+      await executeStatusUpdateNode(user, input, workflow, node);
+      return;
+    }
+
+    if (node.data.nodeType === "api_call") {
+      await executeApiCallNode(user, input, workflow, node);
+      return;
+    }
+
+    if (node.data.nodeType === "ai_action") {
+      await executeAIActionNode(user, input, workflow, node);
+    }
+  } catch (error) {
+    await recordWorkflowNodeFailure(user, workflow, node, error);
+  }
+}
+
 async function getAppOrThrow(user: User, appId: string) {
   const prisma = getPrismaClient();
   const app = await prisma.app.findFirst({
@@ -736,6 +1126,7 @@ async function markRecordPendingApproval(
 export async function listWorkflowsForApp(user: User, appId: string) {
   await ensureDemoBuilderData();
   await getAppOrThrow(user, appId);
+  await requirePermission(user, "workflow:read", { appId });
   await ensureDefaultWorkflow(user, appId);
 
   const prisma = getPrismaClient();
@@ -760,6 +1151,7 @@ export async function getWorkflowForApp(
 ) {
   await ensureDemoBuilderData();
   const workflow = await getWorkflowOrThrow(user, appId, workflowId);
+  await requirePermission(user, "workflow:read", { appId });
   const [withCounts] = await attachPendingApprovalCounts([workflow]);
   return toWorkflow(withCounts);
 }
@@ -771,6 +1163,7 @@ export async function createWorkflowForApp(
 ) {
   await ensureDemoBuilderData();
   const app = await getAppOrThrow(user, appId);
+  await requirePermission(user, "workflow:manage", { appId: app.id });
   const name = assertNonEmpty(input.name, "Workflow name");
   const triggerType = assertWorkflowTriggerType(input.triggerType);
   const status = assertWorkflowStatus(input.status);
@@ -816,6 +1209,7 @@ export async function updateWorkflowForApp(
 ) {
   await ensureDemoBuilderData();
   const existingWorkflow = await getWorkflowOrThrow(user, appId, workflowId);
+  await requirePermission(user, "workflow:manage", { appId });
   const nextName = input.name?.trim() || existingWorkflow.name;
   const nextTriggerType =
     input.triggerType !== undefined
@@ -874,6 +1268,7 @@ export async function deleteWorkflowForApp(
 ) {
   await ensureDemoBuilderData();
   const existingWorkflow = await getWorkflowOrThrow(user, appId, workflowId);
+  await requirePermission(user, "workflow:manage", { appId });
   const prisma = getPrismaClient();
   await prisma.workflow.delete({
     where: { id: existingWorkflow.id },
@@ -889,6 +1284,58 @@ export async function deleteWorkflowForApp(
       triggerType: existingWorkflow.triggerType,
       status: existingWorkflow.status,
     },
+  });
+}
+
+export async function runWorkflowForRecord(
+  user: User,
+  appId: string,
+  workflowId: string,
+  input: RunWorkflowForRecordInput
+) {
+  await ensureDemoBuilderData();
+  const workflow = await getWorkflowOrThrow(user, appId, workflowId);
+  await requirePermission(user, "workflow:manage", { appId });
+
+  if (workflow.status !== "active") {
+    throw new WorkflowsServiceError("Only active workflows can be executed", 400);
+  }
+
+  const prisma = getPrismaClient();
+  const [app, table, record] = await Promise.all([
+    getAppOrThrow(user, appId),
+    prisma.appTable.findFirst({
+      where: {
+        id: assertNonEmpty(input.tableId, "Table id"),
+        tenantId: user.tenantId,
+        appId,
+      },
+    }),
+    prisma.appRecord.findFirst({
+      where: {
+        id: assertNonEmpty(input.recordId, "Record id"),
+        tenantId: user.tenantId,
+        appId,
+        tableId: input.tableId,
+        deletedAt: null,
+      },
+    }),
+  ]);
+
+  if (!table || !record) {
+    throw new WorkflowsServiceError("Table or record not found", 404);
+  }
+
+  return runApprovalWorkflowsForRecord(user, {
+    appId: app.id,
+    appCode: app.code,
+    tableId: table.id,
+    tableCode: table.code,
+    tableName: table.name,
+    recordId: record.id,
+    recordTitle: getRecordTitleFromData(record),
+    triggerTypes: [workflow.triggerType],
+    workflowIds: [workflow.id],
   });
 }
 
@@ -909,51 +1356,97 @@ export async function runApprovalWorkflowsForRecord(
       appId: input.appId,
       status: "active",
       triggerType: { in: triggerTypes },
+      ...(input.workflowIds ? { id: { in: input.workflowIds } } : {}),
     },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
   });
+  const record = await prisma.appRecord.findFirst({
+    where: {
+      id: input.recordId,
+      tenantId: user.tenantId,
+      appId: input.appId,
+      tableId: input.tableId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      status: true,
+      dataJson: true,
+    },
+  });
+
+  if (!record) {
+    throw new WorkflowsServiceError("Record not found", 404);
+  }
+
   const approvals: Approval[] = [];
   const workflowIds: string[] = [];
   let pendingStatus = DEFAULT_PENDING_APPROVAL_STATUS;
 
   for (const workflow of workflows) {
-    const approvalNode = findApprovalNode(workflow.definitionJson);
-
-    if (!approvalNode) {
-      continue;
-    }
-
-    const existingPendingApproval = await prisma.approval.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        workflowId: workflow.id,
-        recordId: input.recordId,
-        status: "pending",
-      },
-      select: { id: true },
-    });
-
-    if (existingPendingApproval) {
-      continue;
-    }
-
-    const approvalConfig = getApprovalNodeConfig(approvalNode);
-
-    approvals.push(
-      await createApprovalFromWorkflow(user, {
-        appId: input.appId,
-        tableId: input.tableId,
-        recordId: input.recordId,
-        workflowId: workflow.id,
-        approverId: approvalConfig.approverId,
-        title: `${input.recordTitle} approval`,
-        description:
-          approvalConfig.description ??
-          `Approval is required for this ${input.tableName} record.`,
-      })
+    const nodes = getWorkflowNodes(workflow.definitionJson);
+    const conditionNodes = nodes.filter(
+      (node) => node.data.nodeType === "condition"
     );
-    workflowIds.push(workflow.id);
-    pendingStatus = approvalConfig.pendingStatus;
+    const conditionsMatched = conditionNodes.every((node) =>
+      conditionNodeMatches(node, record)
+    );
+
+    if (!conditionsMatched) {
+      await recordAuditLog(user, {
+        actionType: "WORKFLOW_CONDITION_SKIP",
+        resourceType: "workflow",
+        resourceId: workflow.id,
+        resourceName: workflow.name,
+        detailJson: {
+          appId: input.appId,
+          tableId: input.tableId,
+          recordId: input.recordId,
+        },
+      });
+      continue;
+    }
+
+    for (const node of nodes) {
+      if (node.data.nodeType !== "approval") {
+        await executeWorkflowSideEffectNode(user, input, workflow, node);
+        continue;
+      }
+
+      const existingPendingApproval = await prisma.approval.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          workflowId: workflow.id,
+          recordId: input.recordId,
+          status: "pending",
+        },
+        select: { id: true },
+      });
+
+      if (existingPendingApproval) {
+        continue;
+      }
+
+      const approvalConfig = getApprovalNodeConfig(node);
+
+      approvals.push(
+        await createApprovalFromWorkflow(user, {
+          appId: input.appId,
+          tableId: input.tableId,
+          recordId: input.recordId,
+          workflowId: workflow.id,
+          approverId: approvalConfig.approverId,
+          title:
+            renderWorkflowTemplate(approvalConfig.titleTemplate, input) ||
+            `${input.recordTitle} approval`,
+          description:
+            approvalConfig.description ??
+            `Approval is required for this ${input.tableName} record.`,
+        })
+      );
+      workflowIds.push(workflow.id);
+      pendingStatus = approvalConfig.pendingStatus;
+    }
   }
 
   if (approvals.length > 0) {
@@ -981,6 +1474,10 @@ export async function createApprovalForRecord(
   await ensureDemoBuilderData();
   const app = await getAppByCodeOrThrow(user, appCode);
   const table = await getTableByCodeOrThrow(user, app.id, tableCode);
+  await requirePermission(user, "approval:manage", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const record = await getRecordOrThrow(user, app.id, table.id, recordId);
   const workflow = input.workflowId
     ? await getWorkflowOrThrow(user, app.id, input.workflowId)
@@ -1026,6 +1523,10 @@ export async function listApprovalsForRecord(
   await ensureDemoBuilderData();
   const app = await getAppByCodeOrThrow(user, appCode);
   const table = await getTableByCodeOrThrow(user, app.id, tableCode);
+  await requirePermission(user, "record:read", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const record = await getRecordOrThrow(user, app.id, table.id, recordId);
   const prisma = getPrismaClient();
   const approvals = await prisma.approval.findMany({
@@ -1047,11 +1548,15 @@ export async function listApprovalsForUser(
   options: ListApprovalsOptions = {}
 ) {
   await ensureDemoBuilderData();
+  await requirePermission(user, "approval:manage", {
+    appId: options.appId,
+  });
   const prisma = getPrismaClient();
   const status = options.status ? assertApprovalStatus(options.status) : undefined;
   const approvals = await prisma.approval.findMany({
     where: {
       tenantId: user.tenantId,
+      ...(options.appId ? { appId: options.appId } : {}),
       ...(status ? { status } : {}),
     },
     include: approvalInclude(),
@@ -1062,8 +1567,18 @@ export async function listApprovalsForUser(
   return approvals.map(toApproval);
 }
 
+export async function listApprovalsForRuntimeApp(
+  user: User,
+  appCode: string,
+  options: Omit<ListApprovalsOptions, "appId"> = {}
+) {
+  const app = await getAppByCodeOrThrow(user, appCode);
+  return listApprovalsForUser(user, { ...options, appId: app.id });
+}
+
 export async function getApprovalForUser(user: User, approvalId: string) {
   await ensureDemoBuilderData();
+  await requirePermission(user, "approval:manage");
   const prisma = getPrismaClient();
   const approval = await prisma.approval.findFirst({
     where: {
@@ -1086,6 +1601,7 @@ export async function updateApprovalDecision(
   input: UpdateApprovalDecisionInput
 ) {
   await ensureDemoBuilderData();
+  await requirePermission(user, "approval:manage");
   const status = assertApprovalDecisionStatus(input.status);
   const prisma = getPrismaClient();
   const existingApproval = await prisma.approval.findFirst({

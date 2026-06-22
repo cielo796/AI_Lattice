@@ -41,9 +41,26 @@ enum ApprovalStatus {
   rejected
 }
 
+enum RoleType {
+  system_admin
+  tenant_admin
+  app_admin
+  approver
+  user
+  viewer
+}
+
 enum AIExecutionStatus {
   success
   error
+}
+
+enum NotificationType {
+  info
+  approval
+  workflow
+  ai
+  system
 }
 
 enum FieldType {
@@ -80,6 +97,7 @@ model Tenant {
 
   users                  User[]
   apps                   App[]
+  appVersions            AppVersion[]
   auditLogs              AuditLog[]
   workflows              Workflow[]
   approvals              Approval[]
@@ -88,6 +106,9 @@ model Tenant {
   aiExecutionLogs        AiExecutionLog[]
   promptTemplates        PromptTemplate[]
   promptTemplateVersions PromptTemplateVersion[]
+  roles                  Role[]
+  userRoles              UserRole[]
+  notifications          Notification[]
   openAISettings         TenantOpenAISettings?
 
   @@map("tenants")
@@ -206,10 +227,57 @@ model User {
   actedApprovals                Approval[]              @relation("ApprovalActedBy")
   aiExecutionLogs               AiExecutionLog[]        @relation("AIExecutionLogActor")
   createdPromptTemplateVersions PromptTemplateVersion[] @relation("PromptTemplateVersionCreatedBy")
+  publishedAppVersions          AppVersion[]            @relation("AppVersionPublishedBy")
+  roleAssignments               UserRole[]              @relation("UserRoleUser")
+  createdRoleAssignments        UserRole[]              @relation("UserRoleCreatedBy")
+  receivedNotifications         Notification[]          @relation("NotificationRecipient")
+  actedNotifications            Notification[]          @relation("NotificationActor")
 
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("users")
+}
+
+model Role {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  name            String
+  roleType        RoleType @map("role_type")
+  permissionsJson Json     @map("permissions_json")
+  isSystem        Boolean  @default(false) @map("is_system")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignments UserRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, roleType])
+  @@map("roles")
+}
+
+model UserRole {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  userId      String   @map("user_id")
+  roleId      String   @map("role_id")
+  appId       String?  @map("app_id")
+  tableId     String?  @map("table_id")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User      @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  app       App?      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  table     AppTable? @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("UserRoleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, userId])
+  @@index([roleId])
+  @@index([appId])
+  @@index([tableId])
+  @@map("user_roles")
 }
 
 model Session {
@@ -250,11 +318,33 @@ model App {
   views           AppView[]
   forms           AppForm[]
   aiExecutionLogs AiExecutionLog[]
+  versions        AppVersion[]
+  userRoles       UserRole[]
+  notifications   Notification[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
   @@index([createdById])
   @@map("apps")
+}
+
+model AppVersion {
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  appId         String   @map("app_id")
+  versionNo     Int      @map("version_no")
+  metadataJson  Json     @map("metadata_json")
+  publishedById String?  @map("published_by_id")
+  publishedAt   DateTime @default(now()) @map("published_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  app         App    @relation(fields: [appId], references: [id], onDelete: Cascade)
+  publishedBy User?  @relation("AppVersionPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@unique([appId, versionNo])
+  @@index([tenantId, appId])
+  @@map("app_versions")
 }
 
 model AppTable {
@@ -274,6 +364,7 @@ model AppTable {
   approvals Approval[]
   views     AppView[]
   forms     AppForm[]
+  userRoles UserRole[]
 
   @@unique([appId, code])
   @@index([tenantId])
@@ -373,6 +464,7 @@ model AppRecord {
   comments    RecordComment[]
   attachments Attachment[]
   approvals   Approval[]
+  notifications Notification[]
 
   @@unique([tableId, recordNo])
   @@index([tenantId])
@@ -503,4 +595,30 @@ model AuditLog {
   @@index([tenantId, resourceType, resourceId])
   @@index([actorId, createdAt])
   @@map("audit_logs")
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  tenantId    String           @map("tenant_id")
+  recipientId String           @map("recipient_id")
+  actorId     String?          @map("actor_id")
+  appId       String?          @map("app_id")
+  recordId    String?          @map("record_id")
+  type        NotificationType @default(info)
+  title       String
+  body        String?
+  href        String?
+  readAt      DateTime?        @map("read_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  recipient User       @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor     User?      @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  app       App?       @relation(fields: [appId], references: [id], onDelete: Cascade)
+  record    AppRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, recipientId, readAt, createdAt])
+  @@index([appId])
+  @@index([recordId])
+  @@map("notifications")
 }

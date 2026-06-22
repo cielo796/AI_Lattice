@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/server/auth/service";
 import { recordAuditFailure, type RecordAuditLogInput } from "@/server/audit/service";
 import { AppsServiceError } from "@/server/apps/service";
+import { ServiceError } from "@/server/errors/service-error";
 import {
   isDatabaseSetupError,
   toDatabaseSetupErrorBody,
@@ -27,7 +28,7 @@ export async function parseJsonBody<T>(request: Request) {
 }
 
 export function toRouteErrorResponse(error: unknown) {
-  if (error instanceof AppsServiceError) {
+  if (error instanceof ServiceError || error instanceof AppsServiceError) {
     return NextResponse.json(
       { message: error.message },
       { status: error.status }

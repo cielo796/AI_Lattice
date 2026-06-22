@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { hasPermission, requirePermission } from "@/server/admin/rbac";
 import { AppsServiceError } from "@/server/apps/service";
 import { recordAuditLog } from "@/server/audit/service";
 import { getPrismaClient } from "@/server/db/prisma";
@@ -344,6 +345,7 @@ function toRecordComment(comment: {
   createdById: string;
   createdAt: Date;
   isSystem: boolean;
+  createdBy?: { name: string; email: string } | null;
 }): RecordComment {
   return {
     id: comment.id,
@@ -351,6 +353,7 @@ function toRecordComment(comment: {
     recordId: comment.recordId,
     commentText: comment.commentText,
     createdBy: comment.createdById,
+    createdByName: comment.createdBy?.name ?? comment.createdBy?.email,
     createdAt: comment.createdAt.toISOString(),
     isSystem: comment.isSystem,
   };
@@ -926,6 +929,10 @@ export async function listRecordsForTable(
 ) {
   await ensureDemoRecordData();
   const { app, table } = await getTableByCodeOrThrow(user, appCode, tableCode);
+  await requirePermission(user, "record:read", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const prisma = getPrismaClient();
   const records = await prisma.appRecord.findMany({
     where: {
@@ -947,6 +954,10 @@ export async function getRuntimeTableMeta(
 ): Promise<RuntimeTableMeta> {
   await ensureDemoRecordData();
   const { app, table } = await getTableByCodeOrThrow(user, appCode, tableCode);
+  await requirePermission(user, "record:read", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const prisma = getPrismaClient();
   const fields = await prisma.appField.findMany({
     where: {
@@ -1009,6 +1020,10 @@ export async function createRecordForTable(
 ) {
   await ensureDemoRecordData();
   const { app, table } = await getTableByCodeOrThrow(user, appCode, tableCode);
+  await requirePermission(user, "record:write", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const data = await validateRecordDataForTable(
     user,
     app.id,
@@ -1094,7 +1109,16 @@ export async function getRecordForTable(
   recordId: string
 ) {
   await ensureDemoRecordData();
-  const { record } = await getRecordOrThrow(user, appCode, tableCode, recordId);
+  const { app, table, record } = await getRecordOrThrow(
+    user,
+    appCode,
+    tableCode,
+    recordId
+  );
+  await requirePermission(user, "record:read", {
+    appId: app.id,
+    tableId: table.id,
+  });
   return toAppRecord(record);
 }
 
@@ -1106,6 +1130,10 @@ export async function listBackReferencesForRecord(
 ): Promise<RecordBackReferenceGroup[]> {
   await ensureDemoRecordData();
   const { app, table, record } = await getRecordOrThrow(user, appCode, tableCode, recordId);
+  await requirePermission(user, "record:read", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const prisma = getPrismaClient();
   const referenceFields = await prisma.appField.findMany({
     where: {
@@ -1133,7 +1161,19 @@ export async function listBackReferencesForRecord(
     },
   });
 
-  const activeReferenceFields = referenceFields.filter((field) => {
+  const sourcePermissions = await Promise.all(
+    referenceFields.map((field) =>
+      hasPermission(user, "record:read", {
+        appId: field.app.id,
+        tableId: field.table.id,
+      })
+    )
+  );
+  const activeReferenceFields = referenceFields.filter((field, index) => {
+    if (!sourcePermissions[index]) {
+      return false;
+    }
+
     const settings = toSettingsJson(field.settingsJson);
 
     if (!shouldShowBackReference(settings)) {
@@ -1222,6 +1262,10 @@ export async function updateRecordForTable(
     tableCode,
     recordId
   );
+  await requirePermission(user, "record:write", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const prisma = getPrismaClient();
   const nextDataObject =
     input.data !== undefined
@@ -1313,6 +1357,10 @@ export async function deleteRecordForTable(
     tableCode,
     recordId
   );
+  await requirePermission(user, "record:write", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const prisma = getPrismaClient();
   await prisma.appRecord.update({
     where: { id: record.id },
@@ -1345,12 +1393,24 @@ export async function listCommentsForRecord(
   recordId: string
 ) {
   await ensureDemoRecordData();
-  const { record } = await getRecordOrThrow(user, appCode, tableCode, recordId);
+  const { app, table, record } = await getRecordOrThrow(
+    user,
+    appCode,
+    tableCode,
+    recordId
+  );
+  await requirePermission(user, "record:read", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const prisma = getPrismaClient();
   const comments = await prisma.recordComment.findMany({
     where: {
       tenantId: user.tenantId,
       recordId: record.id,
+    },
+    include: {
+      createdBy: { select: { name: true, email: true } },
     },
     orderBy: [{ createdAt: "asc" }],
   });
@@ -1366,7 +1426,16 @@ export async function createCommentForRecord(
   input: CreateRecordCommentInput
 ) {
   await ensureDemoRecordData();
-  const { record } = await getRecordOrThrow(user, appCode, tableCode, recordId);
+  const { app, table, record } = await getRecordOrThrow(
+    user,
+    appCode,
+    tableCode,
+    recordId
+  );
+  await requirePermission(user, "record:write", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const prisma = getPrismaClient();
   const comment = await prisma.recordComment.create({
     data: {
@@ -1376,6 +1445,9 @@ export async function createCommentForRecord(
       commentText: assertNonEmpty(input.commentText, "Comment text"),
       createdById: user.id,
       isSystem: input.isSystem ?? false,
+    },
+    include: {
+      createdBy: { select: { name: true, email: true } },
     },
   });
 
@@ -1402,7 +1474,16 @@ export async function listAttachmentsForRecord(
   recordId: string
 ) {
   await ensureDemoRecordData();
-  const { record } = await getRecordOrThrow(user, appCode, tableCode, recordId);
+  const { app, table, record } = await getRecordOrThrow(
+    user,
+    appCode,
+    tableCode,
+    recordId
+  );
+  await requirePermission(user, "record:read", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const prisma = getPrismaClient();
   const attachments = await prisma.attachment.findMany({
     where: {
@@ -1423,7 +1504,16 @@ export async function createAttachmentForRecord(
   input: CreateAttachmentInput
 ) {
   await ensureDemoRecordData();
-  const { record } = await getRecordOrThrow(user, appCode, tableCode, recordId);
+  const { app, table, record } = await getRecordOrThrow(
+    user,
+    appCode,
+    tableCode,
+    recordId
+  );
+  await requirePermission(user, "record:write", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const prisma = getPrismaClient();
   const attachment = await prisma.attachment.create({
     data: {
@@ -1464,6 +1554,16 @@ export async function deleteAttachmentForRecord(
   attachmentId: string
 ) {
   await ensureDemoRecordData();
+  const { app, table } = await getRecordOrThrow(
+    user,
+    appCode,
+    tableCode,
+    recordId
+  );
+  await requirePermission(user, "record:write", {
+    appId: app.id,
+    tableId: table.id,
+  });
   const attachment = await getAttachmentOrThrow(
     user,
     appCode,

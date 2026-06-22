@@ -19,6 +19,7 @@ export interface RecordComment {
   recordId: string;
   commentText: string;
   createdBy: string;
+  createdByName?: string;
   createdAt: string;
   isSystem?: boolean;
 }

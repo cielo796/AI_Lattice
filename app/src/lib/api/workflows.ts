@@ -54,3 +54,17 @@ export async function deleteWorkflow(appId: string, workflowId: string) {
     method: "DELETE",
   });
 }
+
+export async function runWorkflow(
+  appId: string,
+  workflowId: string,
+  input: { tableId: string; recordId: string }
+) {
+  return apiFetch<{ approvals: unknown[] }>(
+    `${workflowPath(appId, workflowId)}/run`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  );
+}

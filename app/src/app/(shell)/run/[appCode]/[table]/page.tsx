@@ -8,12 +8,16 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { AISidebar } from "@/components/ai/AISidebar";
+import { RecordAIPanel } from "@/components/ai/RecordAIPanel";
 import { RecordCreatePanel } from "@/components/runtime/RecordCreatePanel";
 import { RecordDetail } from "@/components/runtime/RecordDetail";
 import { RecordList } from "@/components/runtime/RecordList";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { TopBar } from "@/components/shared/TopBar";
+import { getAppByCode } from "@/lib/api/apps";
+import { ApiError } from "@/lib/api/client";
+import { getCurrentPermissions, type PermissionMap } from "@/lib/api/rbac";
 import {
   createComment,
   createRecord,
@@ -165,6 +169,7 @@ export default function RuntimeViewPage() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tableMeta, setTableMeta] = useState<RuntimeTableMeta | null>(null);
+  const [permissions, setPermissions] = useState<PermissionMap | null>(null);
   const [activeViewId, setActiveViewId] = useState<string>("");
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
@@ -188,6 +193,7 @@ export default function RuntimeViewPage() {
   >([]);
   const [isLoadingBackReferences, setIsLoadingBackReferences] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAccessDenied, setIsAccessDenied] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const selectedRecord =
@@ -220,6 +226,7 @@ export default function RuntimeViewPage() {
         }
 
         setRecords(nextRecords);
+        setIsAccessDenied(false);
         setError(null);
       } catch (nextError) {
         if (cancelled) {
@@ -231,6 +238,7 @@ export default function RuntimeViewPage() {
         setComments([]);
         setAttachments([]);
         setApprovals([]);
+        setIsAccessDenied(nextError instanceof ApiError && nextError.status === 403);
         setError(
           nextError instanceof Error
             ? nextError.message
@@ -273,13 +281,21 @@ export default function RuntimeViewPage() {
     async function loadRuntimeMeta() {
       try {
         setIsLoadingMeta(true);
-        const nextMeta = await getRuntimeTableMeta(appCode, tableCode);
+        const [nextMeta, app] = await Promise.all([
+          getRuntimeTableMeta(appCode, tableCode),
+          getAppByCode(appCode),
+        ]);
+        const nextPermissions = await getCurrentPermissions({
+          appId: app.id,
+          tableId: nextMeta.table.id,
+        });
 
         if (cancelled) {
           return;
         }
 
         setTableMeta(nextMeta);
+        setPermissions(nextPermissions);
         setActiveViewId((current) => {
           const fallbackViewId = nextMeta.views[0]?.id ?? "";
 
@@ -300,6 +316,7 @@ export default function RuntimeViewPage() {
         }
 
         setTableMeta(null);
+        setPermissions(null);
         setError(
           nextError instanceof Error
             ? nextError.message
@@ -771,6 +788,7 @@ export default function RuntimeViewPage() {
   const shouldRenderRecordPanel =
     recordPanelMode === "create" ||
     (recordPanelMode === "edit" && selectedRecord !== null);
+  const canWriteRecords = permissions?.["record:write"] === true;
 
   return (
     <>
@@ -793,7 +811,8 @@ export default function RuntimeViewPage() {
               variant="primary"
               size="md"
               onClick={() => setRecordPanelMode("create")}
-              disabled={isLoadingMeta}
+              disabled={isLoadingMeta || !canWriteRecords}
+              title={!canWriteRecords && !isLoadingMeta ? "この操作を行う権限がありません。" : undefined}
             >
               <Icon name="add" size="sm" />
               {isLoadingMeta ? "スキーマを読み込み中..." : "新規レコード"}
@@ -804,7 +823,13 @@ export default function RuntimeViewPage() {
 
       <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
         <div className="flex min-h-0 flex-1 flex-col">
-          {error && (
+          {isAccessDenied && (
+            <div className="flex items-center gap-2 border-b border-error/20 bg-error/10 px-4 py-3 text-sm font-semibold text-error md:px-8">
+              <Icon name="lock" size="sm" />
+              このテーブルを表示する権限がありません。
+            </div>
+          )}
+          {error && !isAccessDenied && (
             <div className="border-b border-error/20 bg-error/10 px-4 py-3 text-sm text-error md:px-8">
               {error}
             </div>
@@ -881,11 +906,11 @@ export default function RuntimeViewPage() {
                     isUploadingAttachment={isUploadingAttachment}
                     isDeletingRecord={isDeletingRecord}
                     deletingAttachmentId={deletingAttachmentId}
-                    onAddComment={handleAddComment}
-                    onAddAttachment={handleAddAttachment}
-                    onEditRecord={() => setRecordPanelMode("edit")}
-                    onDeleteRecord={handleDeleteRecord}
-                    onDeleteAttachment={handleDeleteAttachment}
+                    onAddComment={canWriteRecords ? handleAddComment : undefined}
+                    onAddAttachment={canWriteRecords ? handleAddAttachment : undefined}
+                    onEditRecord={canWriteRecords ? () => setRecordPanelMode("edit") : undefined}
+                    onDeleteRecord={canWriteRecords ? handleDeleteRecord : undefined}
+                    onDeleteAttachment={canWriteRecords ? handleDeleteAttachment : undefined}
                   />
                 )}
               </div>
@@ -894,50 +919,15 @@ export default function RuntimeViewPage() {
         </div>
 
         <AISidebar className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
-          <div>
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-primary">
-              実行サマリー
-            </div>
-            <p className="text-xs leading-relaxed text-on-surface">
-              {buildSummary(resolvedSelectedRecord)}
-            </p>
-          </div>
-
-          <div>
-            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">
-              推奨アクション
-            </div>
-            <div className="space-y-2">
-              {recommendedActions.length > 0 ? (
-                recommendedActions.map((action) => (
-                  <div
-                    key={action.label}
-                    className="flex gap-3 rounded-lg bg-surface-container p-3"
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                      <Icon
-                        name={action.icon}
-                        size="sm"
-                        className="text-primary"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-on-surface">
-                        {action.label}
-                      </div>
-                      <div className="text-[10px] text-on-surface-variant">
-                        {action.description}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-lg bg-surface-container p-3 text-xs text-on-surface-variant">
-                  推奨アクションはまだありません。
-                </div>
-              )}
-            </div>
-          </div>
+          <RecordAIPanel
+            appCode={appCode}
+            tableCode={tableCode}
+            record={selectedRecord}
+            fallbackSummary={buildSummary(resolvedSelectedRecord)}
+            fallbackActions={recommendedActions}
+            isPostingReply={isSubmittingComment}
+            onPostReply={handleAddComment}
+          />
 
           <div>
             <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">

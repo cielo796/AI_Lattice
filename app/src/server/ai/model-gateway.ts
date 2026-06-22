@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { resolveActivePromptTemplateVersion } from "@/server/admin/prompt-templates";
 import { AppsServiceError } from "@/server/apps/service";
 import { getPrismaClient } from "@/server/db/prisma";
 import { getOpenAIClient } from "@/server/openai/client";
@@ -53,6 +54,7 @@ export interface ModelGatewayJsonRequest {
   responseSchema: Record<string, unknown>;
   appId?: string;
   recordId?: string;
+  promptTemplateKey?: string;
   promptTemplateVersionId?: string;
   metadata?: Record<string, unknown>;
 }
@@ -183,6 +185,7 @@ function buildInputLog(request: ModelGatewayJsonRequest) {
     input: request.input,
     instructions: request.instructions,
     responseFormatName: request.responseFormatName,
+    promptTemplateKey: request.promptTemplateKey,
     metadata: request.metadata,
   };
 }
@@ -292,20 +295,66 @@ async function safeRecordAIExecutionLog(
   }
 }
 
+async function resolvePromptTemplateRequest(
+  request: ModelGatewayJsonRequest
+): Promise<ModelGatewayJsonRequest> {
+  if (request.promptTemplateVersionId) {
+    return request;
+  }
+
+  let activeTemplate: Awaited<
+    ReturnType<typeof resolveActivePromptTemplateVersion>
+  > = null;
+
+  try {
+    activeTemplate = await resolveActivePromptTemplateVersion(request.user, {
+      operation: request.operation,
+      key: request.promptTemplateKey,
+    });
+  } catch {
+    return request;
+  }
+
+  if (!activeTemplate) {
+    return request;
+  }
+
+  return {
+    ...request,
+    model: activeTemplate.modelName,
+    instructions: activeTemplate.instructions,
+    responseSchema: activeTemplate.responseSchemaJson ?? request.responseSchema,
+    promptTemplateKey: activeTemplate.key,
+    promptTemplateVersionId: activeTemplate.id,
+    metadata: {
+      ...request.metadata,
+      promptTemplate: {
+        key: activeTemplate.key,
+        name: activeTemplate.name,
+        version: activeTemplate.version,
+      },
+    },
+  };
+}
+
 export async function generateJsonWithModelGateway(
   request: ModelGatewayJsonRequest,
   client?: ModelGatewayClientLike
 ): Promise<ModelGatewayJsonResponse> {
   const startedAt = Date.now();
+  let resolvedRequest = request;
 
   try {
-    const openAIClient = client ?? (await getOpenAIClient(request.user.tenantId));
-    const response = await openAIClient.responses.create(buildRequestParams(request));
+    resolvedRequest = await resolvePromptTemplateRequest(request);
+    const openAIClient = client ?? (await getOpenAIClient(resolvedRequest.user.tenantId));
+    const response = await openAIClient.responses.create(
+      buildRequestParams(resolvedRequest)
+    );
     const usage = normalizeUsage(response.usage);
 
     await safeRecordAIExecutionLog({
-      user: request.user,
-      request,
+      user: resolvedRequest.user,
+      request: resolvedRequest,
       status: "success",
       outputText: response.output_text,
       usage,
@@ -320,8 +369,8 @@ export async function generateJsonWithModelGateway(
     const normalizedError = toModelGatewayError(error);
 
     await safeRecordAIExecutionLog({
-      user: request.user,
-      request,
+      user: resolvedRequest.user,
+      request: resolvedRequest,
       status: "error",
       errorMessage: normalizedError.message,
       durationMs: Date.now() - startedAt,

@@ -3,6 +3,7 @@ import {
   listAIExecutionLogsForUser,
   MAX_AI_LOG_LIMIT,
 } from "@/server/ai/model-gateway";
+import { requirePermission } from "@/server/admin/rbac";
 import {
   requireAuthenticatedUser,
   toRouteErrorResponse,
@@ -31,6 +32,7 @@ function parseStatus(value: string | null) {
 export async function GET(request: Request) {
   try {
     const user = await requireAuthenticatedUser();
+    await requirePermission(user, "admin:ai_logs");
     const url = new URL(request.url);
     const logs = await listAIExecutionLogsForUser(user, {
       limit: parseLimit(url.searchParams.get("limit")),

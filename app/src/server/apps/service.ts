@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
+import { hasPermission, requirePermission } from "@/server/admin/rbac";
 import { recordAuditLog } from "@/server/audit/service";
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
 import { getPrismaClient } from "@/server/db/prisma";
+import { ServiceError } from "@/server/errors/service-error";
 import type {
   App,
   AppField,
@@ -39,12 +41,9 @@ const FORM_FIELD_WIDTHS = ["half", "full"] as const;
 type ViewFilterOperator = (typeof VIEW_FILTER_OPERATORS)[number];
 type FormFieldWidth = (typeof FORM_FIELD_WIDTHS)[number];
 
-export class AppsServiceError extends Error {
-  constructor(
-    message: string,
-    public status: number
-  ) {
-    super(message);
+export class AppsServiceError extends ServiceError {
+  constructor(message: string, status: number) {
+    super(message, status);
     this.name = "AppsServiceError";
   }
 }
@@ -1347,12 +1346,22 @@ export async function listAppsForUser(user: User) {
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
   });
 
-  return apps.map(toAppSummary);
+  const accessible = await Promise.all(
+    apps.map(async (app) => ({
+      app,
+      allowed: await hasPermission(user, "app:read", { appId: app.id }),
+    }))
+  );
+
+  return accessible
+    .filter((item) => item.allowed)
+    .map((item) => toAppSummary(item.app));
 }
 
 export async function getAppForUser(user: User, appId: string) {
   await ensureDemoBuilderData();
   const app = await getAppOrThrow(user, appId);
+  await requirePermission(user, "app:read", { appId: app.id });
   return toApp(app);
 }
 
@@ -1384,11 +1393,14 @@ export async function getAppByCodeForUser(user: User, appCode: string) {
     throw new AppsServiceError("アプリが見つかりません", 404);
   }
 
+  await requirePermission(user, "app:read", { appId: app.id });
+
   return toAppSummary(app);
 }
 
 export async function createAppForUser(user: User, input: CreateAppInput) {
   await ensureDemoBuilderData();
+  await requirePermission(user, "app:write");
 
   const name = assertNonEmpty(input.name, "App name");
   const code = normalizeIdentifier(input.code ?? name, "-");
@@ -1437,6 +1449,7 @@ export async function updateAppForUser(
   await ensureDemoBuilderData();
 
   const existingApp = await getAppOrThrow(user, appId);
+  await requirePermission(user, "app:write", { appId: existingApp.id });
   const nextName = input.name?.trim() || existingApp.name;
   const nextCode = normalizeIdentifier(input.code ?? existingApp.code, "-");
 
@@ -1498,6 +1511,7 @@ export async function deleteAppForUser(user: User, appId: string) {
   await ensureDemoBuilderData();
 
   const existingApp = await getAppOrThrow(user, appId);
+  await requirePermission(user, "app:delete", { appId: existingApp.id });
   const prisma = getPrismaClient();
   await prisma.app.delete({
     where: { id: existingApp.id },
@@ -1518,6 +1532,7 @@ export async function deleteAppForUser(user: User, appId: string) {
 export async function listTablesForApp(user: User, appId: string) {
   await ensureDemoBuilderData();
   await getAppOrThrow(user, appId);
+  await requirePermission(user, "table:read", { appId });
 
   const prisma = getPrismaClient();
   const tables = await prisma.appTable.findMany({
@@ -1534,6 +1549,7 @@ export async function listTablesForApp(user: User, appId: string) {
 export async function getTableForApp(user: User, appId: string, tableId: string) {
   await ensureDemoBuilderData();
   const table = await getTableOrThrow(user, appId, tableId);
+  await requirePermission(user, "table:read", { appId, tableId: table.id });
   return toAppTable(table);
 }
 
@@ -1544,6 +1560,7 @@ export async function createTableForApp(
 ) {
   await ensureDemoBuilderData();
   const app = await getAppOrThrow(user, appId);
+  await requirePermission(user, "table:write", { appId: app.id });
 
   const name = assertNonEmpty(input.name, "Table name");
   const code = normalizeIdentifier(input.code ?? name, "-");
@@ -1605,6 +1622,7 @@ export async function updateTableForApp(
   await ensureDemoBuilderData();
 
   const existingTable = await getTableOrThrow(user, appId, tableId);
+  await requirePermission(user, "table:write", { appId, tableId });
   const nextName = input.name?.trim() || existingTable.name;
   const nextCode = normalizeIdentifier(input.code ?? existingTable.code, "-");
 
@@ -1716,6 +1734,7 @@ export async function deleteTableForApp(
   await ensureDemoBuilderData();
 
   const existingTable = await getTableOrThrow(user, appId, tableId);
+  await requirePermission(user, "table:write", { appId, tableId });
   const existingApp = await getAppOrThrow(user, appId);
   const prisma = getPrismaClient();
   const referenceFields = await prisma.appField.findMany({
@@ -1772,6 +1791,7 @@ export async function listFieldsForTable(
 ) {
   await ensureDemoBuilderData();
   await getTableOrThrow(user, appId, tableId);
+  await requirePermission(user, "table:read", { appId, tableId });
 
   const prisma = getPrismaClient();
   const fields = await prisma.appField.findMany({
@@ -1794,6 +1814,7 @@ export async function getFieldForTable(
 ) {
   await ensureDemoBuilderData();
   const field = await getFieldOrThrow(user, appId, tableId, fieldId);
+  await requirePermission(user, "table:read", { appId, tableId });
   return toAppField(field as typeof field & { fieldType: FieldType });
 }
 
@@ -1805,6 +1826,7 @@ export async function createFieldForTable(
 ) {
   await ensureDemoBuilderData();
   const table = await getTableOrThrow(user, appId, tableId);
+  await requirePermission(user, "table:write", { appId, tableId: table.id });
 
   const name = assertNonEmpty(input.name, "Field name");
   const code = normalizeIdentifier(input.code ?? name, "_");
@@ -1872,6 +1894,7 @@ export async function updateFieldForTable(
   await ensureDemoBuilderData();
 
   const existingField = await getFieldOrThrow(user, appId, tableId, fieldId);
+  await requirePermission(user, "table:write", { appId, tableId });
   const nextName = input.name?.trim() || existingField.name;
   const nextCode = normalizeIdentifier(input.code ?? existingField.code, "_");
 
@@ -2026,6 +2049,7 @@ export async function deleteFieldForTable(
   await ensureDemoBuilderData();
 
   const existingField = await getFieldOrThrow(user, appId, tableId, fieldId);
+  await requirePermission(user, "table:write", { appId, tableId });
   const prisma = getPrismaClient();
   await prisma.$transaction(async (tx) => {
     const views = await tx.appView.findMany({
@@ -2135,6 +2159,7 @@ export async function getViewForTable(
 ) {
   await ensureDemoBuilderData();
   const view = await getViewOrThrow(user, appId, tableId, viewId);
+  await requirePermission(user, "table:read", { appId, tableId });
   return toAppView(view as typeof view & { viewType: AppViewType });
 }
 
@@ -2146,6 +2171,7 @@ export async function createViewForTable(
 ) {
   await ensureDemoBuilderData();
   const table = await getTableOrThrow(user, appId, tableId);
+  await requirePermission(user, "table:write", { appId, tableId: table.id });
   const name = assertNonEmpty(input.name, "View name");
   const viewType = input.viewType ? assertViewType(input.viewType) : "list";
 
@@ -2199,6 +2225,7 @@ export async function updateViewForTable(
 ) {
   await ensureDemoBuilderData();
   const existingView = await getViewOrThrow(user, appId, tableId, viewId);
+  await requirePermission(user, "table:write", { appId, tableId });
   const nextName = input.name?.trim() || existingView.name;
   const nextViewType = input.viewType
     ? assertViewType(input.viewType)
@@ -2264,6 +2291,7 @@ export async function deleteViewForTable(
 ) {
   await ensureDemoBuilderData();
   const existingView = await getViewOrThrow(user, appId, tableId, viewId);
+  await requirePermission(user, "table:write", { appId, tableId });
   const prisma = getPrismaClient();
 
   await prisma.appView.delete({
@@ -2292,6 +2320,7 @@ export async function listFormsForTable(
 ) {
   await ensureDemoBuilderData();
   await getTableOrThrow(user, appId, tableId);
+  await requirePermission(user, "table:read", { appId, tableId });
 
   const prisma = getPrismaClient();
   const forms = await prisma.appForm.findMany({
@@ -2314,6 +2343,7 @@ export async function getFormForTable(
 ) {
   await ensureDemoBuilderData();
   const form = await getFormOrThrow(user, appId, tableId, formId);
+  await requirePermission(user, "table:read", { appId, tableId });
   return toAppForm(form);
 }
 
@@ -2325,6 +2355,7 @@ export async function createFormForTable(
 ) {
   await ensureDemoBuilderData();
   const table = await getTableOrThrow(user, appId, tableId);
+  await requirePermission(user, "table:write", { appId, tableId: table.id });
   const name = assertNonEmpty(input.name, "Form name");
 
   await ensureUniqueFormName(user, appId, tableId, name);
@@ -2375,6 +2406,7 @@ export async function updateFormForTable(
 ) {
   await ensureDemoBuilderData();
   const existingForm = await getFormOrThrow(user, appId, tableId, formId);
+  await requirePermission(user, "table:write", { appId, tableId });
   const nextName = input.name?.trim() || existingForm.name;
 
   if (!nextName) {
@@ -2434,6 +2466,7 @@ export async function deleteFormForTable(
 ) {
   await ensureDemoBuilderData();
   const existingForm = await getFormOrThrow(user, appId, tableId, formId);
+  await requirePermission(user, "table:write", { appId, tableId });
   const prisma = getPrismaClient();
 
   await prisma.appForm.delete({

@@ -1,5 +1,6 @@
 import { getPrismaClient } from "@/server/db/prisma";
 import { AppsServiceError } from "@/server/apps/service";
+import { requirePermission } from "@/server/admin/rbac";
 import { decryptSecret, encryptSecret } from "@/server/secrets/encryption";
 import { recordAuditLog } from "@/server/audit/service";
 import type { OpenAISettingsStatus } from "@/types/settings";
@@ -55,8 +56,10 @@ export async function getTenantOpenAIApiKey(tenantId: string) {
 }
 
 export async function getOpenAISettingsStatus(
-  user: Pick<User, "tenantId">
+  user: Pick<User, "id" | "tenantId">
 ): Promise<OpenAISettingsStatus> {
+  await requirePermission(user, "admin:openai");
+
   const prisma = getPrismaClient();
   const settings = await prisma.tenantOpenAISettings.findUnique({
     where: { tenantId: user.tenantId },
@@ -98,6 +101,8 @@ export async function saveOpenAISettings(
   user: Pick<User, "id" | "tenantId" | "name" | "email">,
   input: SaveOpenAISettingsInput
 ) {
+  await requirePermission(user, "admin:openai");
+
   const apiKey = normalizeApiKey(input.apiKey);
   const lastFour = getLastFour(apiKey);
   const prisma = getPrismaClient();
@@ -132,6 +137,8 @@ export async function saveOpenAISettings(
 export async function clearOpenAISettings(
   user: Pick<User, "id" | "tenantId" | "name" | "email">
 ) {
+  await requirePermission(user, "admin:openai");
+
   const prisma = getPrismaClient();
   const existing = await prisma.tenantOpenAISettings.findUnique({
     where: { tenantId: user.tenantId },
