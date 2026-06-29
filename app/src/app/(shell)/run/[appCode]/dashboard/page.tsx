@@ -15,7 +15,7 @@ type TableDashboard = {
   name: string;
   records: AppRecord[];
   fields: AppField[];
-  kpiView?: AppView;
+  summaryView?: AppView;
   chartView?: AppView;
 };
 
@@ -41,7 +41,7 @@ export default function RuntimeDashboardPage({ params }: { params: Promise<{ app
               name: table.name,
               records,
               fields: meta.fields,
-              kpiView: meta.views.find((view) => view.viewType === "kpi"),
+              summaryView: meta.views.find((view) => view.viewType === "summary"),
               chartView: meta.views.find((view) => view.viewType === "chart"),
             };
           })
@@ -72,7 +72,7 @@ export default function RuntimeDashboardPage({ params }: { params: Promise<{ app
         </div>
 
         {tables.map((table) => {
-          const metricCode = getMetricFieldCode(table.kpiView, table.fields);
+          const metricCode = getMetricFieldCode(table.summaryView, table.fields);
           const metrics = getNumericMetricValues(table.records, metricCode);
           const metricValue = metrics.length > 0 ? metrics.reduce((sum, value) => sum + value, 0) : table.records.length;
           const buckets = getChartBuckets(table.records, table.fields, table.chartView);
@@ -84,7 +84,7 @@ export default function RuntimeDashboardPage({ params }: { params: Promise<{ app
               </div>
               <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
                 <div className="rounded-lg border border-outline-variant bg-surface p-4">
-                  <div className="text-xs font-semibold text-on-surface-variant">{table.kpiView?.name ?? "レコード件数"}</div>
+                  <div className="text-xs font-semibold text-on-surface-variant">{table.summaryView?.name ?? "レコード件数"}</div>
                   <div className="mt-3 font-headline text-3xl font-bold text-on-surface">{formatNumber(metricValue)}</div>
                   <div className="mt-2 text-[11px] text-on-surface-muted">{metricCode ? `SUM ${metricCode}` : "COUNT"}</div>
                 </div>

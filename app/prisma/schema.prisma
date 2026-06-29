@@ -83,7 +83,7 @@ enum AppViewType {
   kanban
   calendar
   chart
-  kpi
+  summary
 }
 
 model Tenant {

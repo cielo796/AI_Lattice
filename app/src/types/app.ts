@@ -38,7 +38,7 @@ export type FieldType =
   | "ai_generated"
   | "calculated";
 
-export type AppViewType = "list" | "kanban" | "calendar" | "chart" | "kpi";
+export type AppViewType = "list" | "kanban" | "calendar" | "chart" | "summary";
 
 export interface AppField {
   id: string;

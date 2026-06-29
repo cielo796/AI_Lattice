@@ -276,7 +276,7 @@ function buildInitialViewsForTable(table: GeneratedBlueprintTable) {
   const metricField = getInitialMetricField(table);
   const views: Array<{
     name: string;
-    viewType: "list" | "kanban" | "calendar" | "chart" | "kpi";
+    viewType: "list" | "kanban" | "calendar" | "chart" | "summary";
     settingsJson: Record<string, unknown>;
   }> = [
     {
@@ -316,8 +316,8 @@ function buildInitialViewsForTable(table: GeneratedBlueprintTable) {
 
   if (metricField) {
     views.push({
-      name: "KPI",
-      viewType: "kpi",
+      name: "集計",
+      viewType: "summary",
       settingsJson: { columns, metricFieldCode: metricField.code },
     });
   }

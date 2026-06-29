@@ -96,7 +96,7 @@ const MOBILE_VIEW_META: Record<AppViewType, { label: string; icon: string }> = {
   kanban: { label: "カンバン", icon: "view_kanban" },
   calendar: { label: "カレンダー", icon: "calendar_month" },
   chart: { label: "チャート", icon: "insert_chart" },
-  kpi: { label: "KPI", icon: "speed" },
+  summary: { label: "集計", icon: "speed" },
 };
 
 type MobileOverlay = "detail" | "create" | null;
@@ -1375,8 +1375,8 @@ export default function MobileRuntimePage() {
         {!isLoadingRecords &&
           !isLoadingMeta &&
           filteredRecords.length > 0 &&
-          activeViewType === "kpi" && (
-            <div className="space-y-3" data-testid="mobile-runtime-kpi-view">
+          activeViewType === "summary" && (
+            <div className="space-y-3" data-testid="mobile-runtime-summary-view">
               <div className="grid grid-cols-2 gap-3">
                 {[
                   ["総レコード", filteredRecords.length],

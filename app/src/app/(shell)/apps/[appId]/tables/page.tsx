@@ -173,7 +173,7 @@ const VIEW_META: Record<AppViewType, { label: string; icon: string }> = {
   kanban: { label: "カンバン", icon: "view_kanban" },
   calendar: { label: "カレンダー", icon: "calendar_month" },
   chart: { label: "チャート", icon: "insert_chart" },
-  kpi: { label: "KPI", icon: "speed" },
+  summary: { label: "集計", icon: "speed" },
 };
 
 const VIEW_FILTER_META: Record<ViewFilterFormState["operator"], string> = {
@@ -304,7 +304,7 @@ function buildViewSettings(form: ViewFormState, fields: AppField[]) {
     ...(form.viewType === "calendar" && form.dateFieldCode
       ? { dateFieldCode: form.dateFieldCode }
       : {}),
-    ...((form.viewType === "chart" || form.viewType === "kpi") &&
+    ...((form.viewType === "chart" || form.viewType === "summary") &&
     form.metricFieldCode
       ? { metricFieldCode: form.metricFieldCode }
       : {}),
@@ -1638,7 +1638,7 @@ export default function TableDesignerPage() {
                       </div>
                     )}
 
-                    {(viewForm.viewType === "chart" || viewForm.viewType === "kpi") && (
+                    {(viewForm.viewType === "chart" || viewForm.viewType === "summary") && (
                       <div className="space-y-2">
                         <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                           指標フィールド
