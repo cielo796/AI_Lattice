@@ -30,7 +30,13 @@ const FIELD_TYPES: FieldType[] = [
   "calculated",
 ];
 
-const VIEW_TYPES: AppViewType[] = ["list", "kanban", "calendar", "chart", "kpi"];
+const VIEW_TYPES: AppViewType[] = [
+  "list",
+  "kanban",
+  "calendar",
+  "chart",
+  "summary",
+];
 const VIEW_FILTER_OPERATORS = ["equals", "contains", "not_empty"] as const;
 const VIEW_FIELD_CODE_SETTING_KEYS = [
   "groupByFieldCode",

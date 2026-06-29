@@ -44,7 +44,7 @@ const REFINEMENT_VIEW_TYPES: AppViewType[] = [
   "kanban",
   "calendar",
   "chart",
-  "kpi",
+  "summary",
 ];
 
 const APP_REFINEMENT_RESPONSE_SCHEMA = {

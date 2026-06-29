@@ -62,7 +62,7 @@ const VIEW_TYPE_META: Record<AppViewType, { label: string; icon: string }> = {
   kanban: { label: "カンバン", icon: "view_kanban" },
   calendar: { label: "カレンダー", icon: "calendar_month" },
   chart: { label: "チャート", icon: "insert_chart" },
-  kpi: { label: "KPI", icon: "speed" },
+  summary: { label: "集計", icon: "speed" },
 };
 
 const numberFormatter = new Intl.NumberFormat("ja-JP", {
@@ -378,7 +378,7 @@ export function RecordList({
               <div className="truncate text-[10.5px] text-on-surface-variant">
                 {activeViewType === "calendar"
                   ? `${getFieldDisplayLabel(dateFieldCode, fields)} 別`
-                  : activeViewType === "kpi"
+                  : activeViewType === "summary"
                     ? metricLabel
                     : `${getFieldDisplayLabel(groupFieldCode, fields)} 別`}
               </div>
@@ -654,8 +654,8 @@ export function RecordList({
           </div>
         )}
 
-        {!isLoading && filteredRecords.length > 0 && activeViewType === "kpi" && (
-          <div className="space-y-4" data-testid="runtime-kpi-view">
+        {!isLoading && filteredRecords.length > 0 && activeViewType === "summary" && (
+          <div className="space-y-4" data-testid="runtime-summary-view">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">

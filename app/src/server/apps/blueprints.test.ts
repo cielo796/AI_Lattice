@@ -328,8 +328,8 @@ describe("apps blueprints", () => {
       5,
       expect.objectContaining({
         data: expect.objectContaining({
-          name: "KPI",
-          viewType: "kpi",
+          name: "集計",
+          viewType: "summary",
           sortOrder: 4,
           settingsJson: expect.objectContaining({
             metricFieldCode: "amount",

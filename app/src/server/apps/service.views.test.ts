@@ -276,8 +276,8 @@ describe("apps service views", () => {
 
     await expect(
       createViewForTable(user, "app_1", "tbl_tickets", {
-        name: "Broken KPI",
-        viewType: "kpi",
+        name: "Broken summary",
+        viewType: "summary",
         settingsJson: { metricFieldCode: "subject" },
       })
     ).rejects.toMatchObject({
