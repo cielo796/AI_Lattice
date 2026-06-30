@@ -32,6 +32,15 @@ const triggerLabels: Record<Workflow["triggerType"], string> = {
   status_change: "ステータス変更",
 };
 
+const notificationRoleOptions = [
+  { value: "", label: "実行ユーザー" },
+  { value: "tenant_admin", label: "Tenant Admin" },
+  { value: "app_admin", label: "App Admin" },
+  { value: "approver", label: "Approver" },
+  { value: "user", label: "User" },
+  { value: "viewer", label: "Viewer" },
+];
+
 function getAppIdFromParams(params: ReturnType<typeof useParams>) {
   const value = params?.appId;
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -41,6 +50,27 @@ function getApprovalNodeCount(definition: WorkflowDefinition | null) {
   return (
     definition?.nodes.filter((node) => node.data.nodeType === "approval").length ?? 0
   );
+}
+
+function getNotificationNodes(definition: WorkflowDefinition | null) {
+  return (
+    definition?.nodes.filter((node) => node.data.nodeType === "notification") ?? []
+  );
+}
+
+function getConfigString(config: Record<string, unknown> | undefined, key: string) {
+  const value = config?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function getConfigStringArray(
+  config: Record<string, unknown> | undefined,
+  key: string
+) {
+  const value = config?.[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function toReactFlowNodes(definition: WorkflowDefinition | null) {
@@ -69,6 +99,7 @@ export default function WorkflowEditorPage() {
     [activeWorkflowId, workflows]
   );
   const approvalNodeCount = getApprovalNodeCount(draftDefinition);
+  const notificationNodes = getNotificationNodes(draftDefinition);
 
   const loadWorkflowList = useCallback(async () => {
     if (!appId) {
@@ -200,6 +231,35 @@ export default function WorkflowEditorPage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function updateNotificationNodeConfig(
+    nodeId: string,
+    patch: Record<string, unknown>
+  ) {
+    setDraftDefinition((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        nodes: current.nodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  config: {
+                    ...(node.data.config ?? {}),
+                    ...patch,
+                  },
+                },
+              }
+            : node
+        ),
+      };
+    });
   }
 
   return (
@@ -354,6 +414,12 @@ export default function WorkflowEditorPage() {
                     <span className="font-semibold text-on-surface">{approvalNodeCount}</span>
                   </div>
                   <div className="flex justify-between gap-3">
+                    <span>通知ノード</span>
+                    <span className="font-semibold text-on-surface">
+                      {notificationNodes.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3">
                     <span>承認待ち</span>
                     <span className="font-semibold text-on-surface">
                       {activeWorkflow.pendingApprovalCount ?? 0}
@@ -376,6 +442,151 @@ export default function WorkflowEditorPage() {
                   pending approval が保存されます。
                 </p>
               </div>
+
+              {notificationNodes.length > 0 && (
+                <div className="space-y-3">
+                  <div>
+                    <h2 className="text-[12.5px] font-bold text-on-surface">
+                      通知ノード設定
+                    </h2>
+                    <p className="mt-1 text-[11.5px] leading-relaxed text-on-surface-variant">
+                      通知先、タイトル、本文、重複キー、失敗時の扱いを設定します。
+                    </p>
+                  </div>
+                  {notificationNodes.map((node) => {
+                    const config = node.data.config;
+                    const recipientIds = getConfigStringArray(
+                      config,
+                      "recipientIds"
+                    ).join(", ");
+
+                    return (
+                      <section
+                        key={node.id}
+                        className="space-y-3 rounded-xl border border-outline-variant bg-surface p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-[12.5px] font-semibold text-on-surface">
+                              {node.data.label}
+                            </div>
+                            <div className="text-[10.5px] text-on-surface-muted">
+                              {node.id}
+                            </div>
+                          </div>
+                          <Badge variant="info">in-app</Badge>
+                        </div>
+
+                        <label className="block space-y-1.5">
+                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                            ロール通知先
+                          </span>
+                          <select
+                            value={getConfigString(config, "roleType")}
+                            onChange={(event) =>
+                              updateNotificationNodeConfig(node.id, {
+                                roleType: event.target.value || undefined,
+                              })
+                            }
+                            className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          >
+                            {notificationRoleOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="block space-y-1.5">
+                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                            ユーザーID指定
+                          </span>
+                          <input
+                            value={recipientIds}
+                            onChange={(event) =>
+                              updateNotificationNodeConfig(node.id, {
+                                recipientIds: event.target.value
+                                  .split(",")
+                                  .map((value) => value.trim())
+                                  .filter(Boolean),
+                              })
+                            }
+                            placeholder="user_1, user_2"
+                            className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </label>
+
+                        <label className="block space-y-1.5">
+                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                            タイトル
+                          </span>
+                          <input
+                            value={getConfigString(config, "title")}
+                            onChange={(event) =>
+                              updateNotificationNodeConfig(node.id, {
+                                title: event.target.value,
+                              })
+                            }
+                            placeholder="{{recordTitle}} の通知"
+                            className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </label>
+
+                        <label className="block space-y-1.5">
+                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                            本文
+                          </span>
+                          <textarea
+                            value={getConfigString(config, "body")}
+                            onChange={(event) =>
+                              updateNotificationNodeConfig(node.id, {
+                                body: event.target.value,
+                              })
+                            }
+                            rows={3}
+                            placeholder="{{tableName}} の {{recordTitle}} が更新されました。"
+                            className="w-full resize-none rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </label>
+
+                        <label className="block space-y-1.5">
+                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                            重複キー
+                          </span>
+                          <input
+                            value={getConfigString(config, "dedupeKey")}
+                            onChange={(event) =>
+                              updateNotificationNodeConfig(node.id, {
+                                dedupeKey: event.target.value,
+                              })
+                            }
+                            placeholder="未指定なら workflow/node/record 単位"
+                            className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </label>
+
+                        <label className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-xs font-semibold text-on-surface">
+                          <span>通知失敗時に workflow を失敗扱いにする</span>
+                          <input
+                            type="checkbox"
+                            checked={config?.required === true}
+                            onChange={(event) =>
+                              updateNotificationNodeConfig(node.id, {
+                                required: event.target.checked,
+                                failurePolicy: event.target.checked
+                                  ? "fail"
+                                  : "continue",
+                              })
+                            }
+                            className="h-4 w-4 accent-primary"
+                          />
+                        </label>
+                      </section>
+                    );
+                  })}
+                </div>
+              )}
             </>
           )}
         </AISidebar>

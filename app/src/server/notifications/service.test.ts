@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  archiveNotificationForUser,
   createNotification,
+  deleteNotificationForUser,
+  listNotificationsForUser,
   listWorkflowNotificationRecipients,
   markNotificationReadForUser,
 } from "@/server/notifications/service";
@@ -39,7 +42,13 @@ function notificationRecord(overrides: Record<string, unknown> = {}) {
     title: "Workflow done",
     body: "The workflow completed.",
     href: "/run/app/table?recordId=rec_1",
+    dedupeKey: null,
+    deliveryStatus: "sent",
+    deliveryError: null,
+    deliveredAt: new Date("2026-06-15T00:00:00Z"),
     readAt: null,
+    archivedAt: null,
+    deletedAt: null,
     createdAt: new Date("2026-06-15T00:00:00Z"),
     actor: { name: "Actor", email: "actor@example.com" },
     app: { name: "Support Desk" },
@@ -56,7 +65,11 @@ describe("notifications service", () => {
   it("creates tenant-scoped notifications", async () => {
     const prisma = {
       user: { findFirst: vi.fn().mockResolvedValue({ id: "user_1" }) },
+      userNotificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
       notification: {
+        findFirst: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(notificationRecord()),
       },
     };
@@ -87,6 +100,61 @@ describe("notifications service", () => {
     });
   });
 
+  it("deduplicates notifications by key and restores visibility", async () => {
+    const prisma = {
+      user: { findFirst: vi.fn().mockResolvedValue({ id: "user_1" }) },
+      userNotificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+      notification: {
+        findFirst: vi.fn().mockResolvedValue(notificationRecord({ readAt: new Date() })),
+        update: vi.fn().mockResolvedValue(notificationRecord({ title: "Updated" })),
+        create: vi.fn(),
+      },
+    };
+    getPrismaClient.mockReturnValue(prisma);
+
+    const notification = await createNotification(user, {
+      recipientId: "user_1",
+      type: "workflow",
+      title: "Updated",
+      dedupeKey: "workflow:wf_1:node:n_1:record:r_1",
+    });
+
+    expect(prisma.notification.create).not.toHaveBeenCalled();
+    expect(prisma.notification.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          title: "Updated",
+          readAt: null,
+          archivedAt: null,
+          deletedAt: null,
+        }),
+      })
+    );
+    expect(notification?.title).toBe("Updated");
+  });
+
+  it("lists paginated notifications with a tenant-scoped unread count", async () => {
+    const prisma = {
+      notification: {
+        findMany: vi.fn().mockResolvedValue([
+          notificationRecord({ id: "notif_2" }),
+          notificationRecord({ id: "notif_1" }),
+        ]),
+        count: vi.fn().mockResolvedValue(7),
+      },
+    };
+    getPrismaClient.mockReturnValue(prisma);
+
+    const page = await listNotificationsForUser(user, { limit: 1 });
+
+    expect(requirePermission).toHaveBeenCalledWith(user, "notifications:read");
+    expect(page.notifications).toHaveLength(1);
+    expect(page.unreadCount).toBe(7);
+    expect(page.nextCursor).toContain("notif_2");
+  });
+
   it("marks only the current user's notification read", async () => {
     const prisma = {
       notification: {
@@ -111,6 +179,35 @@ describe("notifications service", () => {
     expect(notification.readAt).toBe("2026-06-15T00:05:00.000Z");
   });
 
+  it("archives and deletes only the current user's notifications", async () => {
+    const prisma = {
+      notification: {
+        findFirst: vi.fn().mockResolvedValue(notificationRecord()),
+        update: vi
+          .fn()
+          .mockResolvedValueOnce(
+            notificationRecord({ archivedAt: new Date("2026-06-15T00:10:00Z") })
+          )
+          .mockResolvedValueOnce(notificationRecord({ deletedAt: new Date() })),
+      },
+    };
+    getPrismaClient.mockReturnValue(prisma);
+
+    const archived = await archiveNotificationForUser(user, "notif_1");
+    await deleteNotificationForUser(user, "notif_1");
+
+    expect(archived.archivedAt).toBe("2026-06-15T00:10:00.000Z");
+    expect(prisma.notification.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: "tenant_1",
+          recipientId: "user_1",
+        }),
+      })
+    );
+    expect(prisma.notification.update).toHaveBeenCalledTimes(2);
+  });
+
   it("resolves workflow notification recipients from role assignments", async () => {
     getPrismaClient.mockReturnValue({
       userRole: {
@@ -129,4 +226,3 @@ describe("notifications service", () => {
     ).resolves.toEqual(["approver_1"]);
   });
 });
-

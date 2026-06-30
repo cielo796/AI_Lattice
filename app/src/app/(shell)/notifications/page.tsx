@@ -7,12 +7,21 @@ import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { TopBar } from "@/components/shared/TopBar";
 import {
+  archiveNotification,
+  deleteNotification,
+  listNotificationPreferences,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  updateNotificationPreferences,
 } from "@/lib/api/notifications";
-import type { Notification } from "@/types/notification";
+import type {
+  Notification,
+  NotificationPreference,
+} from "@/types/notification";
 import { useToastStore } from "@/stores/toastStore";
+
+const PAGE_SIZE = 20;
 
 const typeLabels: Record<Notification["type"], string> = {
   info: "Info",
@@ -31,38 +40,90 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function upsertNotification(
+  current: Notification[],
+  updated: Notification,
+  filter: "all" | "unread" | "archived"
+) {
+  if (filter === "unread" && updated.readAt) {
+    return current.filter((notification) => notification.id !== updated.id);
+  }
+
+  if (filter !== "archived" && updated.archivedAt) {
+    return current.filter((notification) => notification.id !== updated.id);
+  }
+
+  return current.map((notification) =>
+    notification.id === updated.id ? updated : notification
+  );
+}
+
 export default function NotificationsPage() {
   const pushToast = useToastStore((store) => store.pushToast);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
+  const [filter, setFilter] = useState<"all" | "unread" | "archived">("all");
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const nextNotifications = await listNotifications({
-        unreadOnly: filter === "unread",
-      });
+  const load = useCallback(
+    async (options: { cursor?: string; append?: boolean } = {}) => {
+      try {
+        if (options.append) {
+          setIsLoadingMore(true);
+        } else {
+          setIsLoading(true);
+        }
 
-      setNotifications(nextNotifications);
-      setError(null);
-    } catch (nextError) {
-      setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "通知の読み込みに失敗しました。"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filter]);
+        const page = await listNotifications({
+          unreadOnly: filter === "unread",
+          archivedOnly: filter === "archived",
+          cursor: options.cursor,
+          limit: PAGE_SIZE,
+        });
+
+        setNotifications((current) =>
+          options.append
+            ? [...current, ...page.notifications]
+            : page.notifications
+        );
+        setNextCursor(page.nextCursor);
+        setUnreadCount(page.unreadCount);
+        setError(null);
+      } catch (nextError) {
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "通知の読み込みに失敗しました。"
+        );
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [filter]
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const unreadCount = useMemo(
+  useEffect(() => {
+    void listNotificationPreferences()
+      .then(setPreferences)
+      .catch(() => setPreferences([]));
+  }, []);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => void load(), 30000);
+    return () => window.clearInterval(intervalId);
+  }, [load]);
+
+  const localUnreadCount = useMemo(
     () => notifications.filter((notification) => !notification.readAt).length,
     [notifications]
   );
@@ -70,14 +131,47 @@ export default function NotificationsPage() {
   async function handleRead(notificationId: string) {
     try {
       const updated = await markNotificationRead(notificationId);
-      setNotifications((current) =>
-        current.map((notification) =>
-          notification.id === updated.id ? updated : notification
-        )
+      setNotifications((current) => upsertNotification(current, updated, filter));
+      setUnreadCount((current) =>
+        updated.readAt ? Math.max(0, current - 1) : current
       );
     } catch (nextError) {
       pushToast({
         title: "通知の更新に失敗しました",
+        description: nextError instanceof Error ? nextError.message : undefined,
+        variant: "error",
+      });
+    }
+  }
+
+  async function handleArchive(notificationId: string) {
+    try {
+      const updated = await archiveNotification(notificationId);
+      setNotifications((current) => upsertNotification(current, updated, filter));
+      setUnreadCount((current) =>
+        updated.readAt ? Math.max(0, current - 1) : current
+      );
+      pushToast({ title: "通知をアーカイブしました", variant: "success" });
+    } catch (nextError) {
+      pushToast({
+        title: "通知のアーカイブに失敗しました",
+        description: nextError instanceof Error ? nextError.message : undefined,
+        variant: "error",
+      });
+    }
+  }
+
+  async function handleDelete(notificationId: string) {
+    try {
+      await deleteNotification(notificationId);
+      setNotifications((current) =>
+        current.filter((notification) => notification.id !== notificationId)
+      );
+      await load();
+      pushToast({ title: "通知を削除しました", variant: "success" });
+    } catch (nextError) {
+      pushToast({
+        title: "通知の削除に失敗しました",
         description: nextError instanceof Error ? nextError.message : undefined,
         variant: "error",
       });
@@ -98,11 +192,39 @@ export default function NotificationsPage() {
     }
   }
 
+  async function handlePreferenceToggle(
+    type: Notification["type"],
+    enabled: boolean
+  ) {
+    const nextPreferences = preferences.map((preference) =>
+      preference.type === type
+        ? { ...preference, inAppEnabled: enabled }
+        : preference
+    );
+
+    try {
+      setIsSavingPreferences(true);
+      setPreferences(nextPreferences);
+      const saved = await updateNotificationPreferences(nextPreferences);
+      setPreferences(saved);
+      pushToast({ title: "通知設定を保存しました", variant: "success" });
+    } catch (nextError) {
+      pushToast({
+        title: "通知設定の保存に失敗しました",
+        description: nextError instanceof Error ? nextError.message : undefined,
+        variant: "error",
+      });
+      void listNotificationPreferences().then(setPreferences);
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  }
+
   return (
     <>
       <TopBar breadcrumbs={[{ label: "通知" }]} />
 
-      <main className="mx-auto w-full max-w-4xl space-y-5 px-4 pb-16 pt-24 md:px-8">
+      <main className="mx-auto w-full max-w-5xl space-y-5 px-4 pb-16 pt-24 md:px-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="font-headline text-xl font-extrabold tracking-tight text-on-surface">
@@ -110,11 +232,16 @@ export default function NotificationsPage() {
             </h1>
             <p className="mt-0.5 text-xs text-on-surface-variant">
               未読 {unreadCount} 件
+              {localUnreadCount !== unreadCount && (
+                <span className="ml-1 text-on-surface-muted">
+                  （表示中 {localUnreadCount} 件）
+                </span>
+              )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex rounded-lg border border-outline-variant bg-surface p-1">
-              {(["all", "unread"] as const).map((value) => (
+              {(["all", "unread", "archived"] as const).map((value) => (
                 <button
                   key={value}
                   type="button"
@@ -125,7 +252,11 @@ export default function NotificationsPage() {
                       : "text-on-surface-variant hover:bg-surface-container"
                   }`}
                 >
-                  {value === "all" ? "すべて" : "未読"}
+                  {value === "all"
+                    ? "すべて"
+                    : value === "unread"
+                      ? "未読"
+                      : "アーカイブ"}
                 </button>
               ))}
             </div>
@@ -135,6 +266,42 @@ export default function NotificationsPage() {
             </Button>
           </div>
         </div>
+
+        <section className="rounded-xl border border-outline-variant bg-surface p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-on-surface">受信設定</h2>
+              <p className="text-xs text-on-surface-variant">
+                アプリ内で受け取る通知タイプを選択します。
+              </p>
+            </div>
+            {isSavingPreferences && (
+              <span className="text-xs text-on-surface-muted">保存中...</span>
+            )}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {preferences.map((preference) => (
+              <label
+                key={preference.type}
+                className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-xs font-semibold text-on-surface"
+              >
+                <span>{typeLabels[preference.type]}</span>
+                <input
+                  type="checkbox"
+                  checked={preference.inAppEnabled}
+                  disabled={isSavingPreferences}
+                  onChange={(event) =>
+                    void handlePreferenceToggle(
+                      preference.type,
+                      event.target.checked
+                    )
+                  }
+                  className="h-4 w-4 accent-primary"
+                />
+              </label>
+            ))}
+          </div>
+        </section>
 
         {error && (
           <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">
@@ -146,7 +313,11 @@ export default function NotificationsPage() {
           <div className="divide-y divide-outline-variant/60">
             {isLoading ? (
               <div className="px-4 py-10 text-center text-xs text-on-surface-variant">
-                <Icon name="progress_activity" className="mr-1 animate-spin align-middle" size="sm" />
+                <Icon
+                  name="progress_activity"
+                  className="mr-1 animate-spin align-middle"
+                  size="sm"
+                />
                 読み込み中...
               </div>
             ) : notifications.length === 0 ? (
@@ -181,7 +352,12 @@ export default function NotificationsPage() {
                       <Badge variant={notification.readAt ? "default" : "info"}>
                         {notification.readAt ? "既読" : "未読"}
                       </Badge>
-                      <Badge variant="default">{typeLabels[notification.type]}</Badge>
+                      {notification.archivedAt && (
+                        <Badge variant="warning">アーカイブ</Badge>
+                      )}
+                      <Badge variant="default">
+                        {typeLabels[notification.type]}
+                      </Badge>
                     </div>
                     {notification.body && (
                       <p className="mt-1 text-[12.5px] leading-relaxed text-on-surface-variant">
@@ -192,9 +368,10 @@ export default function NotificationsPage() {
                       <span>{formatDate(notification.createdAt)}</span>
                       {notification.actorName && <span>{notification.actorName}</span>}
                       {notification.appName && <span>{notification.appName}</span>}
+                      <span>{notification.deliveryStatus}</span>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
                     {notification.href && (
                       <Link
                         href={notification.href}
@@ -214,12 +391,43 @@ export default function NotificationsPage() {
                         既読
                       </Button>
                     )}
+                    {!notification.archivedAt && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleArchive(notification.id)}
+                      >
+                        <Icon name="archive" size="sm" />
+                        保管
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void handleDelete(notification.id)}
+                    >
+                      <Icon name="delete" size="sm" />
+                      削除
+                    </Button>
                   </div>
                 </article>
               ))
             )}
           </div>
         </section>
+
+        {nextCursor && !isLoading && (
+          <div className="flex justify-center">
+            <Button
+              variant="secondary"
+              onClick={() => void load({ cursor: nextCursor, append: true })}
+              disabled={isLoadingMore}
+            >
+              <Icon name={isLoadingMore ? "progress_activity" : "expand_more"} size="sm" />
+              {isLoadingMore ? "読み込み中..." : "さらに読み込む"}
+            </Button>
+          </div>
+        )}
       </main>
     </>
   );

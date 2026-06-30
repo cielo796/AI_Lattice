@@ -19,6 +19,7 @@ interface AppRecord {
 
 const mojibakePattern =
   /[\uFFFD\uF8FF\u7E67\u7E5D\u7E3A\u8373\u8C7A]|[\uFF66-\uFF9F]{3,}/u;
+const EXPECT_TIMEOUT = 30000;
 
 async function expectJson<T>(response: APIResponse) {
   const body = await response.text();
@@ -126,7 +127,9 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
     const appCard = page.getByTestId(`app-card-${app.id}`);
     await expect(appCard).toBeVisible();
     await appCard.getByRole("link", { name: "開く" }).click();
-    await expect(page).toHaveURL(new RegExp(`/run/${app.code}/${table.code}`));
+    await expect(page).toHaveURL(new RegExp(`/run/${app.code}/${table.code}`), {
+      timeout: EXPECT_TIMEOUT,
+    });
     await expectNoMojibake(page);
 
     await page.getByRole("button", { name: /新規レコード/ }).click();
@@ -135,7 +138,9 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
     await page.getByRole("main").getByRole("combobox").selectOption("Open");
     await page.getByRole("button", { name: "レコードを作成" }).click();
 
-    await expect(page.getByText("レコードを作成しました")).toBeVisible();
+    await expect(page.getByText("レコードを作成しました")).toBeVisible({
+      timeout: EXPECT_TIMEOUT,
+    });
     await expect(page.getByText(createdTitle).first()).toBeVisible();
     await expectNoMojibake(page);
 
@@ -150,12 +155,16 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
     await page.getByRole("button", { name: "編集" }).click();
     await page.getByPlaceholder("件名を入力").fill(updatedTitle);
     await page.getByRole("button", { name: "変更を保存" }).click();
-    await expect(page.getByText("レコードを更新しました")).toBeVisible();
+    await expect(page.getByText("レコードを更新しました")).toBeVisible({
+      timeout: EXPECT_TIMEOUT,
+    });
     await expect(page.getByText(updatedTitle).first()).toBeVisible();
 
     await page.getByPlaceholder("コメントを追加...").fill(commentText);
     await page.getByRole("button", { name: "送信" }).click();
-    await expect(page.getByText("コメントを追加しました")).toBeVisible();
+    await expect(page.getByText("コメントを追加しました")).toBeVisible({
+      timeout: EXPECT_TIMEOUT,
+    });
     await expect(page.getByText(commentText)).toBeVisible();
 
     await page.locator('input[type="file"]').setInputFiles({
@@ -163,12 +172,16 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
       mimeType: "text/plain",
       buffer: Buffer.from("Playwright attachment smoke test"),
     });
-    await expect(page.getByText("添付ファイルを追加しました")).toBeVisible();
+    await expect(page.getByText("添付ファイルを追加しました")).toBeVisible({
+      timeout: EXPECT_TIMEOUT,
+    });
     await expect(page.getByText("e2e-note.txt")).toBeVisible();
 
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByTestId("delete-record-button").click();
-    await expect(page.getByText("レコードを削除しました")).toBeVisible();
+    await expect(page.getByText("レコードを削除しました")).toBeVisible({
+      timeout: EXPECT_TIMEOUT,
+    });
     await expect(page.getByText(updatedTitle)).toHaveCount(0);
     await expectNoMojibake(page);
 

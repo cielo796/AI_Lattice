@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
 import { Avatar } from "./Avatar";
+import { getUnreadNotificationCount } from "@/lib/api/notifications";
 import { useAuthStore } from "@/stores/authStore";
 import { useShellChrome } from "./ShellChrome";
 
@@ -15,6 +17,33 @@ interface TopBarProps {
 export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
   const avatarName = useAuthStore((s) => s.user?.name ?? "Marcus Chen");
   const { toggleMobileNav } = useShellChrome();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUnreadCount() {
+      try {
+        const result = await getUnreadNotificationCount();
+        if (!cancelled) {
+          setUnreadCount(result.count);
+        }
+      } catch {
+        if (!cancelled) {
+          setUnreadCount(0);
+        }
+      }
+    }
+
+    const timeoutId = window.setTimeout(() => void loadUnreadCount(), 3000);
+    const intervalId = window.setInterval(() => void loadUnreadCount(), 60000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   return (
     <header className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant bg-surface/90 px-3 backdrop-blur-md md:left-64 md:px-6">
@@ -58,11 +87,15 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
           <Link
             href="/notifications"
             className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
-            aria-label="通知"
+            aria-label={`通知${unreadCount > 0 ? ` ${unreadCount}件未読` : ""}`}
           >
             <Icon name="notifications" />
           </Link>
-          <span className="pointer-events-none absolute right-2 top-2 h-2 w-2 rounded-full bg-primary ring-2 ring-surface" />
+          {unreadCount > 0 && (
+            <span className="pointer-events-none absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-white ring-2 ring-surface">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </div>
         <Link
           href="/settings/profile"
