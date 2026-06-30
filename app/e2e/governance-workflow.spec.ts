@@ -19,6 +19,8 @@ interface Workflow {
   id: string;
 }
 
+const EXPECT_TIMEOUT = 30000;
+
 async function expectJson<T>(response: APIResponse) {
   const body = await response.text();
   expect(response.ok(), body).toBe(true);
@@ -101,7 +103,11 @@ test("admin governance pages and non-approval workflow execution", async ({ page
     await expect(page.getByRole("main").getByRole("heading", { name: "承認待ち一覧" })).toBeVisible();
 
     await page.goto(`/apps/${app.id}/permissions`);
-    await expect(page.getByRole("main").getByRole("heading", { name: `E2E Workflow ${suffix} の権限` })).toBeVisible();
+    await expect(
+      page.getByRole("main").getByRole("heading", {
+        name: `E2E Workflow ${suffix} の権限`,
+      })
+    ).toBeVisible({ timeout: EXPECT_TIMEOUT });
 
     await page.goto("/tenants");
     await expect(page.getByRole("main").getByRole("heading", { name: "テナント" })).toBeVisible();

@@ -156,6 +156,7 @@ describe("workflows service", () => {
         }),
       },
       notification: {
+        findFirst: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue({
           id: "notification_1",
           tenantId: "tenant_1",
@@ -167,7 +168,13 @@ describe("workflows service", () => {
           title: "Notify stakeholders",
           body: "Notify related users after the approval decision.",
           href: "/run/support-desk/tickets?recordId=rec_1",
+          dedupeKey: null,
+          deliveryStatus: "sent",
+          deliveryError: null,
+          deliveredAt: new Date("2026-05-13T00:00:00.000Z"),
           readAt: null,
+          archivedAt: null,
+          deletedAt: null,
           createdAt: new Date("2026-05-13T00:00:00.000Z"),
           actor: { name: "Owner", email: "owner@example.com" },
           app: { name: "Support Desk" },
@@ -219,6 +226,15 @@ describe("workflows service", () => {
         data: expect.objectContaining({
           recordId: "rec_1",
           isSystem: true,
+        }),
+      })
+    );
+    expect(prisma.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recipientId: "user_1",
+          type: "approval",
+          dedupeKey: "approval:appr_1",
         }),
       })
     );

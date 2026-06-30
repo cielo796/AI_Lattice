@@ -10,6 +10,7 @@ import {
 } from "@/server/ai/runtime-ai";
 import { getPrismaClient } from "@/server/db/prisma";
 import {
+  createNotification,
   createNotificationsForUsers,
   listWorkflowNotificationRecipients,
 } from "@/server/notifications/service";
@@ -617,6 +618,20 @@ function renderWorkflowTemplate(
   });
 }
 
+function getConfigBoolean(
+  config: Record<string, unknown> | undefined,
+  key: string
+) {
+  return config?.[key] === true;
+}
+
+function shouldFailWorkflowOnNodeError(node: WorkflowDefinition["nodes"][number]) {
+  return (
+    getConfigBoolean(node.data.config, "required") ||
+    getConfigString(node.data.config, "failurePolicy") === "fail"
+  );
+}
+
 function formatAIWorkflowResult(result: RuntimeAIExecution) {
   if (result.summary) {
     return `AI summary: ${result.summary}`;
@@ -678,6 +693,9 @@ async function executeNotificationNode(
     renderWorkflowTemplate(getConfigString(config, "body"), input) ||
     node.data.description ||
     `${input.tableName}「${input.recordTitle}」で workflow が実行されました。`;
+  const dedupeKey =
+    renderWorkflowTemplate(getConfigString(config, "dedupeKey"), input) ||
+    `workflow:${workflow.id}:node:${node.id}:record:${input.recordId}`;
 
   await createNotificationsForUsers(
     user,
@@ -690,6 +708,7 @@ async function executeNotificationNode(
       title,
       body,
       href: `/run/${input.appCode}/${input.tableCode}?recordId=${input.recordId}`,
+      dedupeKey,
     }))
   );
 
@@ -888,6 +907,9 @@ async function executeWorkflowSideEffectNode(
     }
   } catch (error) {
     await recordWorkflowNodeFailure(user, workflow, node, error);
+    if (shouldFailWorkflowOnNodeError(node)) {
+      throw error;
+    }
   }
 }
 
@@ -1034,8 +1056,11 @@ async function createApprovalFromWorkflow(
   user: User,
   input: {
     appId: string;
+    appCode?: string;
     tableId: string;
+    tableCode?: string;
     recordId: string;
+    recordTitle?: string;
     workflowId?: string;
     approverId?: string;
     title: string;
@@ -1071,6 +1096,23 @@ async function createApprovalFromWorkflow(
       workflowId: approval.workflowId,
       approverId: approval.approverId,
     },
+  });
+
+  await createNotification(user, {
+    recipientId: approval.approverId,
+    actorId: user.id,
+    appId: approval.appId,
+    recordId: approval.recordId,
+    type: "approval",
+    title: `承認依頼: ${approval.title}`,
+    body:
+      approval.description ??
+      `${input.recordTitle ?? approval.title} の承認が必要です。`,
+    href:
+      input.appCode && input.tableCode
+        ? `/run/${input.appCode}/approvals`
+        : undefined,
+    dedupeKey: `approval:${approval.id}`,
   });
 
   return toApproval(approval);
@@ -1432,8 +1474,11 @@ export async function runApprovalWorkflowsForRecord(
       approvals.push(
         await createApprovalFromWorkflow(user, {
           appId: input.appId,
+          appCode: input.appCode,
           tableId: input.tableId,
+          tableCode: input.tableCode,
           recordId: input.recordId,
+          recordTitle: input.recordTitle,
           workflowId: workflow.id,
           approverId: approvalConfig.approverId,
           title:
@@ -1493,8 +1538,11 @@ export async function createApprovalForRecord(
 
   const approval = await createApprovalFromWorkflow(user, {
     appId: app.id,
+    appCode: app.code,
     tableId: table.id,
+    tableCode: table.code,
     recordId: record.id,
+    recordTitle: getRecordTitleFromData(record),
     workflowId: workflow?.id,
     approverId: input.approverId ?? approvalConfig.approverId,
     title: input.title?.trim() || `${getRecordTitleFromData(record)} approval`,

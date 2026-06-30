@@ -11,7 +11,23 @@ export interface Notification {
   title: string;
   body?: string;
   href?: string;
+  dedupeKey?: string;
+  deliveryStatus: "queued" | "sent" | "failed" | "skipped";
+  deliveryError?: string;
+  deliveredAt?: string;
   readAt?: string;
+  archivedAt?: string;
+  deletedAt?: string;
   createdAt: string;
 }
 
+export interface NotificationPage {
+  notifications: Notification[];
+  nextCursor?: string;
+  unreadCount: number;
+}
+
+export interface NotificationPreference {
+  type: Notification["type"];
+  inAppEnabled: boolean;
+}
