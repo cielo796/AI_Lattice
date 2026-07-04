@@ -55,10 +55,12 @@ interface RecordDetailProps {
   isLoadingActivity?: boolean;
   isLoadingApprovals?: boolean;
   isSubmittingComment?: boolean;
+  isSubmittingApproval?: boolean;
   isUploadingAttachment?: boolean;
   isDeletingRecord?: boolean;
   deletingAttachmentId?: string | null;
   onAddComment?: (commentText: string) => Promise<void>;
+  onSubmitApproval?: () => Promise<void>;
   onAddAttachment?: (file: File) => Promise<void>;
   onEditRecord?: () => void;
   onDeleteRecord?: () => Promise<void>;
@@ -70,6 +72,7 @@ function getApprovalStatusLabel(status: Approval["status"]) {
     pending: "Pending",
     approved: "Approved",
     rejected: "Rejected",
+    returned: "Returned",
   };
 
   return labels[status];
@@ -84,6 +87,10 @@ function getApprovalStatusVariant(
 
   if (status === "rejected") {
     return "error";
+  }
+
+  if (status === "returned") {
+    return "info";
   }
 
   return "info";
@@ -105,10 +112,12 @@ export function RecordDetail({
   isLoadingActivity = false,
   isLoadingApprovals = false,
   isSubmittingComment = false,
+  isSubmittingApproval = false,
   isUploadingAttachment = false,
   isDeletingRecord = false,
   deletingAttachmentId = null,
   onAddComment,
+  onSubmitApproval,
   onAddAttachment,
   onEditRecord,
   onDeleteRecord,
@@ -376,15 +385,31 @@ export function RecordDetail({
             <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
               Governance approvals
             </div>
-            {approvals.some((approval) => approval.status === "pending") && (
-              <Link
-                href="/admin/approvals"
-                className="inline-flex items-center gap-1 rounded-md bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-white"
-              >
-                Review queue
-                <Icon name="arrow_outward" size="sm" />
-              </Link>
-            )}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {onSubmitApproval && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void onSubmitApproval()}
+                  disabled={
+                    isSubmittingApproval ||
+                    approvals.some((approval) => approval.status === "pending")
+                  }
+                >
+                  <Icon name="approval" size="sm" />
+                  {isSubmittingApproval ? "Requesting..." : "Request approval"}
+                </Button>
+              )}
+              {approvals.some((approval) => approval.status === "pending") && (
+                <Link
+                  href="/admin/approvals"
+                  className="inline-flex items-center gap-1 rounded-md bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-white"
+                >
+                  Review queue
+                  <Icon name="arrow_outward" size="sm" />
+                </Link>
+              )}
+            </div>
           </div>
 
           {isLoadingApprovals ? (
@@ -409,7 +434,16 @@ export function RecordDetail({
                       </div>
                       <div className="text-xs text-on-surface-variant">
                         {approval.workflowName ?? "Manual approval"} /{" "}
-                        {approval.approverName ?? approval.approverId}
+                        {approval.assignees?.length
+                          ? approval.assignees
+                              .map(
+                                (assignee) =>
+                                  `${assignee.userName ?? assignee.userId} (${getApprovalStatusLabel(
+                                    assignee.status
+                                  )})`
+                              )
+                              .join(", ")
+                          : approval.approverName ?? approval.approverId}
                       </div>
                     </div>
                     <Badge variant={getApprovalStatusVariant(approval.status)}>

@@ -39,6 +39,14 @@ enum ApprovalStatus {
   pending
   approved
   rejected
+  returned
+}
+
+enum ApprovalMode {
+  any
+  all
+  sequential
+  quorum
 }
 
 enum RoleType {
@@ -108,6 +116,9 @@ model Tenant {
   auditLogs              AuditLog[]
   workflows              Workflow[]
   approvals              Approval[]
+  appApprovalSettings    AppApprovalSetting[]
+  appApprovalApprovers   AppApprovalApprover[]
+  approvalAssignees      ApprovalAssignee[]
   views                  AppView[]
   forms                  AppForm[]
   aiExecutionLogs        AiExecutionLog[]
@@ -233,6 +244,8 @@ model User {
   requestedApprovals            Approval[]              @relation("ApprovalRequestedBy")
   assignedApprovals             Approval[]              @relation("ApprovalApprover")
   actedApprovals                Approval[]              @relation("ApprovalActedBy")
+  appApprovalApprovers          AppApprovalApprover[]    @relation("AppApprovalApproverUser")
+  approvalAssignees             ApprovalAssignee[]       @relation("ApprovalAssigneeUser")
   aiExecutionLogs               AiExecutionLog[]        @relation("AIExecutionLogActor")
   createdPromptTemplateVersions PromptTemplateVersion[] @relation("PromptTemplateVersionCreatedBy")
   publishedAppVersions          AppVersion[]            @relation("AppVersionPublishedBy")
@@ -259,6 +272,7 @@ model Role {
 
   tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignments UserRole[]
+  appApprovalApprovers AppApprovalApprover[] @relation("AppApprovalApproverRole")
 
   @@unique([tenantId, name])
   @@index([tenantId, roleType])
@@ -324,6 +338,7 @@ model App {
   records         AppRecord[]
   workflows       Workflow[]
   approvals       Approval[]
+  approvalSetting  AppApprovalSetting?
   views           AppView[]
   forms           AppForm[]
   aiExecutionLogs AiExecutionLog[]
@@ -371,6 +386,7 @@ model AppTable {
   fields    AppField[]
   records   AppRecord[]
   approvals Approval[]
+  targetApprovalSettings AppApprovalSetting[] @relation("AppApprovalTargetTable")
   views     AppView[]
   forms     AppForm[]
   userRoles UserRole[]
@@ -545,6 +561,63 @@ model Workflow {
   @@map("workflows")
 }
 
+model AppApprovalSetting {
+  id                      String       @id @default(cuid())
+  tenantId                String       @map("tenant_id")
+  appId                   String       @unique @map("app_id")
+  enabled                 Boolean      @default(false)
+  approvalMode            ApprovalMode @default(any) @map("approval_mode")
+  targetTableId           String?      @map("target_table_id")
+  pendingStatus           String       @default("pending_approval") @map("pending_status")
+  approvedStatus          String       @default("approved") @map("approved_status")
+  rejectedStatus          String       @default("rejected") @map("rejected_status")
+  returnedStatus          String       @default("returned") @map("returned_status")
+  quorumCount             Int?         @map("quorum_count")
+  requestTitleTemplate    String?      @map("request_title_template")
+  requestBodyTemplate     String?      @map("request_body_template")
+  conditionJson           Json?        @map("condition_json")
+  postApprovalActionsJson Json?        @map("post_approval_actions_json")
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
+
+  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  app         App                   @relation(fields: [appId], references: [id], onDelete: Cascade)
+  targetTable AppTable?             @relation("AppApprovalTargetTable", fields: [targetTableId], references: [id], onDelete: SetNull)
+  approvers   AppApprovalApprover[]
+  approvals   Approval[]
+
+  @@index([tenantId])
+  @@index([targetTableId])
+  @@map("app_approval_settings")
+}
+
+model AppApprovalApprover {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  settingId    String   @map("setting_id")
+  approverType String   @default("user") @map("approver_type")
+  userId       String?  @map("user_id")
+  roleId       String?  @map("role_id")
+  roleType     RoleType? @map("role_type")
+  sortOrder    Int      @default(0) @map("sort_order")
+  required     Boolean  @default(true)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  setting AppApprovalSetting @relation(fields: [settingId], references: [id], onDelete: Cascade)
+  user    User?              @relation("AppApprovalApproverUser", fields: [userId], references: [id], onDelete: Cascade)
+  role    Role?              @relation("AppApprovalApproverRole", fields: [roleId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([settingId, sortOrder])
+  @@index([userId])
+  @@index([roleId])
+  @@index([roleType])
+  @@map("app_approval_approvers")
+}
+
 model Approval {
   id            String         @id @default(cuid())
   tenantId      String         @map("tenant_id")
@@ -552,6 +625,7 @@ model Approval {
   tableId       String         @map("table_id")
   recordId      String         @map("record_id")
   workflowId    String?        @map("workflow_id")
+  appApprovalSettingId String?  @map("app_approval_setting_id")
   approverId    String         @map("approver_id")
   requestedById String         @map("requested_by_id")
   actedById     String?        @map("acted_by_id")
@@ -559,6 +633,12 @@ model Approval {
   title         String
   description   String?
   commentText   String?        @map("comment_text")
+  approvalMode  ApprovalMode?  @map("approval_mode")
+  pendingStatus String?        @map("pending_status")
+  approvedStatus String?       @map("approved_status")
+  rejectedStatus String?       @map("rejected_status")
+  returnedStatus String?       @map("returned_status")
+  postApprovalActionsJson Json? @map("post_approval_actions_json")
   actedAt       DateTime?      @map("acted_at")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
@@ -568,17 +648,44 @@ model Approval {
   table       AppTable  @relation(fields: [tableId], references: [id], onDelete: Cascade)
   record      AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
   workflow    Workflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  appApprovalSetting AppApprovalSetting? @relation(fields: [appApprovalSettingId], references: [id], onDelete: SetNull)
   approver    User      @relation("ApprovalApprover", fields: [approverId], references: [id], onDelete: Restrict)
   requestedBy User      @relation("ApprovalRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
   actedBy     User?     @relation("ApprovalActedBy", fields: [actedById], references: [id], onDelete: Restrict)
+  assignees   ApprovalAssignee[]
 
   @@index([tenantId, status, createdAt])
   @@index([appId, status])
   @@index([recordId, status])
   @@index([workflowId])
+  @@index([appApprovalSettingId])
   @@index([approverId, status])
   @@index([requestedById])
   @@map("approvals")
+}
+
+model ApprovalAssignee {
+  id          String         @id @default(cuid())
+  tenantId    String         @map("tenant_id")
+  approvalId  String         @map("approval_id")
+  userId      String         @map("user_id")
+  status      ApprovalStatus @default(pending)
+  commentText String?        @map("comment_text")
+  actedAt     DateTime?      @map("acted_at")
+  sortOrder   Int            @default(0) @map("sort_order")
+  required    Boolean        @default(true)
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approval Approval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  user     User     @relation("ApprovalAssigneeUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([approvalId, userId])
+  @@index([tenantId, userId, status])
+  @@index([approvalId, sortOrder])
+  @@map("approval_assignees")
 }
 
 model AuditLog {

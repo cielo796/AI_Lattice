@@ -81,6 +81,26 @@ function toReactFlowEdges(definition: WorkflowDefinition | null) {
   return (definition?.edges ?? []) as Edge[];
 }
 
+function toWorkflowDefinition(definition: {
+  nodes: Node<WorkflowNodeData>[];
+  edges: Edge[];
+}): WorkflowDefinition {
+  return {
+    nodes: definition.nodes as WorkflowDefinition["nodes"],
+    edges: definition.edges.map((edge) => ({
+      ...edge,
+      label: typeof edge.label === "string" ? edge.label : undefined,
+    })) as WorkflowDefinition["edges"],
+  };
+}
+
+function areWorkflowDefinitionsEqual(
+  left: WorkflowDefinition | null,
+  right: WorkflowDefinition
+) {
+  return left ? JSON.stringify(left) === JSON.stringify(right) : false;
+}
+
 export default function WorkflowEditorPage() {
   const params = useParams();
   const appId = getAppIdFromParams(params);
@@ -133,13 +153,13 @@ export default function WorkflowEditorPage() {
 
   const handleCanvasChange = useCallback(
     (definition: { nodes: Node<WorkflowNodeData>[]; edges: Edge[] }) => {
-      setDraftDefinition({
-        nodes: definition.nodes,
-        edges: definition.edges.map((edge) => ({
-          ...edge,
-          label: typeof edge.label === "string" ? edge.label : undefined,
-        })),
-      });
+      const nextDefinition = toWorkflowDefinition(definition);
+
+      setDraftDefinition((current) =>
+        areWorkflowDefinitionsEqual(current, nextDefinition)
+          ? current
+          : nextDefinition
+      );
     },
     []
   );

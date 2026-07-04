@@ -51,7 +51,7 @@ export interface CreateApprovalInput {
 }
 
 export interface UpdateApprovalDecisionInput {
-  status: "approved" | "rejected";
+  status: "approved" | "rejected" | "returned";
   commentText?: string;
 }
 
@@ -86,12 +86,18 @@ const WORKFLOW_TRIGGER_TYPES: Workflow["triggerType"][] = [
   "status_change",
 ];
 const WORKFLOW_STATUSES: Workflow["status"][] = ["draft", "active"];
-const APPROVAL_STATUSES: Approval["status"][] = ["pending", "approved", "rejected"];
+const APPROVAL_STATUSES: Approval["status"][] = [
+  "pending",
+  "approved",
+  "rejected",
+  "returned",
+];
 const DEFAULT_APPROVAL_LIMIT = 100;
 const MAX_APPROVAL_LIMIT = 500;
 const DEFAULT_PENDING_APPROVAL_STATUS = "pending_approval";
 const DEFAULT_APPROVED_RECORD_STATUS = "approved";
 const DEFAULT_REJECTED_RECORD_STATUS = "rejected";
+const DEFAULT_RETURNED_RECORD_STATUS = "returned";
 
 interface ApprovalNodeConfig {
   approverId?: string;
@@ -100,6 +106,7 @@ interface ApprovalNodeConfig {
   pendingStatus: string;
   approvedStatus: string;
   rejectedStatus: string;
+  returnedStatus: string;
 }
 
 const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
@@ -138,6 +145,7 @@ const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
           pendingStatus: DEFAULT_PENDING_APPROVAL_STATUS,
           approvedStatus: DEFAULT_APPROVED_RECORD_STATUS,
           rejectedStatus: DEFAULT_REJECTED_RECORD_STATUS,
+          returnedStatus: DEFAULT_RETURNED_RECORD_STATUS,
         },
         isAIProposed: true,
       },
@@ -219,10 +227,13 @@ function assertApprovalDecisionStatus(value: string | undefined) {
   const status = assertApprovalStatus(value);
 
   if (status === "pending") {
-    throw new WorkflowsServiceError("Approval decision must be approved or rejected", 400);
+    throw new WorkflowsServiceError(
+      "Approval decision must be approved, rejected, or returned",
+      400
+    );
   }
 
-  return status as "approved" | "rejected";
+  return status as Exclude<Approval["status"], "pending">;
 }
 
 function normalizeLimit(limit: number | undefined) {
@@ -272,16 +283,36 @@ function getApprovalNodeConfig(
       getConfigString(config, "approvedStatus") ?? DEFAULT_APPROVED_RECORD_STATUS,
     rejectedStatus:
       getConfigString(config, "rejectedStatus") ?? DEFAULT_REJECTED_RECORD_STATUS,
+    returnedStatus:
+      getConfigString(config, "returnedStatus") ?? DEFAULT_RETURNED_RECORD_STATUS,
   };
 }
 
 function buildDecisionComment(
-  status: "approved" | "rejected",
+  status: Exclude<Approval["status"], "pending">,
   recordStatus: string,
   commentText: string | undefined
 ) {
-  const note = commentText ? ` Reviewer note: ${commentText}` : "";
-  return `Approval ${status}. Record status changed to ${recordStatus}.${note}`;
+  const statusLabels: Record<Exclude<Approval["status"], "pending">, string> = {
+    approved: "承認",
+    rejected: "却下",
+    returned: "差戻し",
+  };
+  const note = commentText ? ` コメント: ${commentText}` : "";
+  return `${statusLabels[status]}しました。レコードステータスを「${recordStatus}」に変更しました。${note}`;
+}
+
+function buildStepDecisionComment(
+  status: Exclude<Approval["status"], "pending">,
+  commentText: string | undefined
+) {
+  const statusLabels: Record<Exclude<Approval["status"], "pending">, string> = {
+    approved: "承認",
+    rejected: "却下",
+    returned: "差戻し",
+  };
+  const note = commentText ? ` コメント: ${commentText}` : "";
+  return `承認ステップを${statusLabels[status]}しました。${note}`;
 }
 
 function normalizeWorkflowDefinition(value: unknown): WorkflowDefinition {
@@ -457,6 +488,7 @@ function toApproval(approval: {
   tableId: string;
   recordId: string;
   workflowId: string | null;
+  appApprovalSettingId?: string | null;
   approverId: string;
   requestedById: string;
   actedById: string | null;
@@ -464,6 +496,7 @@ function toApproval(approval: {
   title: string;
   description: string | null;
   commentText: string | null;
+  approvalMode?: Approval["approvalMode"] | null;
   actedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -474,6 +507,18 @@ function toApproval(approval: {
   requestedBy?: { name: string; email: string } | null;
   approver?: { name: string; email: string } | null;
   actedBy?: { name: string; email: string } | null;
+  assignees?: Array<{
+    id: string;
+    approvalId: string;
+    userId: string;
+    status: string;
+    commentText: string | null;
+    actedAt: Date | null;
+    sortOrder: number;
+    required: boolean;
+    active: boolean;
+    user?: { name: string; email: string } | null;
+  }>;
 }): Approval {
   return {
     id: approval.id,
@@ -482,6 +527,7 @@ function toApproval(approval: {
     tableId: approval.tableId,
     recordId: approval.recordId,
     workflowId: approval.workflowId ?? undefined,
+    appApprovalSettingId: approval.appApprovalSettingId ?? undefined,
     approverId: approval.approverId,
     requestedBy: approval.requestedById,
     actedBy: approval.actedById ?? undefined,
@@ -489,6 +535,7 @@ function toApproval(approval: {
     title: approval.title,
     description: approval.description ?? undefined,
     commentText: approval.commentText ?? undefined,
+    approvalMode: approval.approvalMode ?? undefined,
     actedAt: approval.actedAt?.toISOString(),
     createdAt: approval.createdAt.toISOString(),
     updatedAt: approval.updatedAt.toISOString(),
@@ -499,6 +546,18 @@ function toApproval(approval: {
     requesterName: approval.requestedBy?.name ?? approval.requestedBy?.email,
     approverName: approval.approver?.name ?? approval.approver?.email,
     actorName: approval.actedBy?.name ?? approval.actedBy?.email,
+    assignees: approval.assignees?.map((assignee) => ({
+      id: assignee.id,
+      approvalId: assignee.approvalId,
+      userId: assignee.userId,
+      userName: assignee.user?.name ?? assignee.user?.email,
+      status: assignee.status as Approval["status"],
+      commentText: assignee.commentText ?? undefined,
+      actedAt: assignee.actedAt?.toISOString(),
+      sortOrder: assignee.sortOrder,
+      required: assignee.required,
+      active: assignee.active,
+    })),
   };
 }
 
@@ -511,7 +570,181 @@ function approvalInclude() {
     requestedBy: { select: { name: true, email: true } },
     approver: { select: { name: true, email: true } },
     actedBy: { select: { name: true, email: true } },
+    assignees: {
+      include: { user: { select: { name: true, email: true } } },
+      orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
+    },
   };
+}
+
+type ApprovalDecisionStatus = Exclude<Approval["status"], "pending">;
+
+type ApprovalAction = {
+  status?: string;
+  dataPatch?: Record<string, unknown>;
+};
+
+type ApprovalAssigneeDecision = {
+  id: string;
+  userId: string;
+  status: string;
+  sortOrder: number;
+  required: boolean;
+  active: boolean;
+};
+
+function getApprovalAuditAction(status: ApprovalDecisionStatus) {
+  if (status === "approved") return "APPROVAL_APPROVE";
+  if (status === "returned") return "APPROVAL_RETURN";
+  return "APPROVAL_REJECT";
+}
+
+function getApprovalStepAuditAction(status: ApprovalDecisionStatus) {
+  if (status === "approved") return "APPROVAL_STEP_APPROVE";
+  if (status === "returned") return "APPROVAL_STEP_RETURN";
+  return "APPROVAL_STEP_REJECT";
+}
+
+function getNextRecordStatus(
+  approval: {
+    approvedStatus?: string | null;
+    rejectedStatus?: string | null;
+    returnedStatus?: string | null;
+  },
+  status: ApprovalDecisionStatus,
+  workflowConfig: ApprovalNodeConfig
+) {
+  if (status === "approved") {
+    return approval.approvedStatus ?? workflowConfig.approvedStatus;
+  }
+  if (status === "returned") {
+    return approval.returnedStatus ?? workflowConfig.returnedStatus;
+  }
+  return approval.rejectedStatus ?? workflowConfig.rejectedStatus;
+}
+
+function normalizeApprovalActions(
+  value: Prisma.JsonValue | null | undefined,
+  status: ApprovalDecisionStatus
+): ApprovalAction[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const actions = candidate[status];
+  if (!Array.isArray(actions)) {
+    return [];
+  }
+
+  return actions
+    .map((action) => {
+      if (!action || typeof action !== "object" || Array.isArray(action)) {
+        return null;
+      }
+      const item = action as Record<string, unknown>;
+      const statusValue =
+        typeof item.status === "string" && item.status.trim()
+          ? item.status.trim()
+          : undefined;
+      const dataPatch =
+        item.dataPatch && typeof item.dataPatch === "object" && !Array.isArray(item.dataPatch)
+          ? (item.dataPatch as Record<string, unknown>)
+          : undefined;
+
+      if (!statusValue && !dataPatch) {
+        return null;
+      }
+
+      return {
+        ...(statusValue ? { status: statusValue } : {}),
+        ...(dataPatch ? { dataPatch } : {}),
+      };
+    })
+    .filter((action): action is ApprovalAction => action !== null);
+}
+
+function getRecordUpdateForApprovalDecision(
+  record: { dataJson: Prisma.JsonValue },
+  status: ApprovalDecisionStatus,
+  fallbackStatus: string,
+  actionsJson: Prisma.JsonValue | null | undefined
+) {
+  const actions = normalizeApprovalActions(actionsJson, status);
+  let nextStatus = fallbackStatus;
+  let nextData = toDataObject(record.dataJson);
+  let hasDataPatch = false;
+
+  for (const action of actions) {
+    if (action.status) {
+      nextStatus = action.status;
+    }
+    if (action.dataPatch) {
+      nextData = { ...nextData, ...action.dataPatch };
+      hasDataPatch = true;
+    }
+  }
+
+  return {
+    status: nextStatus,
+    ...(hasDataPatch ? { dataJson: nextData as Prisma.InputJsonObject } : {}),
+  };
+}
+
+function getFinalApprovalStatus(
+  decisionStatus: ApprovalDecisionStatus,
+  assignees: ApprovalAssigneeDecision[],
+  mode: Approval["approvalMode"] | null | undefined,
+  quorumCount: number | null | undefined
+): Approval["status"] {
+  if (decisionStatus === "rejected" || decisionStatus === "returned") {
+    return decisionStatus;
+  }
+
+  const activeAssignees = assignees.filter((assignee) => assignee.active);
+  const requiredAssignees = activeAssignees.filter((assignee) => assignee.required);
+  const effectiveAssignees = requiredAssignees.length > 0 ? requiredAssignees : activeAssignees;
+  const approvedCount = effectiveAssignees.filter(
+    (assignee) => assignee.status === "approved"
+  ).length;
+
+  if (mode === "all" || mode === "sequential") {
+    return effectiveAssignees.every((assignee) => assignee.status === "approved")
+      ? "approved"
+      : "pending";
+  }
+
+  if (mode === "quorum") {
+    const threshold = Math.max(
+      1,
+      Math.trunc(quorumCount ?? Math.ceil(effectiveAssignees.length / 2))
+    );
+    return approvedCount >= threshold ? "approved" : "pending";
+  }
+
+  return approvedCount > 0 ? "approved" : "pending";
+}
+
+function getTargetAssignee(
+  assignees: ApprovalAssigneeDecision[],
+  userId: string,
+  mode: Approval["approvalMode"] | null | undefined
+) {
+  const activePending = assignees
+    .filter((assignee) => assignee.active && assignee.status === "pending")
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+  const userAssignee = activePending.find((assignee) => assignee.userId === userId);
+  const targetAssignee = userAssignee ?? activePending[0];
+
+  if (!targetAssignee) {
+    return undefined;
+  }
+
+  if (mode === "sequential" && activePending[0]?.id !== targetAssignee.id) {
+    throw new WorkflowsServiceError("Previous approval step is still pending", 409);
+  }
+
+  return targetAssignee;
 }
 
 function findApprovalNode(definitionJson: Prisma.JsonValue) {
@@ -1065,6 +1298,10 @@ async function createApprovalFromWorkflow(
     approverId?: string;
     title: string;
     description?: string;
+    pendingStatus?: string;
+    approvedStatus?: string;
+    rejectedStatus?: string;
+    returnedStatus?: string;
   }
 ) {
   const prisma = getPrismaClient();
@@ -1080,6 +1317,10 @@ async function createApprovalFromWorkflow(
       requestedById: user.id,
       title: input.title,
       description: input.description,
+      pendingStatus: input.pendingStatus,
+      approvedStatus: input.approvedStatus,
+      rejectedStatus: input.rejectedStatus,
+      returnedStatus: input.returnedStatus,
     },
     include: approvalInclude(),
   });
@@ -1487,6 +1728,10 @@ export async function runApprovalWorkflowsForRecord(
           description:
             approvalConfig.description ??
             `Approval is required for this ${input.tableName} record.`,
+          pendingStatus: approvalConfig.pendingStatus,
+          approvedStatus: approvalConfig.approvedStatus,
+          rejectedStatus: approvalConfig.rejectedStatus,
+          returnedStatus: approvalConfig.returnedStatus,
         })
       );
       workflowIds.push(workflow.id);
@@ -1547,6 +1792,10 @@ export async function createApprovalForRecord(
     approverId: input.approverId ?? approvalConfig.approverId,
     title: input.title?.trim() || `${getRecordTitleFromData(record)} approval`,
     description: input.description?.trim() || undefined,
+    pendingStatus: approvalConfig.pendingStatus,
+    approvedStatus: approvalConfig.approvedStatus,
+    rejectedStatus: approvalConfig.rejectedStatus,
+    returnedStatus: approvalConfig.returnedStatus,
   });
 
   await markRecordPendingApproval(user, {
@@ -1660,6 +1909,11 @@ export async function updateApprovalDecision(
     include: {
       record: { select: { id: true, status: true, dataJson: true } },
       workflow: { select: { id: true, name: true, definitionJson: true } },
+      appApprovalSetting: { select: { quorumCount: true } },
+      assignees: {
+        include: { user: { select: { name: true, email: true } } },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      },
     },
   });
 
@@ -1676,10 +1930,171 @@ export async function updateApprovalDecision(
     ? findApprovalNode(existingApproval.workflow.definitionJson)
     : undefined;
   const approvalConfig = getApprovalNodeConfig(approvalNode);
-  const nextRecordStatus =
-    status === "approved"
-      ? approvalConfig.approvedStatus
-      : approvalConfig.rejectedStatus;
+  const activeAssignees = (existingApproval.assignees ?? []).filter(
+    (assignee) => assignee.active
+  );
+
+  if (activeAssignees.length > 0) {
+    const targetAssignee = getTargetAssignee(
+      activeAssignees,
+      user.id,
+      existingApproval.approvalMode
+    );
+
+    if (!targetAssignee) {
+      throw new WorkflowsServiceError("No pending approval assignee was found", 409);
+    }
+
+    const nextAssignees = activeAssignees.map((assignee) =>
+      assignee.id === targetAssignee.id ? { ...assignee, status } : assignee
+    );
+    const finalStatus = getFinalApprovalStatus(
+      status,
+      nextAssignees,
+      existingApproval.approvalMode,
+      existingApproval.appApprovalSetting?.quorumCount
+    );
+
+    if (finalStatus === "pending") {
+      const steppedApproval = await prisma.$transaction(async (tx) => {
+        await tx.approvalAssignee.update({
+          where: { id: targetAssignee.id },
+          data: {
+            status,
+            commentText,
+            actedAt: new Date(),
+          },
+        });
+
+        await tx.recordComment.create({
+          data: {
+            id: crypto.randomUUID(),
+            tenantId: user.tenantId,
+            recordId: existingApproval.recordId,
+            commentText: buildStepDecisionComment(status, commentText),
+            createdById: user.id,
+            isSystem: true,
+          },
+        });
+
+        return tx.approval.findUniqueOrThrow({
+          where: { id: existingApproval.id },
+          include: approvalInclude(),
+        });
+      });
+
+      await recordAuditLog(user, {
+        actionType: getApprovalStepAuditAction(status),
+        resourceType: "approval",
+        resourceId: steppedApproval.id,
+        resourceName: steppedApproval.title,
+        detailJson: {
+          appId: steppedApproval.appId,
+          tableId: steppedApproval.tableId,
+          recordId: steppedApproval.recordId,
+          workflowId: steppedApproval.workflowId,
+          appApprovalSettingId: steppedApproval.appApprovalSettingId,
+          assigneeId: targetAssignee.id,
+          status,
+          finalStatus,
+          commentText,
+        },
+      });
+
+      return toApproval(steppedApproval);
+    }
+
+    const nextRecordStatus = getNextRecordStatus(
+      existingApproval,
+      finalStatus,
+      approvalConfig
+    );
+    const recordUpdate = getRecordUpdateForApprovalDecision(
+      existingApproval.record,
+      finalStatus,
+      nextRecordStatus,
+      existingApproval.postApprovalActionsJson
+    );
+    const decidedApproval = await prisma.$transaction(async (tx) => {
+      await tx.approvalAssignee.update({
+        where: { id: targetAssignee.id },
+        data: {
+          status,
+          commentText,
+          actedAt: new Date(),
+        },
+      });
+
+      const updatedApproval = await tx.approval.update({
+        where: { id: existingApproval.id },
+        data: {
+          status: finalStatus,
+          commentText,
+          actedById: user.id,
+          actedAt: new Date(),
+        },
+        include: approvalInclude(),
+      });
+
+      await tx.appRecord.update({
+        where: { id: existingApproval.recordId },
+        data: {
+          ...recordUpdate,
+          updatedById: user.id,
+        },
+      });
+
+      await tx.recordComment.create({
+        data: {
+          id: crypto.randomUUID(),
+          tenantId: user.tenantId,
+          recordId: existingApproval.recordId,
+          commentText: buildDecisionComment(
+            finalStatus,
+            recordUpdate.status,
+            commentText
+          ),
+          createdById: user.id,
+          isSystem: true,
+        },
+      });
+
+      return updatedApproval;
+    });
+
+    await recordAuditLog(user, {
+      actionType: getApprovalAuditAction(finalStatus),
+      resourceType: "approval",
+      resourceId: decidedApproval.id,
+      resourceName: decidedApproval.title,
+      detailJson: {
+        appId: decidedApproval.appId,
+        tableId: decidedApproval.tableId,
+        recordId: decidedApproval.recordId,
+        workflowId: decidedApproval.workflowId,
+        appApprovalSettingId: decidedApproval.appApprovalSettingId,
+        status: finalStatus,
+        assigneeStatus: status,
+        recordStatusBefore: existingApproval.record?.status,
+        recordStatusAfter: recordUpdate.status,
+        commentText,
+      },
+    });
+
+    return toApproval(decidedApproval);
+  }
+
+  const nextRecordStatus = getNextRecordStatus(
+    existingApproval,
+    status,
+    approvalConfig
+  );
+  const recordUpdate = getRecordUpdateForApprovalDecision(
+    existingApproval.record,
+    status,
+    nextRecordStatus,
+    existingApproval.postApprovalActionsJson
+  );
   const decidedApproval = await prisma.$transaction(async (tx) => {
     const updatedApproval = await tx.approval.update({
       where: { id: existingApproval.id },
@@ -1695,7 +2110,7 @@ export async function updateApprovalDecision(
     await tx.appRecord.update({
       where: { id: existingApproval.recordId },
       data: {
-        status: nextRecordStatus,
+        ...recordUpdate,
         updatedById: user.id,
       },
     });
@@ -1705,7 +2120,7 @@ export async function updateApprovalDecision(
         id: crypto.randomUUID(),
         tenantId: user.tenantId,
         recordId: existingApproval.recordId,
-        commentText: buildDecisionComment(status, nextRecordStatus, commentText),
+        commentText: buildDecisionComment(status, recordUpdate.status, commentText),
         createdById: user.id,
         isSystem: true,
       },
@@ -1715,7 +2130,7 @@ export async function updateApprovalDecision(
   });
 
   await recordAuditLog(user, {
-    actionType: status === "approved" ? "APPROVAL_APPROVE" : "APPROVAL_REJECT",
+    actionType: getApprovalAuditAction(status),
     resourceType: "approval",
     resourceId: decidedApproval.id,
     resourceName: decidedApproval.title,
@@ -1726,7 +2141,7 @@ export async function updateApprovalDecision(
       workflowId: decidedApproval.workflowId,
       status,
       recordStatusBefore: existingApproval.record?.status,
-      recordStatusAfter: nextRecordStatus,
+      recordStatusAfter: recordUpdate.status,
       commentText,
     },
   });

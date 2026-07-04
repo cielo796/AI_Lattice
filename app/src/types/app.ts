@@ -40,6 +40,63 @@ export type FieldType =
 
 export type AppViewType = "list" | "kanban" | "calendar" | "chart" | "summary";
 
+export type ApprovalMode = "any" | "all" | "sequential" | "quorum";
+
+export interface AppApprovalApprover {
+  id: string;
+  tenantId: string;
+  settingId: string;
+  approverType: "user" | "role";
+  userId?: string;
+  userName?: string;
+  roleId?: string;
+  roleName?: string;
+  roleType?: "system_admin" | "tenant_admin" | "app_admin" | "approver" | "user" | "viewer";
+  sortOrder: number;
+  required: boolean;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppApprovalRecordUpdateAction {
+  target?: "current_record";
+  status?: string;
+  dataPatch?: Record<string, unknown>;
+}
+
+export interface AppApprovalUserCandidate {
+  id: string;
+  name: string;
+  email: string;
+  status: "active" | "inactive";
+}
+
+export interface AppApprovalSetting {
+  id: string;
+  tenantId: string;
+  appId: string;
+  enabled: boolean;
+  approvalMode: ApprovalMode;
+  targetTableId?: string;
+  pendingStatus: string;
+  approvedStatus: string;
+  rejectedStatus: string;
+  returnedStatus: string;
+  quorumCount?: number;
+  requestTitleTemplate?: string;
+  requestBodyTemplate?: string;
+  conditionJson?: Record<string, unknown>;
+  postApprovalActionsJson?: {
+    approved?: AppApprovalRecordUpdateAction[];
+    rejected?: AppApprovalRecordUpdateAction[];
+    returned?: AppApprovalRecordUpdateAction[];
+  };
+  approvers: AppApprovalApprover[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppField {
   id: string;
   tenantId: string;

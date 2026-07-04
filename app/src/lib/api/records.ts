@@ -30,6 +30,11 @@ export interface CreateAttachmentInput {
   fileSize: number;
 }
 
+export interface SubmitApprovalInput {
+  title?: string;
+  description?: string;
+}
+
 function tablePath(appCode: string, tableCode: string) {
   return `/api/run/${appCode}/${tableCode}`;
 }
@@ -56,6 +61,10 @@ function backReferencesPath(appCode: string, tableCode: string, recordId: string
 
 function approvalsPath(appCode: string, tableCode: string, recordId: string) {
   return `${recordPath(appCode, tableCode, recordId)}/approvals`;
+}
+
+function submitApprovalPath(appCode: string, tableCode: string, recordId: string) {
+  return `${recordPath(appCode, tableCode, recordId)}/submit-approval`;
 }
 
 function attachmentPath(
@@ -160,6 +169,18 @@ export async function listRecordApprovals(
   recordId: string
 ) {
   return apiFetch<Approval[]>(approvalsPath(appCode, tableCode, recordId));
+}
+
+export async function submitRecordApproval(
+  appCode: string,
+  tableCode: string,
+  recordId: string,
+  input: SubmitApprovalInput = {}
+) {
+  return apiFetch<Approval>(submitApprovalPath(appCode, tableCode, recordId), {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function createAttachment(

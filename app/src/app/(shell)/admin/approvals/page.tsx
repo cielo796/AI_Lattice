@@ -18,6 +18,7 @@ const statusLabels: Record<Approval["status"], string> = {
   pending: "承認待ち",
   approved: "承認済み",
   rejected: "却下",
+  returned: "差戻し",
 };
 
 const statusVariants: Record<
@@ -27,6 +28,7 @@ const statusVariants: Record<
   pending: "warning",
   approved: "success",
   rejected: "error",
+  returned: "info",
 };
 
 const filters: Array<{ value: ApprovalFilter; label: string }> = [
@@ -34,6 +36,7 @@ const filters: Array<{ value: ApprovalFilter; label: string }> = [
   { value: "all", label: "すべて" },
   { value: "approved", label: "承認済み" },
   { value: "rejected", label: "却下" },
+  { value: "returned", label: "差戻し" },
 ];
 
 function formatDateTime(value: string | undefined) {
@@ -96,7 +99,7 @@ export default function ApprovalsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
-  async function decide(status: "approved" | "rejected") {
+  async function decide(status: "approved" | "rejected" | "returned") {
     if (!selected) {
       return;
     }
@@ -114,7 +117,13 @@ export default function ApprovalsPage() {
           .filter((approval) => filter === "all" || approval.status === filter)
       );
       setCommentText("");
-      setNotice(status === "approved" ? "承認しました。" : "却下しました。");
+      setNotice(
+        status === "approved"
+          ? "承認しました。"
+          : status === "returned"
+            ? "差戻しました。"
+            : "却下しました。"
+      );
       setError(null);
     } catch (nextError) {
       setError(
@@ -306,7 +315,16 @@ export default function ApprovalsPage() {
                   <div className="flex justify-between gap-4">
                     <span className="text-on-surface-variant">承認者</span>
                     <span className="text-right font-semibold text-on-surface">
-                      {selected.approverName ?? selected.approverId}
+                      {selected.assignees && selected.assignees.length > 0
+                        ? selected.assignees
+                            .map(
+                              (assignee) =>
+                                `${assignee.userName ?? assignee.userId}（${
+                                  statusLabels[assignee.status]
+                                }）`
+                            )
+                            .join("、")
+                        : selected.approverName ?? selected.approverId}
                     </span>
                   </div>
                 </div>
@@ -338,6 +356,15 @@ export default function ApprovalsPage() {
                       >
                         <Icon name="close" size="sm" />
                         却下
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="md"
+                        onClick={() => void decide("returned")}
+                        disabled={isSaving}
+                      >
+                        <Icon name="undo" size="sm" />
+                        差戻し
                       </Button>
                     </div>
                   </div>

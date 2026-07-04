@@ -10,13 +10,26 @@ import { Input } from "@/components/shared/Input";
 import { TopBar } from "@/components/shared/TopBar";
 import {
   deleteApp,
+  generateApprovalStatusViews,
   getApp,
+  getAppApprovalSetting,
+  listAppApprovalUserCandidates,
   listAppVersions,
+  listTables,
   publishApp,
+  saveAppApprovalSetting,
   updateApp,
+  type SaveAppApprovalApproverInput,
 } from "@/lib/api/apps";
 import { useToastStore } from "@/stores/toastStore";
-import type { App, AppVersionSummary } from "@/types/app";
+import type {
+  App,
+  AppApprovalSetting,
+  AppApprovalUserCandidate,
+  AppTable,
+  AppVersionSummary,
+  ApprovalMode,
+} from "@/types/app";
 
 const STATUS_LABELS: Record<App["status"], string> = {
   draft: "下書き",
@@ -29,6 +42,49 @@ const STATUS_VARIANTS: Record<App["status"], "default" | "success" | "warning"> 
   published: "success",
   archived: "default",
 };
+
+const APPROVAL_MODE_LABELS: Record<ApprovalMode, string> = {
+  any: "1名の承認で完了",
+  all: "全員の承認で完了",
+  sequential: "設定順に承認",
+  quorum: "指定人数の承認で完了",
+};
+
+const ROLE_TYPE_LABELS = {
+  system_admin: "システム管理者",
+  tenant_admin: "テナント管理者",
+  app_admin: "アプリ管理者",
+  approver: "承認者",
+  user: "一般ユーザー",
+  viewer: "閲覧者",
+} as const;
+
+const CONTROL_CLASS =
+  "w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+
+type RoleType = keyof typeof ROLE_TYPE_LABELS;
+
+function getPatchText(
+  actions: AppApprovalSetting["postApprovalActionsJson"] | undefined,
+  status: "approved" | "rejected" | "returned"
+) {
+  const patch = actions?.[status]?.find((action) => action.dataPatch)?.dataPatch;
+  return patch ? JSON.stringify(patch, null, 2) : "";
+}
+
+function parsePatchText(value: string, label: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${label}のレコード変更JSONはオブジェクトで入力してください。`);
+  }
+
+  return parsed as Record<string, unknown>;
+}
 
 function formatDateTime(value: string) {
   const date = new Date(value);
@@ -56,15 +112,64 @@ export default function AppSettingsPage() {
 
   const [app, setApp] = useState<App | null>(null);
   const [versions, setVersions] = useState<AppVersionSummary[]>([]);
+  const [tables, setTables] = useState<AppTable[]>([]);
+  const [approvalUserCandidates, setApprovalUserCandidates] = useState<AppApprovalUserCandidate[]>([]);
+  const [approvalSetting, setApprovalSetting] = useState<AppApprovalSetting | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("apps");
+  const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [approvalMode, setApprovalMode] = useState<ApprovalMode>("any");
+  const [approvalTargetTableId, setApprovalTargetTableId] = useState("");
+  const [approvalPendingStatus, setApprovalPendingStatus] = useState("pending_approval");
+  const [approvalApprovedStatus, setApprovalApprovedStatus] = useState("approved");
+  const [approvalRejectedStatus, setApprovalRejectedStatus] = useState("rejected");
+  const [approvalReturnedStatus, setApprovalReturnedStatus] = useState("returned");
+  const [approvalQuorumCount, setApprovalQuorumCount] = useState(1);
+  const [selectedApprovalUserIds, setSelectedApprovalUserIds] = useState<string[]>([]);
+  const [approvalUserSelectId, setApprovalUserSelectId] = useState("");
+  const [approvalRoleType, setApprovalRoleType] = useState<RoleType | "">("approver");
+  const [approvalTitleTemplate, setApprovalTitleTemplate] = useState("");
+  const [approvalBodyTemplate, setApprovalBodyTemplate] = useState("");
+  const [approvedPatchText, setApprovedPatchText] = useState("");
+  const [rejectedPatchText, setRejectedPatchText] = useState("");
+  const [returnedPatchText, setReturnedPatchText] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingApproval, setIsSavingApproval] = useState(false);
+  const [isGeneratingApprovalViews, setIsGeneratingApprovalViews] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function hydrateApprovalSetting(setting: AppApprovalSetting) {
+    const userApprovers = setting.approvers
+      .filter((approver) => approver.approverType === "user" && approver.userId)
+      .map((approver) => approver.userId)
+      .filter((userId): userId is string => Boolean(userId));
+    const roleApprover = setting.approvers.find(
+      (approver) => approver.approverType === "role" && approver.roleType
+    );
+
+    setApprovalSetting(setting);
+    setApprovalEnabled(setting.enabled);
+    setApprovalMode(setting.approvalMode);
+    setApprovalTargetTableId(setting.targetTableId ?? "");
+    setApprovalPendingStatus(setting.pendingStatus);
+    setApprovalApprovedStatus(setting.approvedStatus);
+    setApprovalRejectedStatus(setting.rejectedStatus);
+    setApprovalReturnedStatus(setting.returnedStatus);
+    setApprovalQuorumCount(setting.quorumCount ?? 1);
+    setSelectedApprovalUserIds(userApprovers);
+    setApprovalUserSelectId("");
+    setApprovalRoleType(roleApprover?.roleType ?? "");
+    setApprovalTitleTemplate(setting.requestTitleTemplate ?? "");
+    setApprovalBodyTemplate(setting.requestBodyTemplate ?? "");
+    setApprovedPatchText(getPatchText(setting.postApprovalActionsJson, "approved"));
+    setRejectedPatchText(getPatchText(setting.postApprovalActionsJson, "rejected"));
+    setReturnedPatchText(getPatchText(setting.postApprovalActionsJson, "returned"));
+  }
 
   useEffect(() => {
     if (!appId) {
@@ -78,9 +183,12 @@ export default function AppSettingsPage() {
     async function loadSettings() {
       try {
         setIsLoading(true);
-        const [nextApp, nextVersions] = await Promise.all([
+        const [nextApp, nextVersions, nextTables, nextApprovalSetting, nextApprovalUserCandidates] = await Promise.all([
           getApp(appId),
           listAppVersions(appId),
+          listTables(appId),
+          getAppApprovalSetting(appId),
+          listAppApprovalUserCandidates(appId).catch(() => []),
         ]);
 
         if (cancelled) {
@@ -89,9 +197,12 @@ export default function AppSettingsPage() {
 
         setApp(nextApp);
         setVersions(nextVersions);
+        setTables(nextTables);
+        setApprovalUserCandidates(nextApprovalUserCandidates);
         setName(nextApp.name);
         setDescription(nextApp.description ?? "");
         setIcon(nextApp.icon || "apps");
+        hydrateApprovalSetting(nextApprovalSetting);
         setError(null);
       } catch (nextError) {
         if (!cancelled) {
@@ -138,6 +249,126 @@ export default function AppSettingsPage() {
       });
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  function handleAddApprovalUser() {
+    if (!approvalUserSelectId) {
+      return;
+    }
+
+    setSelectedApprovalUserIds((current) =>
+      current.includes(approvalUserSelectId)
+        ? current
+        : [...current, approvalUserSelectId]
+    );
+    setApprovalUserSelectId("");
+  }
+
+  function handleRemoveApprovalUser(userId: string) {
+    setSelectedApprovalUserIds((current) =>
+      current.filter((currentUserId) => currentUserId !== userId)
+    );
+  }
+
+  async function handleSaveApprovalSetting() {
+    if (!app) {
+      return;
+    }
+
+    try {
+      setIsSavingApproval(true);
+      const approvedPatch = parsePatchText(approvedPatchText, "承認時");
+      const rejectedPatch = parsePatchText(rejectedPatchText, "却下時");
+      const returnedPatch = parsePatchText(returnedPatchText, "差戻し時");
+      const approvers: SaveAppApprovalApproverInput[] = selectedApprovalUserIds.map(
+        (userId, index) => ({
+          approverType: "user",
+          userId,
+          sortOrder: index,
+          required: true,
+          active: true,
+        })
+      );
+
+      if (approvalRoleType) {
+        approvers.push({
+          approverType: "role",
+          roleType: approvalRoleType,
+          sortOrder: approvers.length,
+          required: true,
+          active: true,
+        });
+      }
+
+      const nextSetting = await saveAppApprovalSetting(app.id, {
+        enabled: approvalEnabled,
+        approvalMode,
+        targetTableId: approvalTargetTableId || tables[0]?.id,
+        pendingStatus: approvalPendingStatus,
+        approvedStatus: approvalApprovedStatus,
+        rejectedStatus: approvalRejectedStatus,
+        returnedStatus: approvalReturnedStatus,
+        quorumCount: approvalQuorumCount,
+        requestTitleTemplate: approvalTitleTemplate,
+        requestBodyTemplate: approvalBodyTemplate,
+        postApprovalActionsJson: {
+          approved: [
+            {
+              status: approvalApprovedStatus,
+              ...(approvedPatch ? { dataPatch: approvedPatch } : {}),
+            },
+          ],
+          rejected: [
+            {
+              status: approvalRejectedStatus,
+              ...(rejectedPatch ? { dataPatch: rejectedPatch } : {}),
+            },
+          ],
+          returned: [
+            {
+              status: approvalReturnedStatus,
+              ...(returnedPatch ? { dataPatch: returnedPatch } : {}),
+            },
+          ],
+        },
+        approvers,
+      });
+      hydrateApprovalSetting(nextSetting);
+      pushToast({ title: "承認設定を保存しました", variant: "success" });
+    } catch (nextError) {
+      pushToast({
+        title: "承認設定の保存に失敗しました",
+        description:
+          nextError instanceof Error ? nextError.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setIsSavingApproval(false);
+    }
+  }
+
+  async function handleGenerateApprovalViews() {
+    if (!app) {
+      return;
+    }
+
+    try {
+      setIsGeneratingApprovalViews(true);
+      await generateApprovalStatusViews(app.id);
+      pushToast({
+        title: "承認ステータス別Viewを作成しました",
+        variant: "success",
+      });
+    } catch (nextError) {
+      pushToast({
+        title: "承認ステータス別Viewの作成に失敗しました",
+        description:
+          nextError instanceof Error ? nextError.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setIsGeneratingApprovalViews(false);
     }
   }
 
@@ -313,6 +544,379 @@ export default function AppSettingsPage() {
                   >
                     <Icon name="save" size="sm" />
                     {isSaving ? "保存中..." : "設定を保存"}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-headline text-base font-bold text-on-surface">
+                    承認設定
+                  </h2>
+                  <p className="text-xs text-on-surface-variant">
+                    申請時に承認者へ通知し、判断結果に応じてレコードステータスを更新します。
+                  </p>
+                </div>
+                <Badge variant={approvalEnabled ? "success" : "default"}>
+                  {approvalEnabled ? "有効" : "無効"}
+                </Badge>
+              </div>
+
+              <div className="space-y-5">
+                <label className="flex items-center gap-2 text-sm font-semibold text-on-surface">
+                  <input
+                    type="checkbox"
+                    checked={approvalEnabled}
+                    onChange={(event) => setApprovalEnabled(event.target.checked)}
+                    className="h-4 w-4 rounded border-outline text-primary focus:ring-primary"
+                  />
+                  このアプリで承認申請を受け付ける
+                </label>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      対象テーブル
+                    </label>
+                    <select
+                      value={approvalTargetTableId}
+                      onChange={(event) => setApprovalTargetTableId(event.target.value)}
+                      className={CONTROL_CLASS}
+                    >
+                      {tables.map((table) => (
+                        <option key={table.id} value={table.id}>
+                          {table.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      承認方式
+                    </label>
+                    <select
+                      value={approvalMode}
+                      onChange={(event) =>
+                        setApprovalMode(event.target.value as ApprovalMode)
+                      }
+                      className={CONTROL_CLASS}
+                    >
+                      {Object.entries(APPROVAL_MODE_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {approvalMode === "quorum" && (
+                  <div className="max-w-xs">
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      定足数
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={approvalQuorumCount}
+                      onChange={(event) =>
+                        setApprovalQuorumCount(
+                          Math.max(1, Number(event.target.value) || 1)
+                        )
+                      }
+                    />
+                  </div>
+                )}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      承認者ユーザー
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={approvalUserSelectId}
+                        onChange={(event) => setApprovalUserSelectId(event.target.value)}
+                        className={CONTROL_CLASS}
+                        disabled={approvalUserCandidates.length === 0}
+                      >
+                        <option value="">
+                          {approvalUserCandidates.length === 0
+                            ? "承認者にできるユーザーがありません"
+                            : "承認者に追加するユーザーを選択"}
+                        </option>
+                        {approvalUserCandidates
+                          .filter((candidate) => !selectedApprovalUserIds.includes(candidate.id))
+                          .map((candidate) => (
+                            <option key={candidate.id} value={candidate.id}>
+                              {candidate.name}（{candidate.email}）
+                            </option>
+                          ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleAddApprovalUser}
+                        disabled={!approvalUserSelectId}
+                        className="shrink-0"
+                      >
+                        <Icon name="add" size="sm" />
+                        承認者に追加
+                      </Button>
+                    </div>
+                    <div className="mt-2 min-h-10 rounded-lg border border-outline-variant bg-surface-container-low p-2">
+                      {selectedApprovalUserIds.length === 0 ? (
+                        <div className="px-1 py-1 text-xs text-on-surface-variant">
+                          {approvalUserSelectId
+                            ? "選択中のユーザーはまだ承認者に追加されていません。"
+                            : "ユーザーを選択して「承認者に追加」を押してください。"}
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedApprovalUserIds.map((userId) => {
+                            const candidate = approvalUserCandidates.find(
+                              (item) => item.id === userId
+                            );
+
+                            return (
+                              <span
+                                key={userId}
+                                className="inline-flex max-w-full items-center gap-2 rounded-md border border-outline bg-surface px-2 py-1 text-xs text-on-surface"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate font-semibold">
+                                    {candidate?.name ?? userId}
+                                  </span>
+                                  <span className="block truncate text-[10px] text-on-surface-variant">
+                                    {candidate?.email ?? userId}
+                                  </span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveApprovalUser(userId)}
+                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                                  aria-label={`${candidate?.name ?? userId} を承認者から外す`}
+                                >
+                                  <Icon name="close" size="sm" />
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      ロール承認者
+                    </label>
+                    <select
+                      value={approvalRoleType}
+                      onChange={(event) =>
+                        setApprovalRoleType(event.target.value as RoleType | "")
+                      }
+                      className={CONTROL_CLASS}
+                    >
+                      <option value="">ロールを使わない</option>
+                      {Object.entries(ROLE_TYPE_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-on-surface-variant">
+                      ロールを選ぶと、所属ユーザーを承認者として展開します。個別ユーザーと併用できます。
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      申請中
+                    </label>
+                    <Input
+                      value={approvalPendingStatus}
+                      onChange={(event) => setApprovalPendingStatus(event.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      承認完了
+                    </label>
+                    <Input
+                      value={approvalApprovedStatus}
+                      onChange={(event) => setApprovalApprovedStatus(event.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      却下
+                    </label>
+                    <Input
+                      value={approvalRejectedStatus}
+                      onChange={(event) => setApprovalRejectedStatus(event.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      差戻し
+                    </label>
+                    <Input
+                      value={approvalReturnedStatus}
+                      onChange={(event) => setApprovalReturnedStatus(event.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2">
+                    <div className="text-xs font-semibold text-on-surface-variant">
+                      承認依頼メッセージ
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-on-surface-variant">
+                      承認者の画面と通知に表示される件名と本文です。
+                      <code className="mx-1 rounded bg-surface-container px-1 py-0.5">
+                        {"{{recordTitle}}"}
+                      </code>
+                      はレコード名、
+                      <code className="mx-1 rounded bg-surface-container px-1 py-0.5">
+                        {"{{tableName}}"}
+                      </code>
+                      はテーブル名に置き換わります。
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      承認依頼の件名
+                    </label>
+                    <Input
+                      value={approvalTitleTemplate}
+                      onChange={(event) => setApprovalTitleTemplate(event.target.value)}
+                      placeholder="{{recordTitle}} の承認依頼"
+                    />
+                    <p className="mt-1 text-[11px] text-on-surface-variant">
+                      例: 経費申請A の承認依頼
+                    </p>
+                    </div>
+                    <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
+                      承認依頼の本文
+                    </label>
+                    <Input
+                      value={approvalBodyTemplate}
+                      onChange={(event) => setApprovalBodyTemplate(event.target.value)}
+                      placeholder="{{tableName}}「{{recordTitle}}」の内容を確認し、判断してください。"
+                    />
+                    <p className="mt-1 text-[11px] text-on-surface-variant">
+                      例: 経費申請「経費申請A」の内容を確認し、判断してください。
+                    </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-xs font-semibold text-on-surface-variant">
+                    承認後のレコード変更JSON
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold text-on-surface-variant">
+                        承認時
+                      </label>
+                      <textarea
+                        value={approvedPatchText}
+                        onChange={(event) => setApprovedPatchText(event.target.value)}
+                        rows={4}
+                        placeholder="{&quot;approval_result&quot;:&quot;approved&quot;}"
+                        className={CONTROL_CLASS}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold text-on-surface-variant">
+                        却下時
+                      </label>
+                      <textarea
+                        value={rejectedPatchText}
+                        onChange={(event) => setRejectedPatchText(event.target.value)}
+                        rows={4}
+                        placeholder="{&quot;approval_result&quot;:&quot;rejected&quot;}"
+                        className={CONTROL_CLASS}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold text-on-surface-variant">
+                        差戻し時
+                      </label>
+                      <textarea
+                        value={returnedPatchText}
+                        onChange={(event) => setReturnedPatchText(event.target.value)}
+                        rows={4}
+                        placeholder="{&quot;approval_result&quot;:&quot;returned&quot;,&quot;needs_revision&quot;:true}"
+                        className={CONTROL_CLASS}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {approvalSetting && approvalSetting.approvers.length > 0 && (
+                  <div className="rounded-lg bg-surface-container px-3 py-2 text-[11px] text-on-surface-variant">
+                    現在の承認者:{" "}
+                    {approvalSetting.approvers
+                      .filter((approver) => approver.active)
+                      .map(
+                        (approver) =>
+                          approver.userName ??
+                          approver.userId ??
+                          approver.roleName ??
+                          (approver.roleType
+                            ? ROLE_TYPE_LABELS[approver.roleType]
+                            : "未設定")
+                      )
+                      .join("、")}
+                  </div>
+                )}
+
+                {approvalEnabled &&
+                  selectedApprovalUserIds.length === 0 &&
+                  !approvalRoleType && (
+                    <div className="rounded-lg bg-warning-container px-3 py-2 text-xs font-medium text-on-warning-container">
+                      承認を有効にするには、承認者ユーザーまたはロール承認者を1つ以上設定してください。
+                    </div>
+                  )}
+
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => void handleGenerateApprovalViews()}
+                    disabled={isGeneratingApprovalViews || !approvalTargetTableId}
+                  >
+                    <Icon name="view_list" size="sm" />
+                    {isGeneratingApprovalViews
+                      ? "View作成中..."
+                      : "ステータスViewを作成"}
+                  </Button>
+                  <Button
+                    onClick={() => void handleSaveApprovalSetting()}
+                    disabled={
+                      isSavingApproval ||
+                      !approvalPendingStatus.trim() ||
+                      !approvalApprovedStatus.trim() ||
+                      !approvalRejectedStatus.trim() ||
+                      !approvalReturnedStatus.trim() ||
+                      (approvalEnabled &&
+                        selectedApprovalUserIds.length === 0 &&
+                        !approvalRoleType)
+                    }
+                  >
+                    <Icon name="save" size="sm" />
+                    {isSavingApproval ? "保存中..." : "承認設定を保存"}
                   </Button>
                 </div>
               </div>

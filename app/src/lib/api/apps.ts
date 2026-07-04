@@ -1,11 +1,15 @@
 import type {
   App,
+  AppApprovalRecordUpdateAction,
+  AppApprovalSetting,
+  AppApprovalUserCandidate,
   AppField,
   AppForm,
   AppTable,
   AppVersionSummary,
   AppView,
   AppViewType,
+  ApprovalMode,
   FieldType,
   RuntimeAppOverview,
 } from "@/types/app";
@@ -67,6 +71,36 @@ export interface UpdateViewInput {
   sortOrder?: number;
 }
 
+export interface SaveAppApprovalApproverInput {
+  approverType?: "user" | "role";
+  userId?: string;
+  roleId?: string;
+  roleType?: "system_admin" | "tenant_admin" | "app_admin" | "approver" | "user" | "viewer";
+  sortOrder?: number;
+  required?: boolean;
+  active?: boolean;
+}
+
+export interface SaveAppApprovalSettingInput {
+  enabled?: boolean;
+  approvalMode?: ApprovalMode;
+  targetTableId?: string;
+  pendingStatus?: string;
+  approvedStatus?: string;
+  rejectedStatus?: string;
+  returnedStatus?: string;
+  quorumCount?: number;
+  requestTitleTemplate?: string;
+  requestBodyTemplate?: string;
+  conditionJson?: Record<string, unknown>;
+  postApprovalActionsJson?: {
+    approved?: AppApprovalRecordUpdateAction[];
+    rejected?: AppApprovalRecordUpdateAction[];
+    returned?: AppApprovalRecordUpdateAction[];
+  };
+  approvers?: SaveAppApprovalApproverInput[];
+}
+
 export interface CreateFormInput {
   name: string;
   layoutJson?: Record<string, unknown>;
@@ -105,6 +139,18 @@ function appRefinePreviewPath(appId: string) {
 
 function appRefineApplyPath(appId: string) {
   return `${appRefinePath(appId)}/apply`;
+}
+
+function appApprovalSettingsPath(appId: string) {
+  return `${appPath(appId)}/approval-settings`;
+}
+
+function appApprovalGenerateViewsPath(appId: string) {
+  return `${appApprovalSettingsPath(appId)}/generate-views`;
+}
+
+function appApprovalUserCandidatesPath(appId: string) {
+  return `${appApprovalSettingsPath(appId)}/user-candidates`;
 }
 
 function tableCollectionPath(appId: string) {
@@ -180,6 +226,30 @@ export async function publishApp(appId: string) {
 
 export async function listAppVersions(appId: string) {
   return apiFetch<AppVersionSummary[]>(`${appPath(appId)}/versions`);
+}
+
+export async function getAppApprovalSetting(appId: string) {
+  return apiFetch<AppApprovalSetting>(appApprovalSettingsPath(appId));
+}
+
+export async function saveAppApprovalSetting(
+  appId: string,
+  input: SaveAppApprovalSettingInput
+) {
+  return apiFetch<AppApprovalSetting>(appApprovalSettingsPath(appId), {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listAppApprovalUserCandidates(appId: string) {
+  return apiFetch<AppApprovalUserCandidate[]>(appApprovalUserCandidatesPath(appId));
+}
+
+export async function generateApprovalStatusViews(appId: string) {
+  return apiFetch<{ views: unknown[] }>(appApprovalGenerateViewsPath(appId), {
+    method: "POST",
+  });
 }
 
 export async function generateAppBlueprint(prompt: string) {
