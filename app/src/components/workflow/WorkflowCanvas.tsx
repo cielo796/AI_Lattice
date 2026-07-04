@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -18,6 +18,13 @@ import { NotificationNode } from "./nodes/NotificationNode";
 import { mockWorkflowNodes, mockWorkflowEdges } from "@/data/mock-workflows";
 import type { WorkflowNodeData } from "@/types/workflow";
 
+const workflowNodeTypes = {
+  triggerNode: TriggerNode,
+  conditionNode: ConditionNode,
+  approvalNode: ApprovalNode,
+  notificationNode: NotificationNode,
+};
+
 interface WorkflowCanvasProps {
   nodes?: Node<WorkflowNodeData>[];
   edges?: Edge[];
@@ -32,16 +39,6 @@ export function WorkflowCanvas({
   edges = mockWorkflowEdges,
   onChange,
 }: WorkflowCanvasProps) {
-  const nodeTypes = useMemo(
-    () => ({
-      triggerNode: TriggerNode,
-      conditionNode: ConditionNode,
-      approvalNode: ApprovalNode,
-      notificationNode: NotificationNode,
-    }),
-    []
-  );
-
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(nodes);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(edges);
 
@@ -60,7 +57,7 @@ export function WorkflowCanvas({
       edges={flowEdges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
-      nodeTypes={nodeTypes}
+      nodeTypes={workflowNodeTypes}
       fitView
       fitViewOptions={{ padding: 0.3 }}
       proOptions={{ hideAttribution: true }}

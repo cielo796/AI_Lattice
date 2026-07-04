@@ -43,7 +43,11 @@ export async function PUT(request: Request, context: RouteContext) {
       user,
       {
         actionType:
-          input?.status === "approved" ? "APPROVAL_APPROVE" : "APPROVAL_REJECT",
+          input?.status === "approved"
+            ? "APPROVAL_APPROVE"
+            : input?.status === "returned"
+              ? "APPROVAL_RETURN"
+              : "APPROVAL_REJECT",
         resourceType: "approval",
         resourceId: approvalId,
         detailJson: { input },

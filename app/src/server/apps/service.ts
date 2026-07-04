@@ -43,6 +43,7 @@ const VIEW_FIELD_CODE_SETTING_KEYS = [
   "dateFieldCode",
   "metricFieldCode",
 ] as const;
+const SYSTEM_VIEW_FIELD_CODES = ["__record_status", "__updated_at"] as const;
 const FORM_FIELD_WIDTHS = ["half", "full"] as const;
 type ViewFilterOperator = (typeof VIEW_FILTER_OPERATORS)[number];
 type FormFieldWidth = (typeof FORM_FIELD_WIDTHS)[number];
@@ -963,7 +964,10 @@ async function normalizeViewSettings(
       field as typeof field & { fieldType: FieldType },
     ])
   );
-  const availableFieldCodes = new Set(fieldByCode.keys());
+  const availableFieldCodes = new Set([
+    ...fieldByCode.keys(),
+    ...SYSTEM_VIEW_FIELD_CODES,
+  ]);
   const columns = normalizeFieldCodeList(
     settingsJson.columns,
     availableFieldCodes,

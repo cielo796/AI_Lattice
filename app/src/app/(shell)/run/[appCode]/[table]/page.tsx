@@ -29,6 +29,7 @@ import {
   listComments,
   listRecordApprovals,
   listRecords,
+  submitRecordApproval,
   updateRecord,
   uploadAttachment,
 } from "@/lib/api/records";
@@ -178,6 +179,7 @@ export default function RuntimeViewPage() {
   const [isSavingRecord, setIsSavingRecord] = useState(false);
   const [isDeletingRecord, setIsDeletingRecord] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(
     null
@@ -599,6 +601,38 @@ export default function RuntimeViewPage() {
     }
   }
 
+  async function handleSubmitApproval() {
+    if (!appCode || !tableCode || !selectedRecord) {
+      return;
+    }
+
+    try {
+      setIsSubmittingApproval(true);
+      const approval = await submitRecordApproval(
+        appCode,
+        tableCode,
+        selectedRecord.id
+      );
+      setApprovals((current) => [approval, ...current]);
+      setRefreshKey((current) => current + 1);
+      setError(null);
+      pushToast({ title: "承認申請を作成しました", variant: "success" });
+    } catch (nextError) {
+      const errorMessage =
+        nextError instanceof Error
+          ? nextError.message
+          : "承認申請の作成に失敗しました。";
+      setError(errorMessage);
+      pushToast({
+        title: "承認申請の作成に失敗しました",
+        description: errorMessage,
+        variant: "error",
+      });
+    } finally {
+      setIsSubmittingApproval(false);
+    }
+  }
+
   async function handleCreateRecord(input: {
     status: string;
     data: Record<string, unknown>;
@@ -903,10 +937,12 @@ export default function RuntimeViewPage() {
                     isLoadingActivity={isLoadingActivity}
                     isLoadingApprovals={isLoadingActivity}
                     isSubmittingComment={isSubmittingComment}
+                    isSubmittingApproval={isSubmittingApproval}
                     isUploadingAttachment={isUploadingAttachment}
                     isDeletingRecord={isDeletingRecord}
                     deletingAttachmentId={deletingAttachmentId}
                     onAddComment={canWriteRecords ? handleAddComment : undefined}
+                    onSubmitApproval={canWriteRecords ? handleSubmitApproval : undefined}
                     onAddAttachment={canWriteRecords ? handleAddAttachment : undefined}
                     onEditRecord={canWriteRecords ? () => setRecordPanelMode("edit") : undefined}
                     onDeleteRecord={canWriteRecords ? handleDeleteRecord : undefined}

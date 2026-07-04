@@ -7,7 +7,7 @@ export interface ListApprovalsOptions {
 }
 
 export interface UpdateApprovalDecisionInput {
-  status: "approved" | "rejected";
+  status: "approved" | "rejected" | "returned";
   commentText?: string;
 }
 

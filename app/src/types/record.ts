@@ -55,13 +55,15 @@ export interface Approval {
   tableId: string;
   recordId: string;
   workflowId?: string;
+  appApprovalSettingId?: string;
   approverId: string;
   requestedBy: string;
   actedBy?: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "returned";
   title: string;
   description?: string;
   commentText?: string;
+  approvalMode?: "any" | "all" | "sequential" | "quorum";
   actedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -72,4 +74,18 @@ export interface Approval {
   requesterName?: string;
   approverName?: string;
   actorName?: string;
+  assignees?: ApprovalAssignee[];
+}
+
+export interface ApprovalAssignee {
+  id: string;
+  approvalId: string;
+  userId: string;
+  userName?: string;
+  status: "pending" | "approved" | "rejected" | "returned";
+  commentText?: string;
+  actedAt?: string;
+  sortOrder: number;
+  required: boolean;
+  active: boolean;
 }
