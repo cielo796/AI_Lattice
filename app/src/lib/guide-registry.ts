@@ -384,7 +384,7 @@ export const GUIDE_TOURS: GuideTour[] = [
       {
         id: "approval-approvers",
         title: "承認者を追加します",
-        body: "ユーザーを選んで承認者に追加します。ロール承認者と組み合わせることもできます。",
+        body: "個別ユーザーまたはロールのどちらか一方を選び、承認者を設定します。",
         selector: anchor("app-settings-approval-approvers"),
         placement: "right",
       },
@@ -405,7 +405,7 @@ export const GUIDE_TOURS: GuideTour[] = [
       {
         id: "approval-actions",
         title: "判定後のレコード変更です",
-        body: "承認、却下、差戻しごとに、レコードへ自動反映する値を JSON で指定します。",
+        body: "保存先フィールドと、承認・却下・差戻しごとに自動保存する値を指定します。",
         selector: anchor("app-settings-approval-actions"),
         placement: "top",
       },

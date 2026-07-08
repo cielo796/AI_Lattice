@@ -124,7 +124,7 @@ describe("app approval settings service", () => {
     requirePermission.mockResolvedValue(undefined);
   });
 
-  it("saves app approval settings with multiple approver inputs", async () => {
+  it("saves app approval settings with multiple user approver inputs", async () => {
     const updatedSetting = {
       ...setting,
       enabled: true,
@@ -150,17 +150,17 @@ describe("app approval settings service", () => {
           id: "approver_setting_2",
           tenantId: "tenant_1",
           settingId: "setting_1",
-          approverType: "role",
-          userId: null,
-          roleId: "role_approver",
-          roleType: "approver" as const,
+          approverType: "user",
+          userId: "approver_2",
+          roleId: null,
+          roleType: null,
           sortOrder: 1,
           required: true,
           active: true,
           createdAt: new Date("2026-06-01T00:00:00.000Z"),
           updatedAt: new Date("2026-06-01T00:00:00.000Z"),
-          user: null,
-          role: { name: "Approver" },
+          user: { name: "Director", email: "director@example.com" },
+          role: null,
         },
       ],
     };
@@ -197,7 +197,7 @@ describe("app approval settings service", () => {
       targetTableId: "tbl_1",
       approvers: [
         { approverType: "user", userId: "approver_1" },
-        { approverType: "role", roleType: "approver" },
+        { approverType: "user", userId: "approver_2" },
       ],
     });
 
@@ -213,7 +213,7 @@ describe("app approval settings service", () => {
     expect(tx.appApprovalApprover.createMany).toHaveBeenCalledWith({
       data: expect.arrayContaining([
         expect.objectContaining({ userId: "approver_1", approverType: "user" }),
-        expect.objectContaining({ roleId: "role_approver", approverType: "role" }),
+        expect.objectContaining({ userId: "approver_2", approverType: "user" }),
       ]),
     });
     expect(result.approvers).toHaveLength(2);
@@ -221,6 +221,32 @@ describe("app approval settings service", () => {
       user,
       expect.objectContaining({ actionType: "APP_APPROVAL_SETTING_UPDATE" })
     );
+  });
+
+  it("rejects mixed user and role approver settings", async () => {
+    const prisma = {
+      app: { findFirst: vi.fn().mockResolvedValue(app) },
+      appTable: { findFirst: vi.fn().mockResolvedValue({ id: "tbl_1" }) },
+      appApprovalSetting: {
+        findUnique: vi.fn().mockResolvedValue(setting),
+      },
+    };
+
+    getPrismaClient.mockReturnValue(prisma);
+
+    await expect(
+      saveAppApprovalSetting(user, "app_1", {
+        enabled: true,
+        targetTableId: "tbl_1",
+        approvers: [
+          { approverType: "user", userId: "approver_1" },
+          { approverType: "role", roleType: "approver" },
+        ],
+      })
+    ).rejects.toMatchObject({
+      message: "Approver users and role approvers cannot be used together",
+      status: 400,
+    });
   });
 
   it("submits an app approval and creates assignees for the record", async () => {
