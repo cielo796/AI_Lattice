@@ -484,7 +484,7 @@ export default function AppSettingsPage() {
           </Card>
         ) : app ? (
           <>
-            <Card>
+            <Card data-guide="app-settings-basic">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-container">
@@ -549,7 +549,7 @@ export default function AppSettingsPage() {
               </div>
             </Card>
 
-            <Card>
+            <Card data-guide="app-settings-approval">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-headline text-base font-bold text-on-surface">
@@ -565,7 +565,10 @@ export default function AppSettingsPage() {
               </div>
 
               <div className="space-y-5">
-                <label className="flex items-center gap-2 text-sm font-semibold text-on-surface">
+                <label
+                  className="flex items-center gap-2 text-sm font-semibold text-on-surface"
+                  data-guide="app-settings-approval-toggle"
+                >
                   <input
                     type="checkbox"
                     checked={approvalEnabled}
@@ -575,7 +578,7 @@ export default function AppSettingsPage() {
                   このアプリで承認申請を受け付ける
                 </label>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2" data-guide="app-settings-approval-target">
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
                       対象テーブル
@@ -631,7 +634,7 @@ export default function AppSettingsPage() {
                   </div>
                 )}
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2" data-guide="app-settings-approval-approvers">
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
                       承認者ユーザー
@@ -734,7 +737,7 @@ export default function AppSettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-4" data-guide="app-settings-approval-statuses">
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-on-surface-variant">
                       申請中
@@ -773,7 +776,7 @@ export default function AppSettingsPage() {
                   </div>
                 </div>
 
-                <div>
+                <div data-guide="app-settings-approval-templates">
                   <div className="mb-2">
                     <div className="text-xs font-semibold text-on-surface-variant">
                       承認依頼メッセージ
@@ -821,7 +824,7 @@ export default function AppSettingsPage() {
                   </div>
                 </div>
 
-                <div>
+                <div data-guide="app-settings-approval-actions">
                   <div className="mb-2 text-xs font-semibold text-on-surface-variant">
                     承認後のレコード変更JSON
                   </div>
@@ -891,7 +894,7 @@ export default function AppSettingsPage() {
                     </div>
                   )}
 
-                <div className="flex flex-wrap justify-end gap-2">
+                <div className="flex flex-wrap justify-end gap-2" data-guide="app-settings-approval-save">
                   <Button
                     variant="secondary"
                     onClick={() => void handleGenerateApprovalViews()}
@@ -922,7 +925,7 @@ export default function AppSettingsPage() {
               </div>
             </Card>
 
-            <Card>
+            <Card data-guide="app-settings-publish">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="font-headline text-base font-bold text-on-surface">

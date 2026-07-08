@@ -1,14 +1,15 @@
 "use client";
 
 import { cn } from "@/lib/cn";
+import type { HTMLAttributes } from "react";
 
-interface CardProps {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   className?: string;
   variant?: "default" | "elevated" | "glass";
 }
 
-export function Card({ children, className, variant = "default" }: CardProps) {
+export function Card({ children, className, variant = "default", ...props }: CardProps) {
   const base = {
     default:
       "bg-surface rounded-xl border border-outline-variant p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]",
@@ -17,5 +18,9 @@ export function Card({ children, className, variant = "default" }: CardProps) {
     glass: "glass-panel rounded-xl p-5",
   };
 
-  return <div className={cn(base[variant], className)}>{children}</div>;
+  return (
+    <div className={cn(base[variant], className)} {...props}>
+      {children}
+    </div>
+  );
 }

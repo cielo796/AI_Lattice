@@ -7,11 +7,12 @@ import { getAppByCode, listApps } from "@/lib/api/apps";
 import type { App } from "@/types/app";
 import { cn } from "@/lib/cn";
 import { Icon } from "./Icon";
+import { useGuideLauncher } from "@/components/guide/GuideProvider";
 import { useShellChrome } from "./ShellChrome";
 
 const bottomItems = [
-  { href: "#", icon: "help", label: "ヘルプ" },
-  { href: "#", icon: "chat_bubble", label: "フィードバック" },
+  { type: "guide" as const, icon: "help", label: "ヘルプ" },
+  { type: "link" as const, href: "#", icon: "chat_bubble", label: "フィードバック" },
 ];
 
 function resolveCurrentApp(pathname: string | null, apps: App[]) {
@@ -63,6 +64,7 @@ function SidebarContent({
   mobile = false,
 }: SidebarContentProps) {
   const router = useRouter();
+  const { hasCurrentTour, startCurrentTour } = useGuideLauncher();
   const [apps, setApps] = useState<App[]>(initialApps);
   const [isLoadingApps, setIsLoadingApps] = useState(initialApps.length === 0);
 
@@ -225,13 +227,17 @@ function SidebarContent({
         href="/apps/new/ai"
         onClick={onNavigate}
         className="mx-2 mb-4 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-primary-hover active:scale-[0.98]"
+        data-guide="sidebar-create-app"
       >
         <Icon name="add" size="sm" />
         作成
       </Link>
 
       {showAppSwitcher && (
-        <div className="mx-2 mb-4 rounded-lg border border-outline-variant bg-surface p-3">
+        <div
+          className="mx-2 mb-4 rounded-lg border border-outline-variant bg-surface p-3"
+          data-guide="sidebar-app-switcher"
+        >
           <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-muted">
             現在のアプリ
           </div>
@@ -259,7 +265,7 @@ function SidebarContent({
         </div>
       )}
 
-      <nav className="flex-1 space-y-0.5">
+      <nav className="flex-1 space-y-0.5" data-guide="sidebar-nav">
         {navItems.map((item) => {
           const isRuntimeRoot = /^\/run\/[^/]+$/.test(item.href);
           const isActive = isRuntimeRoot
@@ -293,17 +299,34 @@ function SidebarContent({
       </nav>
 
       <div className="mt-auto space-y-0.5 border-t border-outline-variant pt-3">
-        {bottomItems.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            onClick={onNavigate}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface"
-          >
-            <Icon name={item.icon} size="md" />
-            <span className="text-[13.5px] font-medium">{item.label}</span>
-          </Link>
-        ))}
+        {bottomItems.map((item) =>
+          item.type === "guide" ? (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => {
+                startCurrentTour();
+                onNavigate?.();
+              }}
+              disabled={!hasCurrentTour}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50"
+              data-guide="sidebar-help"
+            >
+              <Icon name={item.icon} size="md" />
+              <span className="text-[13.5px] font-medium">{item.label}</span>
+            </button>
+          ) : (
+            <Link
+              key={item.label}
+              href={item.href}
+              onClick={onNavigate}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface"
+            >
+              <Icon name={item.icon} size="md" />
+              <span className="text-[13.5px] font-medium">{item.label}</span>
+            </Link>
+          )
+        )}
       </div>
     </div>
   );
@@ -332,7 +355,10 @@ export function Sidebar({ initialApps = [] }: SidebarProps) {
 
   return (
     <>
-      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col bg-sidebar border-r border-outline-variant md:flex">
+      <aside
+        className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col bg-sidebar border-r border-outline-variant md:flex"
+        data-guide="app-sidebar"
+      >
         <SidebarContent pathname={pathname} initialApps={initialApps} />
       </aside>
 
@@ -344,6 +370,7 @@ export function Sidebar({ initialApps = [] }: SidebarProps) {
           <aside
             className="h-full w-[min(18rem,85vw)] bg-sidebar border-r border-outline-variant shadow-2xl"
             onClick={(event) => event.stopPropagation()}
+            data-guide="app-sidebar"
           >
             <SidebarContent
               pathname={pathname}

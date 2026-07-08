@@ -159,7 +159,7 @@ export default function ApprovalsPage() {
       />
 
       <main className="mx-auto max-w-7xl px-6 pt-20 pb-10 md:px-10">
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3" data-guide="approvals-summary">
           <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               承認待ち
@@ -186,7 +186,7 @@ export default function ApprovalsPage() {
           </div>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2" data-guide="approvals-filters">
           {filters.map((item) => (
             <button
               key={item.value}
@@ -216,7 +216,10 @@ export default function ApprovalsPage() {
         )}
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <section
+            className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]"
+            data-guide="approvals-list"
+          >
             <div className="grid grid-cols-[1fr_120px_150px] gap-4 border-b border-outline-variant px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted md:grid-cols-[1.4fr_1fr_130px_150px]">
               <span>承認</span>
               <span className="hidden md:block">対象</span>
@@ -271,7 +274,10 @@ export default function ApprovalsPage() {
             )}
           </section>
 
-          <aside className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <aside
+            className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]"
+            data-guide="approvals-detail"
+          >
             {selected ? (
               <div className="space-y-6">
                 <div>
@@ -330,7 +336,7 @@ export default function ApprovalsPage() {
                 </div>
 
                 {selected.status === "pending" ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3" data-guide="approvals-actions">
                     <textarea
                       value={commentText}
                       onChange={(event) => setCommentText(event.target.value)}

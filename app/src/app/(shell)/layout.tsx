@@ -1,5 +1,6 @@
 import { ShellChromeProvider } from "@/components/shared/ShellChrome";
 import { DatabaseSetupNotice } from "@/components/shared/DatabaseSetupNotice";
+import { GuideProvider } from "@/components/guide/GuideProvider";
 import { Sidebar } from "@/components/shared/Sidebar";
 import { redirect } from "next/navigation";
 import { listAppsForUser } from "@/server/apps/service";
@@ -45,10 +46,14 @@ export default async function ShellLayout({
 
   return (
     <ShellChromeProvider>
-      <div className="min-h-screen bg-surface-container-low">
-        <Sidebar initialApps={initialApps} />
-        <div className="min-h-screen md:ml-64">{children}</div>
-      </div>
+      <GuideProvider>
+        <div className="min-h-screen bg-surface-container-low">
+          <Sidebar initialApps={initialApps} />
+          <div className="min-h-screen md:ml-64" data-guide="page-content">
+            {children}
+          </div>
+        </div>
+      </GuideProvider>
     </ShellChromeProvider>
   );
 }

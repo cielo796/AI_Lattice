@@ -847,6 +847,7 @@ export default function RuntimeViewPage() {
               onClick={() => setRecordPanelMode("create")}
               disabled={isLoadingMeta || !canWriteRecords}
               title={!canWriteRecords && !isLoadingMeta ? "この操作を行う権限がありません。" : undefined}
+              data-guide="runtime-record-create-button"
             >
               <Icon name="add" size="sm" />
               {isLoadingMeta ? "スキーマを読み込み中..." : "新規レコード"}
@@ -855,7 +856,7 @@ export default function RuntimeViewPage() {
         }
       />
 
-      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row">
+      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row" data-guide="runtime-table-main">
         <div className="flex min-h-0 flex-1 flex-col">
           {isAccessDenied && (
             <div className="flex items-center gap-2 border-b border-error/20 bg-error/10 px-4 py-3 text-sm font-semibold text-error md:px-8">
@@ -954,7 +955,10 @@ export default function RuntimeViewPage() {
           </div>
         </div>
 
-        <AISidebar className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
+        <AISidebar
+          className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0"
+          data-guide="runtime-ai-panel"
+        >
           <RecordAIPanel
             appCode={appCode}
             tableCode={tableCode}

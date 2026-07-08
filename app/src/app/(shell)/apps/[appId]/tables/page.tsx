@@ -1255,7 +1255,10 @@ export default function TableDesignerPage() {
 
       <main className="flex min-h-[calc(100vh-3.5rem)] flex-col pt-14 2xl:h-[calc(100vh-3.5rem)] 2xl:flex-row">
         <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
-        <aside className="w-full border-b border-outline-variant bg-sidebar p-4 xl:w-80 xl:overflow-y-auto xl:border-b-0 xl:border-r xl:p-6">
+        <aside
+          className="w-full border-b border-outline-variant bg-sidebar p-4 xl:w-80 xl:overflow-y-auto xl:border-b-0 xl:border-r xl:p-6"
+          data-guide="builder-table-sidebar"
+        >
           <div className="mb-4 flex items-center justify-between">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">テーブル</div>
@@ -1327,7 +1330,11 @@ export default function TableDesignerPage() {
             ))}
           </div>
 
-          <form onSubmit={(event) => void onSubmitTable(event)} className="mt-6 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <form
+            onSubmit={(event) => void onSubmitTable(event)}
+            className="mt-6 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+            data-guide="builder-table-form"
+          >
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold tracking-tight text-on-surface">{editingTableId ? "テーブルを編集" : "新規テーブル"}</h3>
               {editingTableId && (
@@ -1350,7 +1357,10 @@ export default function TableDesignerPage() {
           </form>
         </aside>
 
-        <section className="flex-1 overflow-y-auto bg-surface-container-low px-4 pb-32 pt-6 md:px-6 xl:px-10 xl:pb-36 xl:pt-10">
+        <section
+          className="flex-1 overflow-y-auto bg-surface-container-low px-4 pb-32 pt-6 md:px-6 xl:px-10 xl:pb-36 xl:pt-10"
+          data-guide="builder-table-main"
+        >
           {wasCreated && (
             <div className="mb-6 rounded-lg border border-success-container bg-success-container/40 px-4 py-3 text-sm font-medium text-on-success-container">
               アプリを作成しました。生成されたスキーマを確認し、必要に応じてテーブルとフィールドを調整してください。
@@ -1376,7 +1386,10 @@ export default function TableDesignerPage() {
               {activeTable && <Badge variant="info">{fields.length} フィールド</Badge>}
             </div>
 
-            <section className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-6">
+            <section
+              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-6"
+              data-guide="builder-view-section"
+            >
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h3 className="font-headline text-lg font-bold tracking-tight text-on-surface">
@@ -1838,7 +1851,10 @@ export default function TableDesignerPage() {
               </form>
             </section>
 
-            <section className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-6">
+            <section
+              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-6"
+              data-guide="builder-form-section"
+            >
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h3 className="font-headline text-lg font-bold tracking-tight text-on-surface">
@@ -2083,7 +2099,11 @@ export default function TableDesignerPage() {
               </form>
             </section>
 
-            <form onSubmit={(event) => void onSubmitField(event)} className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.04)] md:p-6">
+            <form
+              onSubmit={(event) => void onSubmitField(event)}
+              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.04)] md:p-6"
+              data-guide="builder-field-form"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-headline text-lg font-bold tracking-tight text-on-surface">{editingFieldId ? "フィールドを編集" : "新規フィールド"}</h3>
                 {editingFieldId && (
@@ -2373,7 +2393,7 @@ export default function TableDesignerPage() {
               <div>操作</div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-guide="builder-field-list">
               {activeTable && isLoadingFields && (
                 <div className="rounded-lg border border-outline-variant bg-surface p-6 text-sm text-on-surface-variant">
                   フィールドを読み込んでいます...
@@ -2477,7 +2497,10 @@ export default function TableDesignerPage() {
         </section>
         </div>
 
-        <AISidebar className="border-t border-outline-variant 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
+        <AISidebar
+          className="border-t border-outline-variant 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0"
+          data-guide="builder-ai-panel"
+        >
           <div className="text-xs text-on-surface">
             この画面では、既存 API 経由で実際のテーブルメタデータを読み書きします。
           </div>

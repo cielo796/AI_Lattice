@@ -2,8 +2,9 @@
 
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/shared/Icon";
+import type { HTMLAttributes } from "react";
 
-interface AISidebarProps {
+interface AISidebarProps extends HTMLAttributes<HTMLElement> {
   children?: React.ReactNode;
   title?: string;
   className?: string;
@@ -13,6 +14,7 @@ export function AISidebar({
   children,
   title = "AIアシスタント",
   className,
+  ...props
 }: AISidebarProps) {
   return (
     <aside
@@ -20,6 +22,7 @@ export function AISidebar({
         "w-full shrink-0 border-l border-outline-variant bg-surface",
         className
       )}
+      {...props}
     >
       <div className="border-b border-outline-variant px-5 pb-4 pt-5">
         <div className="flex items-center gap-2">

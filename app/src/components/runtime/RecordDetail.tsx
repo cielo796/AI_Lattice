@@ -298,7 +298,7 @@ export function RecordDetail({
   }
 
   return (
-    <section className="flex flex-1 flex-col bg-surface-container-low">
+    <section className="flex flex-1 flex-col bg-surface-container-low" data-guide="runtime-record-detail">
       <div className="px-8 py-6">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
@@ -380,7 +380,7 @@ export function RecordDetail({
           </div>
         )}
 
-        <div className="mb-6" data-testid="record-approvals">
+        <div className="mb-6" data-testid="record-approvals" data-guide="runtime-approval-panel">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
               Governance approvals
