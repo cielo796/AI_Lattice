@@ -45,7 +45,7 @@ export default function RuntimeAppPage({
       <main className="mx-auto w-full max-w-6xl space-y-6 px-4 pb-16 pt-24 md:px-8">
         {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
 
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4" data-guide="runtime-app-summary">
           <div>
             <div className="flex items-center gap-2">
               <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-container text-primary">
@@ -59,7 +59,7 @@ export default function RuntimeAppPage({
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2" data-guide="runtime-app-actions">
             <Link href={`/run/${appCode}/dashboard`} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-outline bg-surface px-3.5 text-[13px] font-semibold text-on-surface hover:bg-surface-container">
               <Icon name="dashboard" size="sm" />ダッシュボード
             </Link>
@@ -69,7 +69,7 @@ export default function RuntimeAppPage({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-guide="runtime-app-stats">
           {[
             ["テーブル", overview?.tables.length ?? 0, "table_chart"],
             ["レコード", overview?.totals.records ?? 0, "database"],
@@ -85,7 +85,7 @@ export default function RuntimeAppPage({
           ))}
         </div>
 
-        <section>
+        <section data-guide="runtime-table-list">
           <h2 className="mb-3 font-headline text-base font-bold text-on-surface">テーブル</h2>
           <div className="divide-y divide-outline-variant overflow-hidden rounded-lg border border-outline-variant bg-surface">
             {overview?.tables.map((table) => (
@@ -107,4 +107,3 @@ export default function RuntimeAppPage({
     </>
   );
 }
-

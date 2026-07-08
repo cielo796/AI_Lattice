@@ -170,7 +170,7 @@ export default function NewAIAppPage() {
         breadcrumbs={[{ label: "AI ビルダー" }, { label: "新規アプリ" }]}
       />
 
-      <main className="pt-14 pb-16">
+      <main className="pt-14 pb-16" data-guide="ai-builder-main">
         <section className="mx-auto max-w-5xl px-6 pb-10 pt-16">
           <div className="mb-10 text-center">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-tertiary-container px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-on-tertiary-container">
@@ -187,20 +187,22 @@ export default function NewAIAppPage() {
           </div>
 
           <div className="space-y-4">
-            <PromptInput
-              value={prompt}
-              onChange={(value) => {
-                setPrompt(value);
-                setError(null);
-              }}
-              onSubmit={() => void handleGenerate()}
-              examples={examples}
-              onExampleClick={(example) => {
-                setPrompt(example);
-                setError(null);
-                void handleGenerate(example);
-              }}
-            />
+            <div data-guide="ai-builder-prompt">
+              <PromptInput
+                value={prompt}
+                onChange={(value) => {
+                  setPrompt(value);
+                  setError(null);
+                }}
+                onSubmit={() => void handleGenerate()}
+                examples={examples}
+                onExampleClick={(example) => {
+                  setPrompt(example);
+                  setError(null);
+                  void handleGenerate(example);
+                }}
+              />
+            </div>
 
             <div className="flex justify-end">
               <Button
@@ -209,6 +211,7 @@ export default function NewAIAppPage() {
                 size="lg"
                 onClick={() => void handleGenerate()}
                 disabled={isGenerating}
+                data-guide="ai-builder-generate"
               >
                 <Icon name="auto_awesome" size="sm" filled />
                 {isGenerating ? "生成中..." : "設計案を生成"}
@@ -250,7 +253,7 @@ export default function NewAIAppPage() {
         )}
 
         {blueprint && (
-          <section className="px-6 md:px-8">
+          <section className="px-6 md:px-8" data-guide="ai-builder-blueprint">
             <div className="flex min-h-[700px] flex-col overflow-hidden rounded-xl border border-outline-variant bg-surface md:flex-row">
               <aside className="w-full border-b border-outline-variant bg-sidebar p-6 md:w-80 md:border-b-0 md:border-r">
                 <GeneratedAssetsList

@@ -175,6 +175,7 @@ function RecordCard({
     <button
       type="button"
       data-testid={`record-row-${record.id}`}
+      data-guide="runtime-record-card"
       data-draggable
       onClick={() => onSelect(record)}
       className={cn(
@@ -319,9 +320,10 @@ export function RecordList({
               isListView ? "xl:w-80" : "xl:w-[44rem] 2xl:w-[48rem]",
             ]
       )}
+      data-guide="runtime-record-list"
     >
       <div className="border-b border-outline-variant p-3">
-        <div className="relative">
+        <div className="relative" data-guide="runtime-record-search">
           <Icon
             name="search"
             size="sm"
@@ -335,7 +337,7 @@ export function RecordList({
           />
         </div>
         {views.length > 0 && (
-          <div className="mt-2 flex gap-1 overflow-x-auto">
+          <div className="mt-2 flex gap-1 overflow-x-auto" data-guide="runtime-view-tabs">
             {views.map((view) => {
               const isActive = view.id === activeView?.id;
               const viewMeta = VIEW_TYPE_META[view.viewType];
@@ -398,7 +400,9 @@ export function RecordList({
         )}
 
         {!isLoading && filteredRecords.length === 0 && (
-          <EmptyState message={emptyMessage} />
+          <div data-guide="runtime-empty-records">
+            <EmptyState message={emptyMessage} />
+          </div>
         )}
 
         {!isLoading && filteredRecords.length > 0 && activeViewType === "list" && (

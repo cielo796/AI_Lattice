@@ -6,6 +6,7 @@ import { Icon } from "./Icon";
 import { Avatar } from "./Avatar";
 import { getUnreadNotificationCount } from "@/lib/api/notifications";
 import { useAuthStore } from "@/stores/authStore";
+import { useGuideLauncher } from "@/components/guide/GuideProvider";
 import { useShellChrome } from "./ShellChrome";
 
 interface TopBarProps {
@@ -17,6 +18,7 @@ interface TopBarProps {
 export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
   const avatarName = useAuthStore((s) => s.user?.name ?? "Marcus Chen");
   const { toggleMobileNav } = useShellChrome();
+  const { hasCurrentTour, currentTourLabel, startCurrentTour } = useGuideLauncher();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -46,7 +48,10 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
   }, []);
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant bg-surface/90 px-3 backdrop-blur-md md:left-64 md:px-6">
+    <header
+      className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant bg-surface/90 px-3 backdrop-blur-md md:left-64 md:px-6"
+      data-guide="topbar"
+    >
       <div className="flex min-w-0 items-center gap-2 md:gap-5">
         <button
           type="button"
@@ -79,9 +84,21 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
 
       <div className="flex items-center gap-1 md:gap-2">
         {actions && (
-          <div className="hidden items-center gap-2 lg:flex">
+          <div className="hidden items-center gap-2 lg:flex" data-guide="topbar-actions">
             {actions}
           </div>
+        )}
+        {hasCurrentTour && (
+          <button
+            type="button"
+            onClick={startCurrentTour}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+            aria-label={`${currentTourLabel ?? "この画面"}の初心者ガイドを開始`}
+            title={`${currentTourLabel ?? "この画面"}の初心者ガイド`}
+            data-guide="topbar-guide-button"
+          >
+            <Icon name="help" />
+          </button>
         )}
         <div className="relative hidden sm:block">
           <Link

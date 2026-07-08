@@ -178,7 +178,7 @@ export default function HomePage() {
         title="ホーム"
         breadcrumbs={[{ label: "ダッシュボード" }, { label: "ホーム" }]}
         actions={
-          <Link href="/apps/new/ai">
+          <Link href="/apps/new/ai" data-guide="home-create-app">
             <Button variant="primary" size="md">
               <Icon name="auto_awesome" size="sm" filled />
               AI で作成
@@ -187,7 +187,7 @@ export default function HomePage() {
         }
       />
 
-      <main className="mx-auto max-w-7xl px-6 py-8 pt-20 md:px-10">
+      <main className="mx-auto max-w-7xl px-6 py-8 pt-20 md:px-10" data-guide="home-main">
         <div className="mb-10">
           <h2 className="mb-2 font-headline text-3xl font-extrabold tracking-tight text-on-surface md:text-4xl">
             {userName ? `おかえりなさい、${userName}` : "おかえりなさい"}
@@ -198,7 +198,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="mb-12 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-12 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4" data-guide="home-stats">
           {statCards.map((stat) => (
             <Link
               key={stat.label}
@@ -232,13 +232,14 @@ export default function HomePage() {
           <Link
             href="/apps/new/ai"
             className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-semibold text-primary transition-colors hover:bg-primary-container hover:text-on-primary-container"
+            data-guide="home-create-app"
           >
             <Icon name="add" size="sm" />
             新規作成
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-guide="home-app-grid">
           {apps.map((app, idx) => {
             const tints = [
               { bg: "bg-[#ffe4e0]", text: "text-[#f06a6a]" },
@@ -253,6 +254,7 @@ export default function HomePage() {
               <div
                 key={app.id}
                 data-testid={`app-card-${app.id}`}
+                data-guide={idx === 0 ? "home-app-card" : undefined}
                 className="group rounded-xl border border-outline-variant bg-surface p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_8px_rgba(15,23,42,0.06),0_16px_40px_rgba(15,23,42,0.08)]"
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
@@ -318,7 +320,7 @@ export default function HomePage() {
         )}
 
         {!isLoadingApps && apps.length === 0 && !appsError && (
-          <div className="mt-4 rounded-xl border-2 border-dashed border-outline-variant bg-surface px-6 py-10 text-center">
+          <div className="mt-4 rounded-xl border-2 border-dashed border-outline-variant bg-surface px-6 py-10 text-center" data-guide="home-empty-state">
             <div className="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary-container text-primary">
               <Icon name="apps" size="lg" />
             </div>

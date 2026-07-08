@@ -543,7 +543,10 @@ export function RecordCreatePanel({
         : "レコードを作成";
 
   return (
-    <section className="border-b border-outline-variant bg-surface px-8 py-6 shadow-[inset_0_-1px_0_rgba(15,23,42,0.04)]">
+    <section
+      className="border-b border-outline-variant bg-surface px-8 py-6 shadow-[inset_0_-1px_0_rgba(15,23,42,0.04)]"
+      data-guide="runtime-record-form"
+    >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">

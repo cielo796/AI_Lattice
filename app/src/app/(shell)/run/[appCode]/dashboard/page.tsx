@@ -65,7 +65,7 @@ export default function RuntimeDashboardPage({ params }: { params: Promise<{ app
       <TopBar title="ダッシュボード" breadcrumbs={[{ label: overview?.app.name ?? appCode }, { label: "ダッシュボード" }]} />
       <main className="mx-auto w-full max-w-6xl space-y-6 px-4 pb-16 pt-24 md:px-8">
         {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-guide="runtime-dashboard-summary">
           <div className="rounded-lg border border-outline-variant bg-surface p-4"><div className="text-xs text-on-surface-variant">総レコード</div><div className="mt-1 text-3xl font-bold text-on-surface">{overview?.totals.records ?? 0}</div></div>
           <div className="rounded-lg border border-outline-variant bg-surface p-4"><div className="text-xs text-on-surface-variant">承認待ち</div><div className="mt-1 text-3xl font-bold text-on-surface">{overview?.totals.pendingApprovals ?? 0}</div></div>
           <div className="rounded-lg border border-outline-variant bg-surface p-4"><div className="text-xs text-on-surface-variant">テーブル</div><div className="mt-1 text-3xl font-bold text-on-surface">{overview?.tables.length ?? 0}</div></div>
@@ -77,7 +77,11 @@ export default function RuntimeDashboardPage({ params }: { params: Promise<{ app
           const metricValue = metrics.length > 0 ? metrics.reduce((sum, value) => sum + value, 0) : table.records.length;
           const buckets = getChartBuckets(table.records, table.fields, table.chartView);
           return (
-            <section key={table.id} className="border-t border-outline-variant pt-5">
+            <section
+              key={table.id}
+              className="border-t border-outline-variant pt-5"
+              data-guide="runtime-dashboard-table"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <div><h2 className="font-headline text-base font-bold text-on-surface">{table.name}</h2><p className="text-xs text-on-surface-variant">{table.records.length} records</p></div>
                 <Link href={`/run/${appCode}/${table.code}`} className="text-xs font-semibold text-primary hover:underline">レコードを開く</Link>

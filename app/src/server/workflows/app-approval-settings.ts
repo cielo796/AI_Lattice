@@ -67,6 +67,41 @@ const ROLE_TYPES: Role["roleType"][] = [
   "viewer",
 ];
 const RECORD_STATUS_FIELD_CODE = "__record_status";
+const DEFAULT_APPROVAL_STATUSES = {
+  pending: "承認待ち",
+  approved: "承認済み",
+  rejected: "却下",
+  returned: "差戻し",
+} as const;
+const DEFAULT_APPROVAL_TITLE_TEMPLATE = "{{recordTitle}} の承認依頼";
+const DEFAULT_APPROVAL_BODY_TEMPLATE =
+  "{{tableName}}「{{recordTitle}}」の内容を確認し、承認・却下・差戻しを判断してください。";
+const DEFAULT_POST_APPROVAL_ACTIONS = {
+  approved: [
+    {
+      target: "current_record",
+      status: DEFAULT_APPROVAL_STATUSES.approved,
+      dataPatch: { approval_result: DEFAULT_APPROVAL_STATUSES.approved },
+    },
+  ],
+  rejected: [
+    {
+      target: "current_record",
+      status: DEFAULT_APPROVAL_STATUSES.rejected,
+      dataPatch: { approval_result: DEFAULT_APPROVAL_STATUSES.rejected },
+    },
+  ],
+  returned: [
+    {
+      target: "current_record",
+      status: DEFAULT_APPROVAL_STATUSES.returned,
+      dataPatch: {
+        approval_result: DEFAULT_APPROVAL_STATUSES.returned,
+        needs_revision: true,
+      },
+    },
+  ],
+} as const;
 
 function prismaWithAppApprovals() {
   return getPrismaClient() as PrismaWithAppApprovals;
@@ -401,6 +436,13 @@ async function ensureSetting(user: User, appId: string) {
       tenantId: user.tenantId,
       appId: app.id,
       targetTableId: app.tables[0]?.id,
+      pendingStatus: DEFAULT_APPROVAL_STATUSES.pending,
+      approvedStatus: DEFAULT_APPROVAL_STATUSES.approved,
+      rejectedStatus: DEFAULT_APPROVAL_STATUSES.rejected,
+      returnedStatus: DEFAULT_APPROVAL_STATUSES.returned,
+      requestTitleTemplate: DEFAULT_APPROVAL_TITLE_TEMPLATE,
+      requestBodyTemplate: DEFAULT_APPROVAL_BODY_TEMPLATE,
+      postApprovalActionsJson: toJsonObject(DEFAULT_POST_APPROVAL_ACTIONS),
     },
     include: {
       approvers: {
@@ -572,6 +614,28 @@ export async function saveAppApprovalSetting(
     if (!table) {
       throw new AppsServiceError("Approval target table not found", 400);
     }
+  }
+
+  const inputApprovers = input.approvers ?? [];
+  const hasUserApproverInput = inputApprovers.some(
+    (approver) =>
+      approver.approverType !== "role" &&
+      !approver.roleId &&
+      !approver.roleType &&
+      Boolean(getString(approver.userId))
+  );
+  const hasRoleApproverInput = inputApprovers.some(
+    (approver) =>
+      approver.approverType === "role" ||
+      Boolean(approver.roleId) ||
+      Boolean(approver.roleType)
+  );
+
+  if (hasUserApproverInput && hasRoleApproverInput) {
+    throw new AppsServiceError(
+      "Approver users and role approvers cannot be used together",
+      400
+    );
   }
 
   const approvers = await normalizeApprovers(user, current.id, input.approvers);

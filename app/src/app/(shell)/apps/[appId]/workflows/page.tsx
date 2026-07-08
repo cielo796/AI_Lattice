@@ -290,7 +290,7 @@ export default function WorkflowEditorPage() {
           { label: "ワークフロー自動化エディタ" },
         ]}
         actions={
-          <>
+          <div className="flex items-center gap-2" data-guide="workflow-save-actions">
             <Button
               variant="ghost"
               size="md"
@@ -309,12 +309,15 @@ export default function WorkflowEditorPage() {
               <Icon name="rocket_launch" size="sm" />
               有効化
             </Button>
-          </>
+          </div>
         }
       />
 
       <main className="flex min-h-[calc(100vh-3.5rem)] flex-col pt-14 2xl:h-[calc(100vh-3.5rem)] 2xl:flex-row">
-        <aside className="w-full border-b border-outline-variant bg-sidebar p-4 2xl:w-80 2xl:border-b-0 2xl:border-r">
+        <aside
+          className="w-full border-b border-outline-variant bg-sidebar p-4 2xl:w-80 2xl:border-b-0 2xl:border-r"
+          data-guide="workflow-list"
+        >
           <div className="mb-4 flex items-center justify-between gap-3">
             <h1 className="font-headline text-sm font-bold tracking-tight text-on-surface">ワークフロー</h1>
             <Button
@@ -322,6 +325,7 @@ export default function WorkflowEditorPage() {
               size="sm"
               onClick={() => void handleCreateWorkflow()}
               disabled={isSaving || !draftDefinition}
+              data-guide="workflow-create"
             >
               <Icon name="add" size="sm" />
               新規
@@ -383,7 +387,10 @@ export default function WorkflowEditorPage() {
           )}
         </aside>
 
-        <section className="relative h-[60vh] md:h-[70vh] 2xl:h-auto 2xl:flex-1">
+        <section
+          className="relative h-[60vh] md:h-[70vh] 2xl:h-auto 2xl:flex-1"
+          data-guide="workflow-canvas"
+        >
           <WorkflowToolbar />
           {draftDefinition ? (
             <WorkflowCanvas
@@ -396,10 +403,15 @@ export default function WorkflowEditorPage() {
               ワークフローを選択してください。
             </div>
           )}
-          <AICommandBar />
+          <div data-guide="workflow-ai-command">
+            <AICommandBar />
+          </div>
         </section>
 
-        <AISidebar className="border-t border-outline-variant 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0">
+        <AISidebar
+          className="border-t border-outline-variant 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0"
+          data-guide="workflow-details"
+        >
           {error && (
             <div className="rounded-lg border border-error-container bg-error-container/40 p-3 text-xs font-medium text-on-error-container">
               {error}
