@@ -101,9 +101,9 @@ function toAuditLog(log: {
 
 export async function recordAuditLog(
   user: Pick<User, "id" | "tenantId" | "name" | "email">,
-  input: RecordAuditLogInput
+  input: RecordAuditLogInput,
+  prisma: Prisma.TransactionClient = getPrismaClient()
 ) {
-  const prisma = getPrismaClient();
   const log = await prisma.auditLog.create({
     data: {
       id: crypto.randomUUID(),

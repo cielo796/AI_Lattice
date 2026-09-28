@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { hasPermission, requirePermission } from "@/server/admin/rbac";
+import { ensureDefaultRolesForTenant, hasPermission, requirePermission } from "@/server/admin/rbac";
 
 const { getPrismaClient } = vi.hoisted(() => ({
   getPrismaClient: vi.fn(),
@@ -17,6 +17,28 @@ const user = {
 describe("RBAC permissions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("does not grant access when the authorization database is unavailable", async () => {
+    getPrismaClient.mockReturnValue({});
+    await expect(hasPermission(user, "admin:roles")).rejects.toThrow();
+  });
+
+  it("preserves administrator changes when initializing default roles", async () => {
+    const upsert = vi.fn();
+    getPrismaClient.mockReturnValue({ role: { upsert } });
+    await ensureDefaultRolesForTenant(user.tenantId);
+    expect(upsert).toHaveBeenCalled();
+    for (const [operation] of upsert.mock.calls) expect(operation.update).toEqual({});
+  });
+
+  it("denies users without assigned roles and scopes the role lookup to their tenant", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    getPrismaClient.mockReturnValue({ userRole: { findMany } });
+    await expect(hasPermission(user, "record:read")).resolves.toBe(false);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { tenantId: user.tenantId, userId: user.id, role: { tenantId: user.tenantId } },
+    }));
   });
 
   it("allows tenant-wide wildcard roles", async () => {

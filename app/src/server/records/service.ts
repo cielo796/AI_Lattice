@@ -1080,7 +1080,7 @@ export async function createRecordForTable(
 
   const appRecord = toAppRecord(record);
 
-  const approvals = await runApprovalWorkflowsForRecord(user, {
+  await runApprovalWorkflowsForRecord(user, {
     appId: app.id,
     appCode: app.code,
     tableId: table.id,
@@ -1089,17 +1089,11 @@ export async function createRecordForTable(
     recordId: record.id,
     recordTitle: getRecordTitle(appRecord),
     triggerTypes: ["create"],
+    eventKey: `record:create:${record.id}`,
   });
 
-  if (approvals.length > 0) {
-    const governedRecord = await prisma.appRecord.findUnique({
-      where: { id: record.id },
-    });
-
-    return governedRecord ? toAppRecord(governedRecord) : appRecord;
-  }
-
-  return appRecord;
+  const governedRecord = await prisma.appRecord.findUnique({ where: { id: record.id } });
+  return governedRecord ? toAppRecord(governedRecord) : appRecord;
 }
 
 export async function getRecordForTable(
@@ -1322,7 +1316,7 @@ export async function updateRecordForTable(
     triggerTypes.push("status_change");
   }
 
-  const approvals = await runApprovalWorkflowsForRecord(user, {
+  await runApprovalWorkflowsForRecord(user, {
     appId: app.id,
     appCode: app.code,
     tableId: table.id,
@@ -1331,17 +1325,11 @@ export async function updateRecordForTable(
     recordId: updatedRecord.id,
     recordTitle: getRecordTitle(appRecord),
     triggerTypes,
+    eventKey: `record:update:${updatedRecord.id}:${updatedRecord.updatedAt.toISOString()}`,
   });
 
-  if (approvals.length > 0) {
-    const governedRecord = await prisma.appRecord.findUnique({
-      where: { id: updatedRecord.id },
-    });
-
-    return governedRecord ? toAppRecord(governedRecord) : appRecord;
-  }
-
-  return appRecord;
+  const governedRecord = await prisma.appRecord.findUnique({ where: { id: updatedRecord.id } });
+  return governedRecord ? toAppRecord(governedRecord) : appRecord;
 }
 
 export async function deleteRecordForTable(

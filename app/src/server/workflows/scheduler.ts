@@ -124,6 +124,7 @@ export async function runDueScheduledWorkflows(limit = DEFAULT_RECORD_LIMIT): Pr
             recordTitle: getRecordTitle(record),
             triggerTypes: ["schedule"],
             workflowIds: [workflow.id],
+            failOnError: true,
           });
           result.recordCount += 1;
           result.approvalCount += approvals.length;

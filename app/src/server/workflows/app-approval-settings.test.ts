@@ -349,6 +349,7 @@ describe("app approval settings service", () => {
       appApprovalSetting: {
         findUnique: vi.fn().mockResolvedValue(activeSetting),
       },
+      user: { findFirst: vi.fn().mockResolvedValue({ id: "active_approver" }) },
       approval: {
         findFirst: vi.fn().mockResolvedValue(null),
       },

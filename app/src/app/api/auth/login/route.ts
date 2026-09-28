@@ -9,22 +9,23 @@ import { createSessionForUser } from "@/server/auth/session";
 
 export async function POST(request: Request) {
   try {
-    const body = await parseJsonBody<{ email?: string; password?: string }>(
+    const body = await parseJsonBody<{ email?: unknown; password?: unknown; tenantCode?: unknown }>(
       request
     );
-    const email = body.email?.trim() ?? "";
-    const password = body.password ?? "";
+    const email = typeof body?.email === "string" ? body.email.trim() : "";
+    const password = typeof body?.password === "string" ? body.password : "";
+    const tenantCode = typeof body?.tenantCode === "string" ? body.tenantCode.trim() : undefined;
 
-    if (!email || !password) {
+    if (!email || !password || email.length > 254 || password.length > 256 || (tenantCode?.length ?? 0) > 64) {
       return NextResponse.json(
         { message: "メールアドレスとパスワードを入力してください" },
         { status: 400 }
       );
     }
 
-    const user = await authenticateUser({ email, password });
+    const user = await authenticateUser({ email, password, tenantCode });
     if (!user) {
-      const auditUser = await findUserByEmailForAudit(email);
+      const auditUser = await findUserByEmailForAudit(email, tenantCode);
       if (auditUser) {
         await recordAuditFailure(
           auditUser,

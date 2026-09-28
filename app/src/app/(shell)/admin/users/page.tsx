@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/shared/Avatar";
+import { UserCreateForm } from "@/components/auth/UserCreateForm";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
@@ -43,6 +44,7 @@ export default function AdminUsersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +148,9 @@ export default function AdminUsersPage() {
               テナント内のユーザー {users.length} 名（有効 {activeCount} 名）
             </p>
           </div>
+          <Button onClick={() => setShowCreateForm(true)} disabled={showCreateForm || isLoading || Boolean(error)}>
+            <Icon name="person_add" size="sm" />ユーザーを追加
+          </Button>
           <div className="w-full max-w-xs">
             <Input
               icon="search"
@@ -155,6 +160,17 @@ export default function AdminUsersPage() {
             />
           </div>
         </div>
+
+        {showCreateForm && (
+          <UserCreateForm
+            onCancel={() => setShowCreateForm(false)}
+            onCreated={(created) => {
+              setUsers((current) => [...current, created]);
+              setShowCreateForm(false);
+              pushToast({ title: "ユーザーを追加しました。", variant: "success" });
+            }}
+          />
+        )}
 
         {error && (
           <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">

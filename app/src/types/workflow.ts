@@ -16,6 +16,7 @@ export interface WorkflowNodeData {
 }
 
 export interface WorkflowDefinition {
+  [key: string]: unknown;
   nodes: Array<{
     id: string;
     type?: string;
@@ -30,6 +31,36 @@ export interface WorkflowDefinition {
     label?: string;
     [key: string]: unknown;
   }>;
+}
+
+export interface WorkflowNodeExecution {
+  nodeId: string;
+  nodeType: WorkflowNodeType;
+  status: "running" | "waiting" | "success" | "failure" | "skip";
+  startedAt: string;
+  finishedAt?: string;
+  outcome?: string;
+  approvalId?: string;
+  error?: string;
+}
+
+export interface WorkflowRunState {
+  queue: string[];
+  executions: WorkflowNodeExecution[];
+  waitingFor?: { nodeId: string; approvalId: string };
+}
+
+export interface WorkflowRun {
+  id: string;
+  workflowId: string | null;
+  workflowName: string;
+  recordId: string;
+  status: "ready" | "running" | "waiting" | "completed" | "failed";
+  state: WorkflowRunState;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
 }
 
 export interface Workflow {

@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/server/admin/rbac";
 import { AppsServiceError } from "@/server/apps/service";
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
-import { recordAuditFailure, recordAuditLog } from "@/server/audit/service";
+import { recordAuditLog } from "@/server/audit/service";
 import {
   executeRuntimeAIAction,
   isRuntimeAIAction,
@@ -21,6 +21,9 @@ import type {
   WorkflowNodeData,
 } from "@/types/workflow";
 import type { User } from "@/types/user";
+import { validateWorkflowGraph, workflowEntryId } from "@/lib/workflow-graph";
+import { executeSavedWorkflowRun, toWorkflowRun, workflowJson, type WorkflowNodeExecutor } from "./execution";
+import { resolveApproverUsers } from "./app-approval-settings";
 
 export class WorkflowsServiceError extends AppsServiceError {
   constructor(message: string, status: number) {
@@ -76,6 +79,8 @@ export interface RunApprovalWorkflowInput {
   recordTitle: string;
   triggerTypes: Workflow["triggerType"][];
   workflowIds?: string[];
+  eventKey?: string;
+  failOnError?: boolean;
 }
 
 const WORKFLOW_TRIGGER_TYPES: Workflow["triggerType"][] = [
@@ -184,11 +189,12 @@ const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
       label: "no",
       style: { stroke: "#475569", strokeWidth: 2, strokeDasharray: "8 4" },
     },
+    { id: "wf-edge-4", source: "wf-node-3", target: "wf-node-4" },
   ],
 };
 
 function assertNonEmpty(value: string | undefined, fieldName: string) {
-  if (!value || !value.trim()) {
+  if (typeof value !== "string" || !value.trim()) {
     throw new WorkflowsServiceError(`${fieldName} is required`, 400);
   }
 
@@ -331,6 +337,7 @@ function normalizeWorkflowDefinition(value: unknown): WorkflowDefinition {
   }
 
   return {
+    ...candidate,
     nodes: candidate.nodes.map((node, index) => normalizeWorkflowNode(node, index)),
     edges: candidate.edges.map((edge, index) => normalizeWorkflowEdge(edge, index)),
   };
@@ -361,12 +368,16 @@ function normalizeWorkflowNodeData(value: unknown, index: number): WorkflowNodeD
 
   const data = value as Record<string, unknown>;
   const nodeType = data.nodeType;
+  if (data.config !== undefined && (!data.config || typeof data.config !== "object" || Array.isArray(data.config))) {
+    throw new WorkflowsServiceError(`Workflow node ${index + 1} config must be an object`, 400);
+  }
 
   if (typeof nodeType !== "string") {
     throw new WorkflowsServiceError(`Workflow node ${index + 1} type is required`, 400);
   }
 
   return {
+    ...data,
     label: assertNonEmpty(
       typeof data.label === "string" ? data.label : undefined,
       "Node label"
@@ -488,6 +499,8 @@ function toApproval(approval: {
   tableId: string;
   recordId: string;
   workflowId: string | null;
+  workflowRunId?: string | null;
+  workflowNodeId?: string | null;
   appApprovalSettingId?: string | null;
   approverId: string;
   requestedById: string;
@@ -527,6 +540,8 @@ function toApproval(approval: {
     tableId: approval.tableId,
     recordId: approval.recordId,
     workflowId: approval.workflowId ?? undefined,
+    workflowRunId: approval.workflowRunId ?? undefined,
+    workflowNodeId: approval.workflowNodeId ?? undefined,
     appApprovalSettingId: approval.appApprovalSettingId ?? undefined,
     approverId: approval.approverId,
     requestedBy: approval.requestedById,
@@ -702,9 +717,10 @@ function getFinalApprovalStatus(
   }
 
   const activeAssignees = assignees.filter((assignee) => assignee.active);
+  if (!mode || mode === "any") return activeAssignees.some((assignee) => assignee.status === "approved") ? "approved" : "pending";
   const requiredAssignees = activeAssignees.filter((assignee) => assignee.required);
   const effectiveAssignees = requiredAssignees.length > 0 ? requiredAssignees : activeAssignees;
-  const approvedCount = effectiveAssignees.filter(
+  const approvedCount = activeAssignees.filter(
     (assignee) => assignee.status === "approved"
   ).length;
 
@@ -717,7 +733,7 @@ function getFinalApprovalStatus(
   if (mode === "quorum") {
     const threshold = Math.max(
       1,
-      Math.trunc(quorumCount ?? Math.ceil(effectiveAssignees.length / 2))
+      Math.trunc(quorumCount ?? Math.ceil(activeAssignees.length / 2))
     );
     return approvedCount >= threshold ? "approved" : "pending";
   }
@@ -734,7 +750,7 @@ function getTargetAssignee(
     .filter((assignee) => assignee.active && assignee.status === "pending")
     .sort((left, right) => left.sortOrder - right.sortOrder);
   const userAssignee = activePending.find((assignee) => assignee.userId === userId);
-  const targetAssignee = userAssignee ?? activePending[0];
+  const targetAssignee = userAssignee;
 
   if (!targetAssignee) {
     return undefined;
@@ -750,10 +766,6 @@ function getTargetAssignee(
 function findApprovalNode(definitionJson: Prisma.JsonValue) {
   const definition = normalizeWorkflowDefinition(definitionJson);
   return definition.nodes.find((node) => node.data.nodeType === "approval");
-}
-
-function getWorkflowNodes(definitionJson: Prisma.JsonValue) {
-  return normalizeWorkflowDefinition(definitionJson).nodes;
 }
 
 function getRecordDataValue(
@@ -817,10 +829,8 @@ function conditionNodeMatches(
     getConfigString(config, "statusFieldCode") ??
     "status";
   const operator = getConfigString(config, "operator") ?? "equals";
-  const expected =
-    getConfigString(config, "value") ??
-    getConfigString(config, "expectedValue") ??
-    getConfigString(config, "status");
+  const rawExpected = config?.value ?? config?.expectedValue ?? config?.status;
+  const expected = rawExpected === undefined || rawExpected === null ? undefined : String(rawExpected);
 
   if (!config || Object.keys(config).length === 0) {
     return true;
@@ -851,20 +861,6 @@ function renderWorkflowTemplate(
   });
 }
 
-function getConfigBoolean(
-  config: Record<string, unknown> | undefined,
-  key: string
-) {
-  return config?.[key] === true;
-}
-
-function shouldFailWorkflowOnNodeError(node: WorkflowDefinition["nodes"][number]) {
-  return (
-    getConfigBoolean(node.data.config, "required") ||
-    getConfigString(node.data.config, "failurePolicy") === "fail"
-  );
-}
-
 function formatAIWorkflowResult(result: RuntimeAIExecution) {
   if (result.summary) {
     return `AI summary: ${result.summary}`;
@@ -883,34 +879,12 @@ function formatAIWorkflowResult(result: RuntimeAIExecution) {
   return "AI workflow action completed.";
 }
 
-async function recordWorkflowNodeFailure(
-  user: User,
-  workflow: { id: string; name: string },
-  node: WorkflowDefinition["nodes"][number],
-  error: unknown
-) {
-  await recordAuditFailure(
-    user,
-    {
-      actionType: "WORKFLOW_NODE_EXECUTE",
-      resourceType: "workflow",
-      resourceId: workflow.id,
-      resourceName: workflow.name,
-      detailJson: {
-        nodeId: node.id,
-        nodeType: node.data.nodeType,
-        nodeLabel: node.data.label,
-      },
-    },
-    error
-  );
-}
-
 async function executeNotificationNode(
   user: User,
   input: RunApprovalWorkflowInput,
-  workflow: { id: string; name: string },
-  node: WorkflowDefinition["nodes"][number]
+  workflow: { id: string; name: string; runId: string },
+  node: WorkflowDefinition["nodes"][number],
+  transaction: Prisma.TransactionClient
 ) {
   const config = node.data.config;
   const recipients = await listWorkflowNotificationRecipients(
@@ -928,7 +902,7 @@ async function executeNotificationNode(
     `${input.tableName}「${input.recordTitle}」で workflow が実行されました。`;
   const dedupeKey =
     renderWorkflowTemplate(getConfigString(config, "dedupeKey"), input) ||
-    `workflow:${workflow.id}:node:${node.id}:record:${input.recordId}`;
+    `workflow-run:${workflow.runId}:node:${node.id}`;
 
   await createNotificationsForUsers(
     user,
@@ -942,7 +916,8 @@ async function executeNotificationNode(
       body,
       href: `/run/${input.appCode}/${input.tableCode}?recordId=${input.recordId}`,
       dedupeKey,
-    }))
+    })),
+    transaction
   );
 
   await recordAuditLog(user, {
@@ -955,14 +930,15 @@ async function executeNotificationNode(
       recipientIds: recipients,
       title,
     },
-  });
+  }, transaction);
 }
 
 async function executeStatusUpdateNode(
   user: User,
   input: RunApprovalWorkflowInput,
   workflow: { id: string; name: string },
-  node: WorkflowDefinition["nodes"][number]
+  node: WorkflowDefinition["nodes"][number],
+  prisma: Prisma.TransactionClient
 ) {
   const nextStatus =
     getConfigString(node.data.config, "status") ??
@@ -972,7 +948,6 @@ async function executeStatusUpdateNode(
     return;
   }
 
-  const prisma = getPrismaClient();
   await prisma.appRecord.update({
     where: { id: input.recordId },
     data: {
@@ -1001,19 +976,24 @@ async function executeStatusUpdateNode(
       nodeId: node.id,
       status: nextStatus,
     },
-  });
+  }, prisma);
 }
 
 async function executeApiCallNode(
   user: User,
   input: RunApprovalWorkflowInput,
-  workflow: { id: string; name: string },
-  node: WorkflowDefinition["nodes"][number]
+  workflow: { id: string; name: string; runId: string },
+  node: WorkflowDefinition["nodes"][number],
+  transaction: Prisma.TransactionClient
 ) {
   const url = getConfigString(node.data.config, "url");
 
   if (!url) {
     return;
+  }
+  const allowedOrigins = (process.env.WORKFLOW_API_ALLOWED_ORIGINS ?? "").split(",").map((origin) => origin.trim()).filter(Boolean);
+  if (!allowedOrigins.includes(new URL(url).origin)) {
+    throw new WorkflowsServiceError("API送信先が許可されていません。管理者がWORKFLOW_API_ALLOWED_ORIGINSを設定してください。", 400);
   }
 
   const method = (
@@ -1025,9 +1005,9 @@ async function executeApiCallNode(
   try {
     const response = await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": `${workflow.runId}:${node.id}` },
       body:
-        method === "GET"
+        method === "GET" || method === "HEAD"
           ? undefined
           : JSON.stringify({
               workflowId: workflow.id,
@@ -1040,6 +1020,7 @@ async function executeApiCallNode(
               recordTitle: input.recordTitle,
             }),
       signal: controller.signal,
+      redirect: "manual",
     });
 
     if (!response.ok) {
@@ -1060,7 +1041,7 @@ async function executeApiCallNode(
         method,
         status: response.status,
       },
-    });
+    }, transaction);
   } finally {
     clearTimeout(timeout);
   }
@@ -1070,7 +1051,8 @@ async function executeAIActionNode(
   user: User,
   input: RunApprovalWorkflowInput,
   workflow: { id: string; name: string },
-  node: WorkflowDefinition["nodes"][number]
+  node: WorkflowDefinition["nodes"][number],
+  prisma: Prisma.TransactionClient
 ) {
   const action = getConfigString(node.data.config, "action") ?? "summarize";
 
@@ -1085,8 +1067,6 @@ async function executeAIActionNode(
     input.recordId,
     action
   );
-  const prisma = getPrismaClient();
-
   await prisma.recordComment.create({
     data: {
       id: crypto.randomUUID(),
@@ -1110,40 +1090,34 @@ async function executeAIActionNode(
       totalTokens: result.usage.totalTokens,
     },
     aiInvolvement: "assisted",
-  });
+  }, prisma);
 }
 
 async function executeWorkflowSideEffectNode(
   user: User,
   input: RunApprovalWorkflowInput,
-  workflow: { id: string; name: string },
-  node: WorkflowDefinition["nodes"][number]
+  workflow: { id: string; name: string; runId: string },
+  node: WorkflowDefinition["nodes"][number],
+  transaction: Prisma.TransactionClient
 ) {
-  try {
     if (node.data.nodeType === "notification") {
-      await executeNotificationNode(user, input, workflow, node);
+      await executeNotificationNode(user, input, workflow, node, transaction);
       return;
     }
 
     if (node.data.nodeType === "status_update") {
-      await executeStatusUpdateNode(user, input, workflow, node);
+      await executeStatusUpdateNode(user, input, workflow, node, transaction);
       return;
     }
 
     if (node.data.nodeType === "api_call") {
-      await executeApiCallNode(user, input, workflow, node);
+      await executeApiCallNode(user, input, workflow, node, transaction);
       return;
     }
 
     if (node.data.nodeType === "ai_action") {
-      await executeAIActionNode(user, input, workflow, node);
+      await executeAIActionNode(user, input, workflow, node, transaction);
     }
-  } catch (error) {
-    await recordWorkflowNodeFailure(user, workflow, node, error);
-    if (shouldFailWorkflowOnNodeError(node)) {
-      throw error;
-    }
-  }
 }
 
 async function getAppOrThrow(user: User, appId: string) {
@@ -1295,6 +1269,15 @@ async function createApprovalFromWorkflow(
     recordId: string;
     recordTitle?: string;
     workflowId?: string;
+    workflowRunId?: string;
+    workflowNodeId?: string;
+    setting?: {
+      id: string;
+      approvalMode: NonNullable<Approval["approvalMode"]>;
+      quorumCount: number | null;
+      postApprovalActionsJson: Prisma.JsonValue | null;
+    };
+    assignees?: Array<{ userId: string; sortOrder: number; required: boolean }>;
     approverId?: string;
     title: string;
     description?: string;
@@ -1302,9 +1285,11 @@ async function createApprovalFromWorkflow(
     approvedStatus?: string;
     rejectedStatus?: string;
     returnedStatus?: string;
-  }
+  },
+  prisma: Prisma.TransactionClient = getPrismaClient()
 ) {
-  const prisma = getPrismaClient();
+  const approver = await prisma.user.findFirst({ where: { id: input.approverId ?? user.id, tenantId: user.tenantId, status: "active" } });
+  if (!approver) throw new WorkflowsServiceError("有効な承認者が見つかりません。", 400);
   const approval = await prisma.approval.create({
     data: {
       id: crypto.randomUUID(),
@@ -1313,6 +1298,13 @@ async function createApprovalFromWorkflow(
       tableId: input.tableId,
       recordId: input.recordId,
       workflowId: input.workflowId,
+      workflowRunId: input.workflowRunId,
+      workflowNodeId: input.workflowNodeId,
+      appApprovalSettingId: input.setting?.id,
+      approvalMode: input.setting?.approvalMode,
+      quorumCount: input.setting?.quorumCount,
+      postApprovalActionsJson: input.setting?.postApprovalActionsJson ? workflowJson(input.setting.postApprovalActionsJson) : undefined,
+      assignees: input.assignees ? { create: input.assignees.map((assignee) => ({ ...assignee, tenantId: user.tenantId })) } : undefined,
       approverId: input.approverId ?? user.id,
       requestedById: user.id,
       title: input.title,
@@ -1337,14 +1329,15 @@ async function createApprovalFromWorkflow(
       workflowId: approval.workflowId,
       approverId: approval.approverId,
     },
-  });
+  }, prisma);
 
-  await createNotification(user, {
-    recipientId: approval.approverId,
+  const recipients = input.assignees?.length ? (input.setting?.approvalMode === "sequential" ? input.assignees.slice(0, 1) : input.assignees) : [{ userId: approval.approverId }];
+  await createNotificationsForUsers(user, recipients.map((recipient) => ({
+    recipientId: recipient.userId,
     actorId: user.id,
     appId: approval.appId,
     recordId: approval.recordId,
-    type: "approval",
+    type: "approval" as const,
     title: `承認依頼: ${approval.title}`,
     body:
       approval.description ??
@@ -1354,7 +1347,7 @@ async function createApprovalFromWorkflow(
         ? `/run/${input.appCode}/approvals`
         : undefined,
     dedupeKey: `approval:${approval.id}`,
-  });
+  })), prisma);
 
   return toApproval(approval);
 }
@@ -1369,9 +1362,9 @@ async function markRecordPendingApproval(
     approvalIds: string[];
     workflowIds: string[];
     pendingStatus: string;
-  }
+  },
+  prisma: Prisma.TransactionClient = getPrismaClient()
 ) {
-  const prisma = getPrismaClient();
   const updatedRecord = await prisma.appRecord.update({
     where: { id: input.recordId },
     data: {
@@ -1403,7 +1396,7 @@ async function markRecordPendingApproval(
       approvalIds: input.approvalIds,
       workflowIds: input.workflowIds,
     },
-  });
+  }, prisma);
 }
 
 export async function listWorkflowsForApp(user: User, appId: string) {
@@ -1451,6 +1444,8 @@ export async function createWorkflowForApp(
   const triggerType = assertWorkflowTriggerType(input.triggerType);
   const status = assertWorkflowStatus(input.status);
   const definition = normalizeWorkflowDefinition(input.definitionJson);
+  const validationErrors = validateWorkflowGraph(definition, { active: status === "active" });
+  if (validationErrors.length) throw new WorkflowsServiceError(validationErrors.join("\n"), 400);
   const prisma = getPrismaClient();
   const workflow = await prisma.workflow.create({
     data: {
@@ -1506,6 +1501,8 @@ export async function updateWorkflowForApp(
     input.definitionJson !== undefined
       ? normalizeWorkflowDefinition(input.definitionJson)
       : normalizeWorkflowDefinition(existingWorkflow.definitionJson);
+  const validationErrors = validateWorkflowGraph(nextDefinition, { active: nextStatus === "active" });
+  if (validationErrors.length) throw new WorkflowsServiceError(validationErrors.join("\n"), 400);
   const prisma = getPrismaClient();
   const workflow = await prisma.workflow.update({
     where: { id: existingWorkflow.id },
@@ -1619,6 +1616,7 @@ export async function runWorkflowForRecord(
     recordTitle: getRecordTitleFromData(record),
     triggerTypes: [workflow.triggerType],
     workflowIds: [workflow.id],
+    failOnError: true,
   });
 }
 
@@ -1662,96 +1660,86 @@ export async function runApprovalWorkflowsForRecord(
     throw new WorkflowsServiceError("Record not found", 404);
   }
 
-  const approvals: Approval[] = [];
-  const workflowIds: string[] = [];
-  let pendingStatus = DEFAULT_PENDING_APPROVAL_STATUS;
-
+  const runIds: string[] = [];
+  const eventKey = input.eventKey ?? crypto.randomUUID();
   for (const workflow of workflows) {
-    const nodes = getWorkflowNodes(workflow.definitionJson);
-    const conditionNodes = nodes.filter(
-      (node) => node.data.nodeType === "condition"
-    );
-    const conditionsMatched = conditionNodes.every((node) =>
-      conditionNodeMatches(node, record)
-    );
-
-    if (!conditionsMatched) {
-      await recordAuditLog(user, {
-        actionType: "WORKFLOW_CONDITION_SKIP",
-        resourceType: "workflow",
-        resourceId: workflow.id,
-        resourceName: workflow.name,
-        detailJson: {
-          appId: input.appId,
-          tableId: input.tableId,
-          recordId: input.recordId,
-        },
-      });
-      continue;
-    }
-
-    for (const node of nodes) {
-      if (node.data.nodeType !== "approval") {
-        await executeWorkflowSideEffectNode(user, input, workflow, node);
-        continue;
-      }
-
-      const existingPendingApproval = await prisma.approval.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          workflowId: workflow.id,
-          recordId: input.recordId,
-          status: "pending",
-        },
-        select: { id: true },
-      });
-
-      if (existingPendingApproval) {
-        continue;
-      }
-
-      const approvalConfig = getApprovalNodeConfig(node);
-
-      approvals.push(
-        await createApprovalFromWorkflow(user, {
-          appId: input.appId,
-          appCode: input.appCode,
-          tableId: input.tableId,
-          tableCode: input.tableCode,
-          recordId: input.recordId,
-          recordTitle: input.recordTitle,
-          workflowId: workflow.id,
-          approverId: approvalConfig.approverId,
-          title:
-            renderWorkflowTemplate(approvalConfig.titleTemplate, input) ||
-            `${input.recordTitle} approval`,
-          description:
-            approvalConfig.description ??
-            `Approval is required for this ${input.tableName} record.`,
-          pendingStatus: approvalConfig.pendingStatus,
-          approvedStatus: approvalConfig.approvedStatus,
-          rejectedStatus: approvalConfig.rejectedStatus,
-          returnedStatus: approvalConfig.returnedStatus,
-        })
-      );
-      workflowIds.push(workflow.id);
-      pendingStatus = approvalConfig.pendingStatus;
-    }
-  }
-
-  if (approvals.length > 0) {
-    await markRecordPendingApproval(user, {
-      appId: input.appId,
-      tableId: input.tableId,
-      recordId: input.recordId,
-      recordTitle: input.recordTitle,
-      approvalIds: approvals.map((approval) => approval.id),
-      workflowIds,
-      pendingStatus,
+    const definition = normalizeWorkflowDefinition(workflow.definitionJson);
+    const validationErrors = validateWorkflowGraph(definition, { active: true, legacy: true });
+    const entryId = workflowEntryId(definition);
+    const trigger = definition.nodes.find((node) => node.id === entryId)?.data.config;
+    if ((trigger?.tableId && trigger.tableId !== input.tableId) || (trigger?.tableCode && trigger.tableCode !== input.tableCode)) continue;
+    const run = await prisma.workflowRun.upsert({
+      where: { workflowId_eventKey: { workflowId: workflow.id, eventKey } },
+      update: {},
+      create: {
+        tenantId: user.tenantId, appId: input.appId, recordId: input.recordId,
+        workflowId: workflow.id, workflowName: workflow.name, actorId: user.id, eventKey,
+        definitionJson: workflowJson(definition), contextJson: workflowJson(input),
+        stateJson: workflowJson({ queue: entryId ? [entryId] : [], executions: [] }),
+        ...(validationErrors.length ? { status: "failed", error: validationErrors.join("\n"), finishedAt: new Date() } : {}),
+      },
     });
+    runIds.push(run.id);
+    await executeSavedWorkflowRun(user, run.id, executeGraphNode);
   }
+  if (!runIds.length) return [];
+  if (input.failOnError) {
+    const failed = await prisma.workflowRun.findFirst({ where: { id: { in: runIds }, tenantId: user.tenantId, status: "failed" } });
+    if (failed) throw new WorkflowsServiceError(`ワークフロー「${failed.workflowName}」が失敗しました: ${failed.error} (実行ID: ${failed.id})`, 422);
+  }
+  return (await prisma.approval.findMany({ where: { tenantId: user.tenantId, workflowRunId: { in: runIds } }, include: approvalInclude() })).map(toApproval);
+}
 
-  return approvals;
+const executeGraphNode: WorkflowNodeExecutor = async (user, input, workflow, node, transaction) => {
+  if (node.data.nodeType === "trigger") return;
+  const record = await transaction.appRecord.findFirst({ where: { id: input.recordId, tenantId: user.tenantId, appId: input.appId, tableId: input.tableId, deletedAt: null } });
+  if (!record) throw new WorkflowsServiceError("対象レコードが見つかりません。", 404);
+  if (node.data.nodeType === "condition") return { outcome: conditionNodeMatches(node, record) ? "yes" : "no" };
+  if (node.data.nodeType !== "approval") {
+    await executeWorkflowSideEffectNode(user, input, workflow, node, transaction);
+    return;
+  }
+  const policy = node.data.config?.policy;
+  const setting = policy === "override" ? null : await transaction.appApprovalSetting.findFirst({
+    where: { tenantId: user.tenantId, appId: input.appId, enabled: true },
+    include: { approvers: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] } },
+  });
+  if (policy === "app" && !setting) throw new WorkflowsServiceError("アプリの承認設定を有効にしてください。", 400);
+  if (setting?.targetTableId && setting.targetTableId !== input.tableId) throw new WorkflowsServiceError("アプリ承認設定の対象テーブルと一致しません。", 400);
+  const assignees = setting ? await resolveApproverUsers(user, setting, transaction) : undefined;
+  if (setting && !assignees?.length) throw new WorkflowsServiceError("アプリ承認設定に有効な承認者がいません。", 400);
+  const config = getApprovalNodeConfig(node);
+  const pendingStatus = setting?.pendingStatus ?? config.pendingStatus;
+  const approval = await createApprovalFromWorkflow(user, {
+    ...input, workflowId: workflow.sourceWorkflowId ?? undefined, workflowRunId: workflow.runId, workflowNodeId: node.id,
+    approverId: assignees?.[0]?.userId ?? config.approverId, setting: setting ?? undefined, assignees,
+    title: renderWorkflowTemplate(setting?.requestTitleTemplate ?? config.titleTemplate, input) || `${input.recordTitle} の承認`,
+    description: renderWorkflowTemplate(setting?.requestBodyTemplate ?? config.description, input),
+    pendingStatus, approvedStatus: setting?.approvedStatus ?? config.approvedStatus,
+    rejectedStatus: setting?.rejectedStatus ?? config.rejectedStatus, returnedStatus: setting?.returnedStatus ?? config.returnedStatus,
+  }, transaction);
+  await markRecordPendingApproval(user, { ...input, approvalIds: [approval.id], workflowIds: [workflow.id], pendingStatus }, transaction);
+  return { approvalId: approval.id };
+};
+
+export async function listWorkflowRunsForApp(user: User, appId: string, workflowId?: string) {
+  await getAppOrThrow(user, appId);
+  await requirePermission(user, "workflow:read", { appId });
+  const runs = await getPrismaClient().workflowRun.findMany({
+    where: { tenantId: user.tenantId, appId, ...(workflowId ? { workflowId } : {}) },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100,
+  });
+  return runs.map(toWorkflowRun);
+}
+
+export async function resumeWorkflowRun(user: User, appId: string, runId: string) {
+  await requirePermission(user, "workflow:manage", { appId });
+  const prisma = getPrismaClient();
+  const run = await prisma.workflowRun.findFirst({ where: { id: runId, tenantId: user.tenantId, appId } });
+  if (!run) throw new WorkflowsServiceError("ワークフロー実行が見つかりません。", 404);
+  if (!["ready", "waiting"].includes(run.status)) throw new WorkflowsServiceError("開始待ち・承認待ちの実行のみ再開できます。", 409);
+  await executeSavedWorkflowRun(user, run.id, executeGraphNode);
+  return toWorkflowRun(await prisma.workflowRun.findUniqueOrThrow({ where: { id: run.id } }));
 }
 
 export async function createApprovalForRecord(
@@ -1898,255 +1886,95 @@ export async function updateApprovalDecision(
   input: UpdateApprovalDecisionInput
 ) {
   await ensureDemoBuilderData();
-  await requirePermission(user, "approval:manage");
   const status = assertApprovalDecisionStatus(input.status);
-  const prisma = getPrismaClient();
-  const existingApproval = await prisma.approval.findFirst({
-    where: {
-      id: assertNonEmpty(approvalId, "Approval id"),
-      tenantId: user.tenantId,
-    },
-    include: {
-      record: { select: { id: true, status: true, dataJson: true } },
-      workflow: { select: { id: true, name: true, definitionJson: true } },
-      appApprovalSetting: { select: { quorumCount: true } },
-      assignees: {
-        include: { user: { select: { name: true, email: true } } },
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  const commentText = typeof input.commentText === "string" ? input.commentText.trim() || undefined : undefined;
+  if (commentText && commentText.length > 10000) throw new WorkflowsServiceError("コメントは10000文字までです。", 400);
+  const decided = await getPrismaClient().$transaction(async (transaction) => {
+    await transaction.$queryRaw`SELECT approval.id FROM approvals AS approval
+      JOIN app_records AS record ON record.id = approval.record_id
+      WHERE approval.id = ${assertNonEmpty(approvalId, "Approval id")} AND approval.tenant_id = ${user.tenantId}
+      AND record.deleted_at IS NULL FOR UPDATE OF approval, record`;
+    const approval = await transaction.approval.findFirst({
+      where: { id: approvalId, tenantId: user.tenantId, record: { deletedAt: null } },
+      include: {
+        record: { select: { id: true, status: true, dataJson: true } },
+        workflow: { select: { definitionJson: true } },
+        appApprovalSetting: { select: { quorumCount: true } },
+        assignees: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }] },
       },
-    },
-  });
-
-  if (!existingApproval) {
-    throw new WorkflowsServiceError("Approval not found", 404);
-  }
-
-  if (existingApproval.status !== "pending") {
-    throw new WorkflowsServiceError("Approval has already been decided", 409);
-  }
-
-  const commentText = input.commentText?.trim() || undefined;
-  const approvalNode = existingApproval.workflow
-    ? findApprovalNode(existingApproval.workflow.definitionJson)
-    : undefined;
-  const approvalConfig = getApprovalNodeConfig(approvalNode);
-  const activeAssignees = (existingApproval.assignees ?? []).filter(
-    (assignee) => assignee.active
-  );
-
-  if (activeAssignees.length > 0) {
-    const targetAssignee = getTargetAssignee(
-      activeAssignees,
-      user.id,
-      existingApproval.approvalMode
-    );
-
-    if (!targetAssignee) {
-      throw new WorkflowsServiceError("No pending approval assignee was found", 409);
+    });
+    if (!approval) throw new WorkflowsServiceError("Approval not found", 404);
+    await requirePermission(user, "approval:manage", { appId: approval.appId, tableId: approval.tableId });
+    if (approval.status !== "pending") throw new WorkflowsServiceError("Approval has already been decided", 409);
+    const activeAssignees = approval.assignees.filter((assignee) => assignee.active);
+    const targetAssignee = activeAssignees.length ? getTargetAssignee(activeAssignees, user.id, approval.approvalMode) : undefined;
+    if ((activeAssignees.length && !targetAssignee) || (!activeAssignees.length && approval.approverId !== user.id)) {
+      throw new WorkflowsServiceError("この申請の承認者ではないか、既に判断済みです。", 403);
     }
-
-    const nextAssignees = activeAssignees.map((assignee) =>
-      assignee.id === targetAssignee.id ? { ...assignee, status } : assignee
-    );
-    const finalStatus = getFinalApprovalStatus(
-      status,
-      nextAssignees,
-      existingApproval.approvalMode,
-      existingApproval.appApprovalSetting?.quorumCount
-    );
-
-    if (finalStatus === "pending") {
-      const steppedApproval = await prisma.$transaction(async (tx) => {
-        await tx.approvalAssignee.update({
-          where: { id: targetAssignee.id },
-          data: {
-            status,
-            commentText,
-            actedAt: new Date(),
-          },
-        });
-
-        await tx.recordComment.create({
-          data: {
-            id: crypto.randomUUID(),
-            tenantId: user.tenantId,
-            recordId: existingApproval.recordId,
-            commentText: buildStepDecisionComment(status, commentText),
-            createdById: user.id,
-            isSystem: true,
-          },
-        });
-
-        return tx.approval.findUniqueOrThrow({
-          where: { id: existingApproval.id },
-          include: approvalInclude(),
-        });
-      });
-
-      await recordAuditLog(user, {
-        actionType: getApprovalStepAuditAction(status),
-        resourceType: "approval",
-        resourceId: steppedApproval.id,
-        resourceName: steppedApproval.title,
-        detailJson: {
-          appId: steppedApproval.appId,
-          tableId: steppedApproval.tableId,
-          recordId: steppedApproval.recordId,
-          workflowId: steppedApproval.workflowId,
-          appApprovalSettingId: steppedApproval.appApprovalSettingId,
-          assigneeId: targetAssignee.id,
-          status,
-          finalStatus,
-          commentText,
-        },
-      });
-
-      return toApproval(steppedApproval);
-    }
-
-    const nextRecordStatus = getNextRecordStatus(
-      existingApproval,
-      finalStatus,
-      approvalConfig
-    );
-    const recordUpdate = getRecordUpdateForApprovalDecision(
-      existingApproval.record,
-      finalStatus,
-      nextRecordStatus,
-      existingApproval.postApprovalActionsJson
-    );
-    const decidedApproval = await prisma.$transaction(async (tx) => {
-      await tx.approvalAssignee.update({
-        where: { id: targetAssignee.id },
-        data: {
-          status,
-          commentText,
-          actedAt: new Date(),
-        },
-      });
-
-      const updatedApproval = await tx.approval.update({
-        where: { id: existingApproval.id },
-        data: {
-          status: finalStatus,
-          commentText,
-          actedById: user.id,
-          actedAt: new Date(),
-        },
-        include: approvalInclude(),
-      });
-
-      await tx.appRecord.update({
-        where: { id: existingApproval.recordId },
-        data: {
-          ...recordUpdate,
-          updatedById: user.id,
-        },
-      });
-
-      await tx.recordComment.create({
-        data: {
-          id: crypto.randomUUID(),
-          tenantId: user.tenantId,
-          recordId: existingApproval.recordId,
-          commentText: buildDecisionComment(
-            finalStatus,
-            recordUpdate.status,
-            commentText
-          ),
-          createdById: user.id,
-          isSystem: true,
-        },
-      });
-
-      return updatedApproval;
+    const nextAssignees = activeAssignees.map((assignee) => assignee.id === targetAssignee?.id ? { ...assignee, status } : assignee);
+    const finalStatus = activeAssignees.length
+      ? getFinalApprovalStatus(status, nextAssignees, approval.approvalMode, approval.quorumCount ?? approval.appApprovalSetting?.quorumCount)
+      : status;
+    if (targetAssignee) await transaction.approvalAssignee.update({
+      where: { id: targetAssignee.id }, data: { status, commentText, actedAt: new Date() },
     });
 
+    let recordUpdate: ReturnType<typeof getRecordUpdateForApprovalDecision> | undefined;
+    if (finalStatus !== "pending") {
+      const node = approval.workflow
+        ? normalizeWorkflowDefinition(approval.workflow.definitionJson).nodes.find((candidate) => approval.workflowNodeId ? candidate.id === approval.workflowNodeId : candidate.data.nodeType === "approval")
+        : undefined;
+      const nextStatus = getNextRecordStatus(approval, finalStatus, getApprovalNodeConfig(node));
+      recordUpdate = getRecordUpdateForApprovalDecision(approval.record, finalStatus, nextStatus, approval.postApprovalActionsJson);
+      await transaction.approval.update({
+        where: { id: approval.id },
+        data: { status: finalStatus, commentText, actedById: user.id, actedAt: new Date() },
+      });
+      await transaction.appRecord.update({ where: { id: approval.recordId }, data: { ...recordUpdate, updatedById: user.id } });
+      if (activeAssignees.length) await transaction.approvalAssignee.updateMany({
+        where: { approvalId: approval.id, status: "pending" }, data: { active: false },
+      });
+      await createNotification(user, {
+        recipientId: approval.requestedById, actorId: user.id, appId: approval.appId,
+        recordId: approval.recordId, type: "approval", title: `承認結果: ${approval.title}`,
+        body: buildDecisionComment(finalStatus, recordUpdate.status, commentText),
+        dedupeKey: `approval:${approval.id}:decision`,
+      }, transaction);
+    } else if (approval.approvalMode === "sequential") {
+      const nextAssignee = nextAssignees.find((assignee) => assignee.status === "pending");
+      if (nextAssignee) await createNotification(user, {
+        recipientId: nextAssignee.userId, actorId: user.id, appId: approval.appId,
+        recordId: approval.recordId, type: "approval", title: `承認依頼: ${approval.title}`,
+        body: "前の承認ステップが完了しました。内容を確認してください。",
+        dedupeKey: `approval:${approval.id}:step:${nextAssignee.id}`,
+      }, transaction);
+    }
+    await transaction.recordComment.create({
+      data: {
+        id: crypto.randomUUID(), tenantId: user.tenantId, recordId: approval.recordId,
+        commentText: finalStatus === "pending" ? buildStepDecisionComment(status, commentText) : buildDecisionComment(finalStatus, recordUpdate!.status, commentText),
+        createdById: user.id, isSystem: true,
+      },
+    });
     await recordAuditLog(user, {
-      actionType: getApprovalAuditAction(finalStatus),
-      resourceType: "approval",
-      resourceId: decidedApproval.id,
-      resourceName: decidedApproval.title,
+      actionType: finalStatus === "pending" ? getApprovalStepAuditAction(status) : getApprovalAuditAction(finalStatus),
+      resourceType: "approval", resourceId: approval.id, resourceName: approval.title,
       detailJson: {
-        appId: decidedApproval.appId,
-        tableId: decidedApproval.tableId,
-        recordId: decidedApproval.recordId,
-        workflowId: decidedApproval.workflowId,
-        appApprovalSettingId: decidedApproval.appApprovalSettingId,
-        status: finalStatus,
-        assigneeStatus: status,
-        recordStatusBefore: existingApproval.record?.status,
-        recordStatusAfter: recordUpdate.status,
-        commentText,
+        appId: approval.appId, tableId: approval.tableId, recordId: approval.recordId,
+        workflowId: approval.workflowId, workflowRunId: approval.workflowRunId,
+        workflowNodeId: approval.workflowNodeId, appApprovalSettingId: approval.appApprovalSettingId,
+        assigneeId: targetAssignee?.id, status, finalStatus, commentText,
+        recordStatusBefore: approval.record.status, recordStatusAfter: recordUpdate?.status,
+        dataBefore: recordUpdate?.dataJson ? approval.record.dataJson : undefined,
+        dataAfter: recordUpdate?.dataJson,
       },
-    });
-
-    return toApproval(decidedApproval);
+    }, transaction);
+    return toApproval(await transaction.approval.findUniqueOrThrow({ where: { id: approval.id }, include: approvalInclude() }));
+  }, { timeout: 15000 });
+  if (decided.status !== "pending" && decided.workflowRunId) {
+    await executeSavedWorkflowRun(user, decided.workflowRunId, executeGraphNode);
   }
-
-  const nextRecordStatus = getNextRecordStatus(
-    existingApproval,
-    status,
-    approvalConfig
-  );
-  const recordUpdate = getRecordUpdateForApprovalDecision(
-    existingApproval.record,
-    status,
-    nextRecordStatus,
-    existingApproval.postApprovalActionsJson
-  );
-  const decidedApproval = await prisma.$transaction(async (tx) => {
-    const updatedApproval = await tx.approval.update({
-      where: { id: existingApproval.id },
-      data: {
-        status,
-        commentText,
-        actedById: user.id,
-        actedAt: new Date(),
-      },
-      include: approvalInclude(),
-    });
-
-    await tx.appRecord.update({
-      where: { id: existingApproval.recordId },
-      data: {
-        ...recordUpdate,
-        updatedById: user.id,
-      },
-    });
-
-    await tx.recordComment.create({
-      data: {
-        id: crypto.randomUUID(),
-        tenantId: user.tenantId,
-        recordId: existingApproval.recordId,
-        commentText: buildDecisionComment(status, recordUpdate.status, commentText),
-        createdById: user.id,
-        isSystem: true,
-      },
-    });
-
-    return updatedApproval;
-  });
-
-  await recordAuditLog(user, {
-    actionType: getApprovalAuditAction(status),
-    resourceType: "approval",
-    resourceId: decidedApproval.id,
-    resourceName: decidedApproval.title,
-    detailJson: {
-      appId: decidedApproval.appId,
-      tableId: decidedApproval.tableId,
-      recordId: decidedApproval.recordId,
-      workflowId: decidedApproval.workflowId,
-      status,
-      recordStatusBefore: existingApproval.record?.status,
-      recordStatusAfter: recordUpdate.status,
-      commentText,
-    },
-  });
-
-  return toApproval(decidedApproval);
+  return decided;
 }
 
 export {

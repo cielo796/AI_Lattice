@@ -65,8 +65,8 @@ export default function RuntimeApprovalsPage({ params }: { params: Promise<{ app
   async function decide(status: "approved" | "rejected" | "returned") {
     if (!selected) return;
     try {
-      const updated = await updateApprovalDecision(selected.id, { status, commentText });
-      setApprovals((current) => current.map((item) => item.id === updated.id ? updated : item).filter((item) => filter === "all" || item.status === filter));
+      await updateApprovalDecision(selected.id, { status, commentText });
+      await load(filter);
       setCommentText("");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "承認処理に失敗しました。");

@@ -8,6 +8,7 @@ interface AuthResponse {
 interface LoginInput {
   email: string;
   password: string;
+  tenantCode?: string;
 }
 
 export async function login(input: LoginInput) {

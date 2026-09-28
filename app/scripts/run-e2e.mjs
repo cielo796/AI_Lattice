@@ -127,6 +127,11 @@ const serverWorkspace = createServerWorkspace();
 if (serverWorkspace.cwd !== projectRoot) {
   console.log(`Staged E2E server workspace at ${serverWorkspace.cwd}`);
 }
+await new Promise((resolve, reject) => {
+  const generator = spawnNode(["node_modules/prisma/build/index.js", "generate"], { cwd: serverWorkspace.cwd });
+  generator.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`Prisma generation failed (${code}).`)));
+  generator.once("error", reject);
+});
 const server = spawnNode([
   "node_modules/next/dist/bin/next",
   "dev",

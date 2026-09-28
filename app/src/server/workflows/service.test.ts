@@ -1,419 +1,118 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  DEFAULT_WORKFLOW_DEFINITION,
-  listWorkflowsForApp,
-  runApprovalWorkflowsForRecord,
-  updateApprovalDecision,
-} from "@/server/workflows/service";
+import { DEFAULT_WORKFLOW_DEFINITION, createWorkflowForApp, listWorkflowsForApp, runApprovalWorkflowsForRecord, updateApprovalDecision } from "./service";
 import type { User } from "@/types/user";
 
-const {
-  getPrismaClient,
-  recordAuditFailure,
-  recordAuditLog,
-  ensureDemoBuilderData,
-} = vi.hoisted(() => ({
-    getPrismaClient: vi.fn(),
-    recordAuditFailure: vi.fn(),
-    recordAuditLog: vi.fn(),
-    ensureDemoBuilderData: vi.fn().mockResolvedValue(undefined),
-  }));
-
-vi.mock("@/server/db/prisma", () => ({
-  getPrismaClient,
+const mocks = vi.hoisted(() => ({
+  getPrismaClient: vi.fn(), requirePermission: vi.fn(),
+  recordAuditLog: vi.fn(), recordAuditFailure: vi.fn(), executeSavedWorkflowRun: vi.fn(),
+}));
+vi.mock("@/server/db/prisma", () => ({ getPrismaClient: mocks.getPrismaClient }));
+vi.mock("@/server/admin/rbac", () => ({ requirePermission: mocks.requirePermission }));
+vi.mock("@/server/audit/service", () => ({ recordAuditLog: mocks.recordAuditLog, recordAuditFailure: mocks.recordAuditFailure }));
+vi.mock("@/server/apps/bootstrap", () => ({ ensureDemoBuilderData: vi.fn() }));
+vi.mock("@/server/notifications/service", () => ({
+  createNotification: vi.fn(), createNotificationsForUsers: vi.fn(), listWorkflowNotificationRecipients: vi.fn(),
+}));
+vi.mock("./execution", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./execution")>(), executeSavedWorkflowRun: mocks.executeSavedWorkflowRun,
 }));
 
-vi.mock("@/server/audit/service", () => ({
-  recordAuditFailure,
-  recordAuditLog,
-}));
-
-vi.mock("@/server/apps/bootstrap", () => ({
-  ensureDemoBuilderData,
-}));
-
-const user: User = {
-  id: "user_1",
-  tenantId: "tenant_1",
-  email: "owner@example.com",
-  name: "Owner",
-  status: "active",
-  createdAt: "2026-04-24T00:00:00.000Z",
+const user: User = { id: "user_1", tenantId: "tenant_1", name: "Owner", email: "owner@example.com", status: "active", createdAt: "2026-04-24T00:00:00Z" };
+const workflow = {
+  id: "wf_1", tenantId: user.tenantId, appId: "app_1", name: "承認",
+  triggerType: "update", status: "active", definitionJson: DEFAULT_WORKFLOW_DEFINITION,
+  createdById: user.id, createdAt: new Date(), updatedAt: new Date(), _count: { approvals: 0 },
+};
+const input = {
+  appId: "app_1", appCode: "requests", tableId: "table_1", tableCode: "requests", tableName: "申請",
+  recordId: "record_1", recordTitle: "申請", triggerTypes: ["update" as const], eventKey: "event_1",
 };
 
-const workflowRecord = {
-  id: "wf_1",
-  tenantId: "tenant_1",
-  appId: "app_1",
-  name: "標準承認フロー",
-  triggerType: "update" as const,
-  status: "active" as const,
-  definitionJson: DEFAULT_WORKFLOW_DEFINITION,
-  createdById: "user_1",
-  createdAt: new Date("2026-05-13T00:00:00.000Z"),
-  updatedAt: new Date("2026-05-13T00:00:00.000Z"),
-  _count: { approvals: 0 },
-};
-
-function approvalRecord(overrides: Record<string, unknown> = {}) {
+function approvalFixture(overrides: Record<string, unknown> = {}) {
   return {
-    id: "appr_1",
-    tenantId: "tenant_1",
-    appId: "app_1",
-    tableId: "tbl_1",
-    recordId: "rec_1",
-    workflowId: "wf_1",
-    approverId: "user_1",
-    requestedById: "user_1",
-    actedById: null,
-    status: "pending",
-    title: "問い合わせの承認",
-    description: "承認が必要です。",
-    commentText: null,
-    actedAt: null,
-    createdAt: new Date("2026-05-13T00:00:00.000Z"),
-    updatedAt: new Date("2026-05-13T00:00:00.000Z"),
-    app: { name: "Support Desk" },
-    table: { name: "Tickets" },
-    workflow: { name: "標準承認フロー" },
-    record: {
-      id: "rec_1",
-      dataJson: { title: "問い合わせ" },
-    },
-    requestedBy: { name: "Owner", email: "owner@example.com" },
-    approver: { name: "Owner", email: "owner@example.com" },
-    actedBy: null,
-    ...overrides,
+    id: "approval_1", tenantId: user.tenantId, appId: "app_1", tableId: "table_1", recordId: "record_1",
+    workflowId: null, workflowRunId: null, workflowNodeId: null, appApprovalSettingId: null,
+    approverId: user.id, requestedById: user.id, actedById: null, status: "pending", title: "申請",
+    description: null, commentText: null, actedAt: null, createdAt: new Date(), updatedAt: new Date(),
+    approvedStatus: "ready_to_publish", record: { id: "record_1", status: "pending", dataJson: { title: "申請" } },
+    workflow: null, assignees: [], ...overrides,
   };
 }
 
 describe("workflows service", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    ensureDemoBuilderData.mockResolvedValue(undefined);
+  beforeEach(() => { vi.clearAllMocks(); mocks.requirePermission.mockResolvedValue(undefined); });
+
+  it("creates the compatible default definition for an app without workflows", async () => {
+    const prisma = {
+      app: { findFirst: vi.fn().mockResolvedValue({ id: "app_1" }) },
+      workflow: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue(workflow), findMany: vi.fn().mockResolvedValue([workflow]) },
+      approval: { count: vi.fn().mockResolvedValue(0) },
+    };
+    mocks.getPrismaClient.mockReturnValue(prisma);
+    expect(await listWorkflowsForApp(user, "app_1")).toEqual([expect.objectContaining({ id: workflow.id, pendingApprovalCount: 0 })]);
+    expect(prisma.workflow.create).toHaveBeenCalledWith({ data: expect.objectContaining({ definitionJson: DEFAULT_WORKFLOW_DEFINITION }) });
   });
 
-  it("creates a default workflow when an app has none", async () => {
+  it("persists an event-scoped immutable graph before dispatching, rather than running array order", async () => {
     const prisma = {
-      app: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "app_1",
-          tenantId: "tenant_1",
-          code: "support-desk",
-        }),
-      },
-      workflow: {
-        findFirst: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockResolvedValue(workflowRecord),
-        findMany: vi.fn().mockResolvedValue([workflowRecord]),
-      },
-      approval: {
-        count: vi.fn().mockResolvedValue(0),
-      },
+      workflow: { findMany: vi.fn().mockResolvedValue([workflow]) },
+      appRecord: { findFirst: vi.fn().mockResolvedValue({ id: input.recordId, status: "draft", dataJson: {} }) },
+      workflowRun: { upsert: vi.fn().mockResolvedValue({ id: "run_1" }) },
+      approval: { findMany: vi.fn().mockResolvedValue([]) },
     };
-
-    getPrismaClient.mockReturnValue(prisma);
-
-    const workflows = await listWorkflowsForApp(user, "app_1");
-
-    expect(prisma.workflow.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        appId: "app_1",
-        status: "active",
-        triggerType: "update",
-      }),
-    });
-    expect(workflows).toEqual([
-      expect.objectContaining({
-        id: "wf_1",
-        name: "標準承認フロー",
-        pendingApprovalCount: 0,
-      }),
-    ]);
+    mocks.getPrismaClient.mockReturnValue(prisma);
+    await runApprovalWorkflowsForRecord(user, input);
+    expect(prisma.workflowRun.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { workflowId_eventKey: { workflowId: workflow.id, eventKey: "event_1" } },
+      update: {},
+      create: expect.objectContaining({ actorId: user.id, definitionJson: expect.objectContaining({ edges: DEFAULT_WORKFLOW_DEFINITION.edges }), stateJson: { queue: ["wf-node-1"], executions: [] } }),
+    }));
+    expect(mocks.executeSavedWorkflowRun).toHaveBeenCalledWith(user, "run_1", expect.any(Function));
   });
 
-  it("creates pending approvals for active workflows with approval nodes", async () => {
+  it("rejects activation of a cyclic graph before writing", async () => {
     const prisma = {
-      user: {
-        findFirst: vi.fn().mockResolvedValue({ id: "user_1" }),
-      },
-      workflow: {
-        findMany: vi.fn().mockResolvedValue([workflowRecord]),
-      },
-      approval: {
-        findFirst: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockResolvedValue(approvalRecord()),
-      },
-      appRecord: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "rec_1",
-          status: "active",
-          dataJson: { title: "問い合わせ" },
-        }),
-        update: vi.fn().mockResolvedValue({
-          id: "rec_1",
-          status: "pending_approval",
-        }),
-      },
-      notification: {
-        findFirst: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockResolvedValue({
-          id: "notification_1",
-          tenantId: "tenant_1",
-          recipientId: "user_1",
-          actorId: "user_1",
-          appId: "app_1",
-          recordId: "rec_1",
-          type: "workflow",
-          title: "Notify stakeholders",
-          body: "Notify related users after the approval decision.",
-          href: "/run/support-desk/tickets?recordId=rec_1",
-          dedupeKey: null,
-          deliveryStatus: "sent",
-          deliveryError: null,
-          deliveredAt: new Date("2026-05-13T00:00:00.000Z"),
-          readAt: null,
-          archivedAt: null,
-          deletedAt: null,
-          createdAt: new Date("2026-05-13T00:00:00.000Z"),
-          actor: { name: "Owner", email: "owner@example.com" },
-          app: { name: "Support Desk" },
-        }),
-      },
-      recordComment: {
-        create: vi.fn().mockResolvedValue({ id: "comment_1" }),
-      },
+      app: { findFirst: vi.fn().mockResolvedValue({ id: "app_1" }) },
+      workflow: { create: vi.fn() },
     };
-
-    getPrismaClient.mockReturnValue(prisma);
-
-    const approvals = await runApprovalWorkflowsForRecord(user, {
-      appId: "app_1",
-      appCode: "support-desk",
-      tableId: "tbl_1",
-      tableCode: "tickets",
-      tableName: "Tickets",
-      recordId: "rec_1",
-      recordTitle: "問い合わせ",
-      triggerTypes: ["update"],
-    });
-
-    expect(prisma.workflow.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          status: "active",
-          triggerType: { in: ["update"] },
-        }),
-      })
-    );
-    expect(prisma.approval.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          workflowId: "wf_1",
-          recordId: "rec_1",
-        }),
-      })
-    );
-    expect(prisma.appRecord.update).toHaveBeenCalledWith({
-      where: { id: "rec_1" },
-      data: {
-        status: "pending_approval",
-        updatedById: "user_1",
-      },
-    });
-    expect(prisma.recordComment.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          recordId: "rec_1",
-          isSystem: true,
-        }),
-      })
-    );
-    expect(prisma.notification.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          recipientId: "user_1",
-          type: "approval",
-          dedupeKey: "approval:appr_1",
-        }),
-      })
-    );
-    expect(approvals[0]).toEqual(
-      expect.objectContaining({
-        id: "appr_1",
-        status: "pending",
-        recordTitle: "問い合わせ",
-      })
-    );
-    expect(recordAuditLog).toHaveBeenCalledWith(
-      user,
-      expect.objectContaining({ actionType: "APPROVAL_CREATE" })
-    );
+    mocks.getPrismaClient.mockReturnValue(prisma);
+    const definition = structuredClone(DEFAULT_WORKFLOW_DEFINITION);
+    definition.edges.push({ id: "cycle", source: "wf-node-3", target: "wf-node-2" });
+    await expect(createWorkflowForApp(user, "app_1", { name: "Bad graph", status: "active", definitionJson: definition })).rejects.toMatchObject({ status: 400 });
+    expect(prisma.workflow.create).not.toHaveBeenCalled();
   });
 
-  it("executes status update workflow nodes without approvals", async () => {
-    const statusWorkflow = {
-      ...workflowRecord,
-      id: "wf_status",
-      definitionJson: {
-        nodes: [
-          {
-            id: "trigger",
-            type: "triggerNode",
-            data: { label: "Updated", nodeType: "trigger" as const },
-          },
-          {
-            id: "status",
-            type: "notificationNode",
-            data: {
-              label: "Move to triage",
-              nodeType: "status_update" as const,
-              config: { status: "triage" },
-            },
-          },
-        ],
-        edges: [{ id: "edge", source: "trigger", target: "status" }],
-      },
+  it("updates legacy approval, record, comment and audit inside one locked transaction", async () => {
+    const approved = approvalFixture({ status: "approved", actedById: user.id });
+    const transaction = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: "approval_1" }]),
+      approval: { findFirst: vi.fn().mockResolvedValue(approvalFixture()), update: vi.fn(), findUniqueOrThrow: vi.fn().mockResolvedValue(approved) },
+      appRecord: { update: vi.fn() }, recordComment: { create: vi.fn() },
     };
-    const prisma = {
-      workflow: {
-        findMany: vi.fn().mockResolvedValue([statusWorkflow]),
-      },
-      approval: {
-        findFirst: vi.fn(),
-        create: vi.fn(),
-      },
-      appRecord: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "rec_1",
-          status: "active",
-          dataJson: { title: "問い合わせ" },
-        }),
-        update: vi.fn().mockResolvedValue({
-          id: "rec_1",
-          status: "triage",
-        }),
-      },
-      recordComment: {
-        create: vi.fn().mockResolvedValue({ id: "comment_1" }),
-      },
-    };
-
-    getPrismaClient.mockReturnValue(prisma);
-
-    const approvals = await runApprovalWorkflowsForRecord(user, {
-      appId: "app_1",
-      appCode: "support-desk",
-      tableId: "tbl_1",
-      tableCode: "tickets",
-      tableName: "Tickets",
-      recordId: "rec_1",
-      recordTitle: "問い合わせ",
-      triggerTypes: ["update"],
-    });
-
-    expect(approvals).toEqual([]);
-    expect(prisma.appRecord.update).toHaveBeenCalledWith({
-      where: { id: "rec_1" },
-      data: {
-        status: "triage",
-        updatedById: "user_1",
-      },
-    });
-    expect(recordAuditLog).toHaveBeenCalledWith(
-      user,
-      expect.objectContaining({ actionType: "WORKFLOW_STATUS_UPDATE" })
-    );
+    const prisma = { $transaction: vi.fn(async (action) => action(transaction)) };
+    mocks.getPrismaClient.mockReturnValue(prisma);
+    expect(await updateApprovalDecision(user, "approval_1", { status: "approved", commentText: "確認済み" })).toMatchObject({ status: "approved" });
+    expect(transaction.$queryRaw).toHaveBeenCalledOnce();
+    expect(transaction.appRecord.update).toHaveBeenCalledWith({ where: { id: "record_1" }, data: { status: "ready_to_publish", updatedById: user.id } });
+    expect(mocks.requirePermission).toHaveBeenCalledWith(user, "approval:manage", { appId: "app_1", tableId: "table_1" });
+    expect(mocks.recordAuditLog).toHaveBeenCalledWith(user, expect.objectContaining({ actionType: "APPROVAL_APPROVE" }), transaction);
+    expect(mocks.executeSavedWorkflowRun).not.toHaveBeenCalled();
   });
 
-  it("updates approval decision and record status together", async () => {
-    const definitionWithCustomStatuses = {
-      ...DEFAULT_WORKFLOW_DEFINITION,
-      nodes: DEFAULT_WORKFLOW_DEFINITION.nodes.map((node) =>
-        node.data.nodeType === "approval"
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                config: {
-                  ...node.data.config,
-                  approvedStatus: "ready_to_publish",
-                  rejectedStatus: "changes_requested",
-                },
-              },
-            }
-          : node
-      ),
+  it.each([
+    [{ approverId: "someone_else" }, 403],
+    [{ status: "approved" }, 409],
+    [{ assignees: [{ id: "other", userId: "someone_else", active: true, status: "pending", sortOrder: 0, required: true }] }, 403],
+    [{ approvalMode: "sequential", assignees: [
+      { id: "first", userId: "someone_else", active: true, status: "pending", sortOrder: 0, required: true },
+      { id: "second", userId: user.id, active: true, status: "pending", sortOrder: 1, required: true },
+    ] }, 409],
+  ])("rejects unauthorized, already decided and out-of-order judgments", async (overrides, status) => {
+    const transaction = {
+      $queryRaw: vi.fn(), approval: { findFirst: vi.fn().mockResolvedValue(approvalFixture(overrides)), update: vi.fn() },
     };
-    const approvedApproval = approvalRecord({
-      status: "approved",
-      commentText: "確認しました。",
-      actedById: "user_1",
-      actedAt: new Date("2026-05-13T01:00:00.000Z"),
-      actedBy: { name: "Owner", email: "owner@example.com" },
-    });
-    const tx = {
-      approval: {
-        update: vi.fn().mockResolvedValue(approvedApproval),
-      },
-      appRecord: {
-        update: vi.fn().mockResolvedValue({ id: "rec_1" }),
-      },
-      recordComment: {
-        create: vi.fn().mockResolvedValue({ id: "comment_1" }),
-      },
-    };
-    const prisma = {
-      approval: {
-        findFirst: vi.fn().mockResolvedValue(
-          approvalRecord({
-            record: {
-              id: "rec_1",
-              status: "pending_approval",
-              dataJson: { title: "問い合わせ" },
-            },
-            workflow: {
-              id: "wf_1",
-              name: "Default approval workflow",
-              definitionJson: definitionWithCustomStatuses,
-            },
-          })
-        ),
-      },
-      $transaction: vi.fn(async (callback) => callback(tx)),
-    };
-
-    getPrismaClient.mockReturnValue(prisma);
-
-    const approval = await updateApprovalDecision(user, "appr_1", {
-      status: "approved",
-      commentText: "確認しました。",
-    });
-
-    expect(tx.approval.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: "approved",
-          commentText: "確認しました。",
-          actedById: "user_1",
-        }),
-      })
-    );
-    expect(tx.appRecord.update).toHaveBeenCalledWith({
-      where: { id: "rec_1" },
-      data: {
-        status: "ready_to_publish",
-        updatedById: "user_1",
-      },
-    });
-    expect(tx.recordComment.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          recordId: "rec_1",
-          isSystem: true,
-        }),
-      })
-    );
-    expect(approval.status).toBe("approved");
+    mocks.getPrismaClient.mockReturnValue({ $transaction: vi.fn(async (action) => action(transaction)) });
+    await expect(updateApprovalDecision(user, "approval_1", { status: "approved" })).rejects.toMatchObject({ status });
+    expect(transaction.approval.update).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,8 @@
 import { AppsServiceError } from "@/server/apps/service";
+import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/server/admin/rbac";
+import { hashPassword } from "@/server/auth/crypto";
+import { validateDisplayName, validateEmail, validateNewPassword } from "@/server/auth/validation";
 import { ensureDemoAuthData } from "@/server/auth/bootstrap";
 import { recordAuditLog } from "@/server/audit/service";
 import { getPrismaClient } from "@/server/db/prisma";
@@ -16,6 +19,57 @@ export interface AdminUserSummary {
   createdAt: string;
   appCount: number;
   recordCount: number;
+}
+
+export interface CreateAdminUserInput {
+  name?: unknown;
+  email?: unknown;
+  password?: unknown;
+  roleId?: unknown;
+}
+
+export async function createUserForAdmin(user: User, input: CreateAdminUserInput) {
+  await requirePermission(user, "admin:users");
+  await requirePermission(user, "admin:roles");
+  const name = validateDisplayName(input?.name);
+  const email = validateEmail(input?.email);
+  const password = validateNewPassword(input?.password);
+  if (typeof input?.roleId !== "string" || !input.roleId) {
+    throw new AppsServiceError("ロールを選択してください。", 400);
+  }
+
+  const prisma = getPrismaClient();
+  const role = await prisma.role.findFirst({ where: { id: input.roleId, tenantId: user.tenantId } });
+  if (!role) {
+    throw new AppsServiceError("ロールが見つかりません。", 404);
+  }
+  const passwordHash = await hashPassword(password);
+
+  try {
+    const created = await prisma.$transaction(async (transaction) => {
+      const member = await transaction.user.create({
+        data: { tenantId: user.tenantId, name, email, passwordHash },
+        include: { _count: { select: { createdApps: true, createdRecords: true } } },
+      });
+      await transaction.userRole.create({
+        data: { tenantId: user.tenantId, userId: member.id, roleId: role.id, createdById: user.id },
+      });
+      await transaction.auditLog.create({
+        data: {
+          tenantId: user.tenantId, actorId: user.id, actorName: user.name,
+          actionType: "USER_CREATE", resourceType: "user", resourceId: member.id,
+          resourceName: name, detailJson: { roleId: role.id },
+        },
+      });
+      return member;
+    });
+    return toAdminUserSummary(created);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new AppsServiceError("このメールアドレスは既に登録されています。", 409);
+    }
+    throw error;
+  }
 }
 
 function toAdminUserSummary(user: {

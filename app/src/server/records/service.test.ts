@@ -11,7 +11,17 @@ const { getPrismaClient } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/server/db/prisma", () => ({
-  getPrismaClient,
+  getPrismaClient: () => ({
+    userRole: {
+      findMany: vi.fn().mockResolvedValue([{
+        appId: null,
+        tableId: null,
+        role: { roleType: "tenant_admin", permissionsJson: ["*"] },
+      }]),
+    },
+    ...getPrismaClient(),
+    appRecord: { findUnique: vi.fn().mockResolvedValue(null), ...getPrismaClient().appRecord },
+  }),
 }));
 
 vi.mock("@/server/audit/service", () => ({

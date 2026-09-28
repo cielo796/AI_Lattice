@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/shared/Avatar";
+import { PasswordChangeForm } from "@/components/auth/PasswordChangeForm";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { Input } from "@/components/shared/Input";
@@ -104,6 +105,7 @@ export default function ProfileSettingsPage() {
             </Button>
           </div>
         </form>
+        {!isLoading && !error && <PasswordChangeForm />}
       </main>
     </>
   );

@@ -18,6 +18,7 @@ const sizeMap = {
 export function Icon({ name, className, filled, size = "md" }: IconProps) {
   return (
     <span
+      aria-hidden="true"
       className={cn("material-symbols-outlined select-none", sizeMap[size], className)}
       style={filled ? { fontVariationSettings: "'FILL' 1" } : undefined}
     >

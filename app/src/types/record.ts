@@ -55,6 +55,8 @@ export interface Approval {
   tableId: string;
   recordId: string;
   workflowId?: string;
+  workflowRunId?: string;
+  workflowNodeId?: string;
   appApprovalSettingId?: string;
   approverId: string;
   requestedBy: string;
