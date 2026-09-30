@@ -1,6 +1,6 @@
 # AI Lattice 完成に向けた実装・検証計画
 
-更新: 2026-09-30
+更新: 2026-10-01
 
 ## 目標
 
@@ -48,10 +48,19 @@ AIで業務アプリを作り、実データで運用し、人が承認・管理
 - migrationの改行も監査。既存9本の適用済みchecksumはCRLF、他のSQLはLFだったため、`.gitattributes` にその改行を固定した。SQL本文やDB履歴を変更せず、Gitの改行設定が異なる場合もcheckout filterの出力が現在の適用済みSQLと一致することを確認した。
 - 最新ソースのproduction buildはNode 22・Cドライブ検証コピー・webpackで成功（44 static pages）。Turbopackは検証コピーのnode_modules junctionをルート外として拒否したため、この環境ではwebpackを使用した。本番成果物の起動は実行ツールのポリシーで拒否され、今回の5件E2Eは通常の開発サーバー起動経路で検証した。本番成果物での追加E2E、React Flowの開発時の警告とレイアウト挙動の再監査は残る。
 
+- スケジュールの登録を副作用の実行から分離し、永続周期ID・カーソル・相対間隔・fair batch・トランザクション内のjob登録・失敗延期・revisionを実装。全テーブルをID順で進め、編集済みレコードの重複や先頭ワークフローへの偏りを避ける。表示変更と処理変更を区別し、並列接続の実行順は処理変更に含める。エディタに間隔入力と登録状態・次周期・エラー表示、scoped read APIを追加した。
+- スケジュール追加後は実PostgreSQLに18 migrationを適用し、グラフ・outbox・復旧・scheduleの統合31件が成功。対象の追加・削除・編集、周期と複数テーブル、2producerの競合、limit=1の交代、空対象、SKIP LOCKED、job/監査失敗のrollback、同じ周期からの再試行、停止・アーカイブ・権限不足、対象テーブル参照切れを確認。最初の検証では新規schedule fixtureの未処理jobが既存workerテストに混入したため、fixtureのアプリ単位cleanupで分離して再検証した。
+- スケジュール追加後のE2E6件が成功（通常の開発サーバー）。画面からの間隔設定・再読込、cronの401/400、queue登録前後のレコード不変、周期重複の拒否、dispatch後の実レコード更新・実行履歴・監査まで確認。並列接続の順序をhash判定へ含めた後もスケジュールのE2E1件を再実行して成功。production成果物での追加E2Eは引き続き未検証。
+- Supabase専用スキーマに17・18番目のmigrationを適用し、29テーブル・全29テーブルRLS、所有者、18件すべてのchecksum、UTC、公式CA付きTLS、anon/authenticatedのschemaアクセス拒否、health正常、Prisma schemaとのdiffなしを確認。介護DBのpublic26テーブルは追加前後のメタデータ一致も確認した。外部cronの配置先・定期実行監視はまだ設定していない。
+- 最終 `npm run quality` は53ファイル・330件成功、実DB専用2ファイル・32件skip。TypeScript・ESLintエラーなし、既存フォント警告1件。専用PostgreSQLスキーマの統合31件も再実行して成功。Node 22・Cドライブ検証コピー・webpackのproduction buildは44 static pages生成まで成功し、検証コピーと実作業ツリーのアプリ差分17ファイルが一致することも確認した。React Flowの開発時警告とpg adapterの並行query非推奨警告は残る。今回の追加分は未コミット・未push。
+
 ## 次に必要な実装・監査
 
+- 10月1日のpush対象は、検証済みのスケジュール実行・状態表示・18番目までのmigration・関連テストと文書です。実装途中のWebhook受信、19番目のmigration、Webhook用のレコード作成リファクタリングは含めず、ローカルに保持します。
+- 送信対象をGit indexから別ディレクトリに展開し、10月1日に `npm run quality`（単体330件・TypeScript・lintエラーなし、既存フォント警告1件）と、新しい専用PostgreSQLスキーマに18 migrationを適用した実DB統合31件を再実行して成功しました。実装途中のWebhookは、この検証に混入させていません。
+
 - R1/R2: 基本的な編集UI・config/参照先検証・保存再読込E2Eは実装・検証済み。全画面遷移の未保存保護、全権限・モバイル操作、運用中の参照先変更、Prompt to Workflowを含む最終受け入れ監査は残る。操作と制約は [編集ガイド](workflow-editor.md) に記録。
-- R3/R4/R7: recordイベントの永続outbox、token付き実行権、期限切れDBノードの回復、外部結果不明の隔離、管理者の復旧判断を実装。Webhook受信、スケジュールの公平性と重複イベント制御、実プロセス停止の長時間fault injection、配置先のworker定期実行・監視は残る。外部API/AIの厳密なexactly-onceは保証しない。[運用手順](workflow-operations.md) を参照。
+- R3/R4/R7: recordイベントの永続outbox、token付き実行権、期限切れDBノードの回復、外部結果不明の隔離、管理者の復旧判断、scheduleの公平な永続周期・重複イベント制御を実装。Webhook受信、実プロセス停止の長時間fault injection、配置先のworker/producer定期実行・監視は残る。外部API/AIの厳密なexactly-onceは保証しない。[運用手順](workflow-operations.md) を参照。
 - A1〜A6/R5: 関連レコード更新・加減算等の承認後アクション、申請条件・View同期・公開snapshotの全受け入れ条件を再監査する。手動アプリ申請の同時作成対策と代理承認ポリシーにも不足がある。
 - R6/R8: 通知先roleのapp/table scope、全権限組み合わせ、別テナントのAPI E2E、ランタイムで操作できない承認ボタンの表示制御を監査する。
 - AI: Prompt to Workflowは未接続を明示して無効化しただけで、生成preview/applyは未実装。Model Gateway・実モデル評価・外部連携は別途完成させる。

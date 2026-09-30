@@ -7,7 +7,7 @@
 | 対象 | 用途 |
 | --- | --- |
 | `public` | 既存の介護アプリ用26テーブル。変更していません。 |
-| `ai_lattice` | AI Lattice専用の27業務テーブルとPrisma migration履歴。 |
+| `ai_lattice` | AI Lattice専用の28業務テーブルとPrisma migration履歴（全29テーブル）。 |
 | `auth` / `storage` など | Supabaseが管理する内部スキーマ。 |
 
 既存の `public.audit_logs` とAI Latticeの監査テーブルは構成が違うため、スキーマを分離しています。AI Latticeは独自のユーザー・セッション・ロールを管理し、Supabase Authのユーザーとは別です。
@@ -17,7 +17,7 @@
 - アプリ接続は `ai_lattice_app` ロール、Session pooler `aws-1-ap-northeast-1.pooler.supabase.com:5432` を使用します。
 - ロールは `ai_lattice` の所有者です。アプリの読み書きと同スキーマのmigrationを実行できます。superuser・DB作成・ロール作成・`BYPASSRLS` は付与していません。
 - 既存の `public` テーブルへの読み書き権限と `auth` スキーマの利用権限がないことを確認しました。
-- 全28テーブルでRLSを有効にしています。テーブル所有者のアプリロールはPostgreSQLの仕様によりRLSの対象外です。テナント・ユーザー・アプリ単位のアクセス制御はサーバーのRBACで行います。
+- 全29テーブルでRLSを有効にしています。テーブル所有者のアプリロールはPostgreSQLの仕様によりRLSの対象外です。テナント・ユーザー・アプリ単位のアクセス制御はサーバーのRBACで行います。
 - Supabaseの `anon` / `authenticated` には専用スキーマの利用権限を付与していません。Data APIの公開スキーマにも追加していません。
 
 接続文字列はGit管理対象外の `app/.env.local` に保存します。パスワードをREADMEやCIへ直接記載しないでください。接続例の `PASSWORD` は実際の値へ置き換え、特殊文字はURLエンコードします。
@@ -69,7 +69,8 @@ npm run db:supabase:export -- ../.cache/supabase-bootstrap.sql ai_lattice_app
 
 ## 今回の確認
 
-- 専用スキーマの28テーブル、16件のmigration履歴、全テーブルのRLSを確認しました。9月30日の永続実行追加では `20260930000000_workflow_dispatch_leases` の列・索引だけを追加し、テーブル数や既存の介護DBは変更していません。
+- 専用スキーマの29テーブル、18件のmigration履歴、全テーブルのRLSを確認しました。9月30日の永続実行追加はlease列・索引、スケジュール追加は `workflow_schedule_states`・レコード走査索引・revisionです。既存のmigrationは編集せず、additive migrationを適用しました。
+- 追加前後で既存 `public` の26テーブルの名前・所有者・列・RLSのメタデータが一致することを確認しました。アプリ用29テーブルの所有者はすべて `ai_lattice_app`、`anon` / `authenticated` は引き続き専用スキーマにアクセスできません。
 - migrationのchecksumをリポジトリのSQLと照合し、全件一致しました。
 - migration SQLの改行は `.gitattributes` で固定します。新規SQLはLF、既存9本はSupabaseに適用したバイト列と同じCRLFを指定し、Windows/Linuxのcheckoutによるchecksum差を防ぎます。SQL本文やDBの適用済みchecksumは書き換えていません。
 - `prisma migrate status` は適用済み、`prisma migrate diff` は差分なしでした。

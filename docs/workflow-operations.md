@@ -12,7 +12,7 @@
 
 ## Workerの起動
 
-1. `app/` で `npm run db:migrate:deploy` を実行します。16番目のmigrationが実行権の列と索引を追加します。
+1. `app/` で `npm run db:migrate:deploy` を実行します。16番目が実行権、17・18番目がスケジュールの永続カーソル・周期・revisionを追加します。適用済みmigrationは編集しません。
 2. 実行環境に32文字以上のランダムな `CRON_SECRET` を設定します。未設定・短すぎる値・サンプルの置換前の値は503になります。秘密はソースやGitへ入れません。
 3. 信頼できる外部schedulerから、毎分程度、次のendpointをPOSTします。Cookieログインだけでは呼び出せません。
 
@@ -24,7 +24,23 @@ Invoke-RestMethod -Method Post -Uri "https://your-host/api/internal/workflows/di
 
 レスポンスは `recovered`（期限切れ回復）、`processed`（処理後の状態）、`failures`（インフラ等のdispatchエラー）です。`processed` はすべて成功という意味ではなく、`failed`・`waiting`・`interrupted` も含みます。dispatchエラーがある場合は207、その他は200です。監視はHTTPだけでなく実行状態も確認してください。次のノード開始まで待つ長時間の処理があるため、ホスティング側の実行時間上限も確認します。
 
-スケジュール用endpointも同じ `CRON_SECRET` の条件で保護します。`schedules/run` はscheduleイベントの登録・実行用、`dispatch` は永続実行待ち・承認再開・停止回復用です。workerがscheduleを自動作成するわけではありません。
+スケジュール用endpointも同じ `CRON_SECRET` の条件で保護します。`schedules/run` はscheduleイベントを登録するproducer、`dispatch` は永続実行待ち・承認再開・停止回復を実行するworkerです。両方を外部cronから呼び出す必要があります。schedule endpoint内では承認・API・AIなどの副作用を実行しません。
+
+## スケジュールの周期と公平性
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "https://your-host/api/internal/workflows/schedules/run?limit=100" -Headers @{ Authorization = "Bearer $env:CRON_SECRET" }
+```
+
+- `limit` は1〜500の整数、既定100です。不正値は400で拒否し、切り捨て・丸め・黙った補正はしません。1回の呼び出しは最大50batch、各ワークフローは1batch最大10レコードです。処理枠45秒を超えると次のbatchを開始せず、残りを次回へ引き継ぎます。
+- エディタの開始トリガーで「スケジュール間隔（分）」を1〜10080分で設定します。未指定は60分です。初回の有効なcronで最初の周期を開始し、対象レコードの登録を完了してから指定時間後に次の周期を開始します。UTCのDB時計を基準とし、cronが停止していた期間の過去周期を大量に再送しません。カレンダー時刻・曜日・cron式の指定ではありません。
+- `workflow_schedule_states` に周期ID、周期開始時刻、レコードIDカーソル、次の開始可能時刻を保存します。全対象テーブルをまたぐ安定したID順で走査し、レコードの編集で同じ周期の先頭へ戻りません。開始時刻より後に作成されたレコードは次の周期で扱います。削除済みレコードは除外します。
+- レコードごとの `schedule:周期ID:レコードID` が重複防止キーです。workflow行をロックしてからイベントとカーソル・監査を同じトランザクションで保存します。複数producerは `SKIP LOCKED` で実行中のワークフローを避けます。停止後も登録済みjobと次のカーソルが一致し、未確定batchは丸ごと再登録できます。
+- 最後のbatch処理が古いワークフローを優先します。1回のlimitが小さくても、次の呼び出しで未処理のワークフローへ交代し、大きな先頭ワークフローや空のテーブルが後続を塞ぎません。組織・作成者が停止中、アプリがアーカイブ、ワークフローが下書きの場合は登録しません。作成者の `workflow:manage` と対象テーブルの `record:write` を確認し、実行workerでも元の実行者の状態・権限を再検証します。
+- 名前・説明・座標・ノードの表示順を変えただけでは周期を再送しません。対象テーブル・間隔・ノードの処理設定・接続の変更は、新しい周期を開始します。並列の接続の順序は後続処理の実行順になるため、変更判定に含めます。過去の実行snapshotは変更しません。処理変更直後の新周期は、変更前に登録済みのレコードも再び対象になり得ます。
+- batch保存に失敗した場合はjobとカーソルを巻き戻し、そのワークフローだけ5分延期して他のワークフローを処理します。`WORKFLOW_SCHEDULE_FAILED` を監査に残します。revisionにより、失敗記録が後から成功したworkerの進捗を上書きしません。延期の保存もできなかった場合は `backoffPersisted: false` を返すため、運用監視で対応します。
+
+レスポンスは `workflowCount`（触れたワークフロー数）、`batchCount`、`recordCount`、`queuedRunCount`、`completedCycleCount`、`runIds`、`failures` です。旧endpointの `approvalCount` は返しません。200は登録成功であり、ワークフローの完了を意味しません。失敗を含む場合は207です。エディタの「スケジュール実行状態」で登録途中・次周期の開始可能時刻・延期理由を確認し、実行結果は「実行履歴」で確認します。状態の読み取りにも同一組織・同一アプリの `workflow:read` が必要です。
 
 ## 実行権と停止回復
 
@@ -57,4 +73,6 @@ DBのlease列は `timestamptz` です。接続の `timezone=UTC` はPrismaの日
 
 実PostgreSQLの専用スキーマで、保存とqueueのrollback、保存後dispatch失敗、イベントsnapshot、同時更新、期限切れ回復の競合、実行中row lockの回避、旧tokenの拒否、外部結果不明の隔離、管理者のretry/skip/fail・別テナント拒否を統合テストします。外部通信はmockであり、実サービスの結果や課金の評価を済ませたことにはなりません。
 
-Webhook受信、scheduleの公平性・イベント間隔制御、全権限組み合わせ、実プロセスを強制終了する長時間fault injection、実外部API・実AIモデルの評価と配置先の定期実行監視は引き続き必要です。
+scheduleの実DB検証では、全テーブルのページング、作成時刻境界、編集後の重複防止、2producerの競合、limit=1の公平性、空対象、row lock回避、保存・監査失敗のrollbackと延期後の同一周期継続、停止・アーカイブ・権限境界を確認します。
+
+Webhook受信、カレンダー時刻を指定するスケジュール、全権限組み合わせ、実プロセスを強制終了する長時間fault injection、実外部API・実AIモデルの評価と配置先の定期実行監視は引き続き必要です。

@@ -83,6 +83,14 @@ export interface WorkflowRecoveryInput {
   confirmExternalOutcome?: boolean;
 }
 
+export interface WorkflowScheduleInfo {
+  workflowStatus: "draft" | "active";
+  nextDueAt: string | null;
+  cycleInProgress: boolean;
+  lastBatchAt: string | null;
+  lastError: string | null;
+}
+
 export interface Workflow {
   id: string;
   tenantId: string;

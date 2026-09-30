@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { getPrismaClient } from "@/server/db/prisma";
 import { createWorkflowForApp, enqueueWorkflowsForRecord, listWorkflowRunsForApp, recoverWorkflowRun, resumeWorkflowRun, runApprovalWorkflowsForRecord, updateApprovalDecision, updateWorkflowForApp } from "./service";
 import * as workflowService from "./service";
@@ -6,6 +6,7 @@ import * as auditService from "@/server/audit/service";
 import { createRecordForTable, updateRecordForTable } from "@/server/records/service";
 import { dispatchPendingWorkflowRuns, recoverExpiredWorkflowRuns } from "./worker";
 import { workflowJson } from "./execution";
+import { getWorkflowScheduleForApp, runDueScheduledWorkflows } from "./scheduler";
 import type { WorkflowDefinition } from "@/types/workflow";
 import type { User } from "@/types/user";
 
@@ -14,6 +15,7 @@ const actors: User[] = [];
 let appId: string;
 let tableId: string;
 let sequence = 0;
+const scheduleAppIds: string[] = [];
 
 function definition(): WorkflowDefinition {
   return {
@@ -65,6 +67,27 @@ async function setupOutboxApp(graph: WorkflowDefinition, triggerType: "create" |
   return { app, table, workflow };
 }
 
+async function setupScheduleApp(tableCounts = [3], intervalMinutes = 30) {
+  const prisma = getPrismaClient();
+  const app = await prisma.app.create({ data: { tenantId: actors[0].tenantId, name: "Schedule", code: `schedule-${++sequence}`, createdById: actors[0].id } });
+  const tables: Array<{ id: string; code: string }> = [];
+  const records: Array<{ id: string; tableId: string }> = [];
+  for (const [index, count] of tableCounts.entries()) {
+    const table = await prisma.appTable.create({ data: { tenantId: actors[0].tenantId, appId: app.id, name: `Table ${index}`, code: `records-${index}` } });
+    tables.push(table);
+    for (let recordNo = 1; recordNo <= count; recordNo += 1) records.push(await prisma.appRecord.create({ data: {
+      id: `${app.code}-${String(records.length + 1).padStart(3, "0")}`, tenantId: actors[0].tenantId, appId: app.id, tableId: table.id, recordNo, status: "draft", dataJson: { title: `Record ${recordNo}` }, createdById: actors[0].id, updatedById: actors[0].id,
+    } }));
+  }
+  const graph: WorkflowDefinition = {
+    nodes: [{ id: "start", data: { label: "定期登録", nodeType: "trigger", config: { scheduleIntervalMinutes: intervalMinutes } } }, { id: "done", data: { label: "完了", nodeType: "status_update", config: { status: "schedule_complete" } } }],
+    edges: [{ id: "edge", source: "start", target: "done" }],
+  };
+  const workflow = await createWorkflowForApp(actors[0], app.id, { name: "Scheduled workflow", triggerType: "schedule", status: "active", definitionJson: graph });
+  scheduleAppIds.push(app.id);
+  return { app, tables, records, graph, workflow };
+}
+
 describe.skipIf(!connection)("workflow graph against PostgreSQL", () => {
   beforeAll(async () => {
     vi.stubEnv("DATABASE_URL", connection!);
@@ -89,6 +112,175 @@ describe.skipIf(!connection)("workflow graph against PostgreSQL", () => {
   });
 
   afterAll(async () => { await getPrismaClient().$disconnect(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+  afterEach(async () => {
+    if (scheduleAppIds.length) await getPrismaClient().app.deleteMany({ where: { id: { in: scheduleAppIds } } });
+  });
+
+  it("seeks across all tables without replaying edited rows and defers new rows to the next cycle", async () => {
+    const prisma = getPrismaClient();
+    const { app, tables, records, workflow } = await setupScheduleApp([2, 1]);
+    await prisma.appRecord.create({ data: { id: `${app.code}-500`, tenantId: actors[0].tenantId, appId: app.id, tableId: tables[0].id, recordNo: 99, deletedAt: new Date(), dataJson: { title: "Deleted" }, createdById: actors[0].id, updatedById: actors[0].id } });
+    const initial = await runDueScheduledWorkflows(1);
+    expect(initial).toMatchObject({ recordCount: 1, queuedRunCount: 1, failures: [] });
+    const cycle = await prisma.workflowScheduleState.findUniqueOrThrow({ where: { workflowId: workflow.id } });
+    expect(cycle.cursorRecordId).toBe(records[0].id);
+    await prisma.appRecord.update({ where: { id: records[0].id }, data: { status: "later_edit", dataJson: { title: "Later value" } } });
+    expect((await prisma.workflowRun.findUniqueOrThrow({ where: { id: initial.runIds[0] } })).contextJson).toMatchObject({ recordSnapshot: { status: "draft", dataJson: { title: "Record 1" } } });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    for (const [index, suffix] of ["000", "999"].entries()) await prisma.appRecord.create({ data: {
+      id: `${app.code}-${suffix}`, tenantId: actors[0].tenantId, appId: app.id, tableId: tables[1].id, recordNo: 2 + index, dataJson: { title: "Late record" }, createdById: actors[0].id, updatedById: actors[0].id,
+    } });
+    expect((await runDueScheduledWorkflows(1)).queuedRunCount).toBe(1);
+    expect((await runDueScheduledWorkflows(1)).queuedRunCount).toBe(1);
+    expect((await runDueScheduledWorkflows(50)).queuedRunCount).toBe(0);
+    const firstRuns = await prisma.workflowRun.findMany({ where: { workflowId: workflow.id }, orderBy: { recordId: "asc" } });
+    expect(firstRuns.map((run) => run.recordId)).toEqual(records.map((record) => record.id));
+    expect(new Set(firstRuns.map((run) => run.eventKey.split(":")[1])).size).toBe(1);
+    expect(firstRuns.every((run) => run.status === "ready")).toBe(true);
+    const completed = await prisma.workflowScheduleState.findUniqueOrThrow({ where: { workflowId: workflow.id } });
+    expect(completed.cycleId).toBeNull();
+    expect(completed.nextDueAt.getTime() - completed.lastBatchAt!.getTime()).toBe(30 * 60000);
+    await prisma.$executeRaw`UPDATE workflow_schedule_states SET next_due_at = NOW() - INTERVAL '1 second' WHERE workflow_id = ${workflow.id}`;
+    expect((await runDueScheduledWorkflows(50)).queuedRunCount).toBe(5);
+    expect(await prisma.workflowRun.count({ where: { workflowId: workflow.id } })).toBe(8);
+    expect(new Set((await prisma.workflowRun.findMany({ where: { workflowId: workflow.id } })).map((run) => run.eventKey.split(":")[1])).size).toBe(2);
+  });
+
+  it("serializes competing schedule producers and atomically queues each record once", async () => {
+    const prisma = getPrismaClient();
+    const { workflow } = await setupScheduleApp([11]);
+    const results = await Promise.all([runDueScheduledWorkflows(50), runDueScheduledWorkflows(50)]);
+    expect(results.reduce((total, result) => total + result.queuedRunCount, 0)).toBe(11);
+    expect(results.flatMap((result) => result.failures)).toEqual([]);
+    const runs = await prisma.workflowRun.findMany({ where: { workflowId: workflow.id } });
+    expect(runs).toHaveLength(11);
+    expect(new Set(runs.map((run) => run.eventKey)).size).toBe(11);
+    expect((await runDueScheduledWorkflows(50)).queuedRunCount).toBe(0);
+  });
+
+  it("rotates fairly between workflows even when each request can queue only one record", async () => {
+    const prisma = getPrismaClient();
+    const empty = await setupScheduleApp([0]);
+    const first = await setupScheduleApp([3]);
+    const second = await setupScheduleApp([3]);
+    const scheduled: string[] = [];
+    for (let index = 0; index < 6; index += 1) {
+      const result = await runDueScheduledWorkflows(1);
+      expect(result.queuedRunCount).toBe(1);
+      scheduled.push((await prisma.workflowRun.findUniqueOrThrow({ where: { id: result.runIds[0] } })).workflowId!);
+    }
+    expect(scheduled).toEqual([first.workflow.id, second.workflow.id, first.workflow.id, second.workflow.id, first.workflow.id, second.workflow.id]);
+    expect((await prisma.workflowScheduleState.findUniqueOrThrow({ where: { workflowId: empty.workflow.id } })).cycleId).toBeNull();
+    expect((await prisma.workflow.findUniqueOrThrow({ where: { id: first.workflow.id } })).updatedAt.toISOString()).toBe(first.workflow.updatedAt);
+  });
+
+  it("ignores name and layout edits, but starts a new scoped cycle after a processing change", async () => {
+    const prisma = getPrismaClient();
+    const { app, tables, workflow, graph } = await setupScheduleApp([1, 1]);
+    expect((await runDueScheduledWorkflows(50)).queuedRunCount).toBe(2);
+    graph.nodes[0].position = { x: 900, y: 100 };
+    await updateWorkflowForApp(actors[0], app.id, workflow.id, { name: "Renamed", definitionJson: graph });
+    expect((await runDueScheduledWorkflows(50)).queuedRunCount).toBe(0);
+    graph.nodes[0].data.config = { scheduleIntervalMinutes: 30, tableId: tables[1].id };
+    await updateWorkflowForApp(actors[0], app.id, workflow.id, { definitionJson: graph });
+    const changed = await runDueScheduledWorkflows(50);
+    expect(changed.queuedRunCount).toBe(1);
+    expect((await prisma.workflowRun.findUniqueOrThrow({ where: { id: changed.runIds[0] } })).contextJson).toMatchObject({ tableId: tables[1].id });
+    expect((await runDueScheduledWorkflows(50)).queuedRunCount).toBe(0);
+  });
+
+  it.each(["enqueue", "audit"])("rolls back jobs and progress on %s failure and retries the intact cycle after backoff", async (fault) => {
+    const prisma = getPrismaClient();
+    const { workflow } = await setupScheduleApp([3]);
+    expect((await runDueScheduledWorkflows(1)).queuedRunCount).toBe(1);
+    const captured = await prisma.workflowScheduleState.findUniqueOrThrow({ where: { workflowId: workflow.id } });
+    const originalEnqueue = workflowService.enqueueWorkflowsForRecord;
+    const originalAudit = auditService.recordAuditLog;
+    let writes = 0;
+    const injection = fault === "enqueue" ? vi.spyOn(workflowService, "enqueueWorkflowsForRecord").mockImplementation(async (...args) => {
+      writes += 1;
+      if (writes === 2) throw new Error("injected schedule enqueue failure");
+      return originalEnqueue(...args);
+    }) : vi.spyOn(auditService, "recordAuditLog").mockImplementation(async (...args) => {
+      if (args[1].actionType === "WORKFLOW_SCHEDULE_BATCH") throw new Error("injected schedule audit failure");
+      return originalAudit(...args);
+    });
+    let result;
+    try { result = await runDueScheduledWorkflows(50); } finally { injection.mockRestore(); }
+    expect(result).toMatchObject({ queuedRunCount: 0, failures: [{ workflowId: workflow.id, backoffPersisted: true }] });
+    expect(await prisma.workflowRun.count({ where: { workflowId: workflow.id } })).toBe(1);
+    const state = await prisma.workflowScheduleState.findUniqueOrThrow({ where: { workflowId: workflow.id } });
+    expect(state).toMatchObject({ cycleId: captured.cycleId, cursorRecordId: captured.cursorRecordId, lastError: expect.stringContaining("injected schedule") });
+    expect((await runDueScheduledWorkflows(50)).queuedRunCount).toBe(0);
+    await prisma.$executeRaw`UPDATE workflow_schedule_states SET next_due_at = NOW() - INTERVAL '1 second' WHERE workflow_id = ${workflow.id}`;
+    expect((await runDueScheduledWorkflows(50)).queuedRunCount).toBe(2);
+    expect(await prisma.workflowRun.count({ where: { workflowId: workflow.id } })).toBe(3);
+    expect(new Set((await prisma.workflowRun.findMany({ where: { workflowId: workflow.id } })).map((run) => run.eventKey.split(":")[1]))).toEqual(new Set([captured.cycleId]));
+    expect(await prisma.auditLog.count({ where: { resourceId: workflow.id, actionType: "WORKFLOW_SCHEDULE_FAILED" } })).toBe(1);
+    expect((await prisma.workflowScheduleState.findUniqueOrThrow({ where: { workflowId: workflow.id } })).lastError).toBeNull();
+  });
+
+  it("skips a locked workflow without starving another due workflow", async () => {
+    const prisma = getPrismaClient();
+    const first = await setupScheduleApp([1]);
+    const second = await setupScheduleApp([1]);
+    let release!: () => void;
+    let entered!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const ready = new Promise<void>((resolve) => { entered = resolve; });
+    const locked = prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw`SELECT id FROM workflows WHERE id = ${first.workflow.id} FOR UPDATE`;
+      entered();
+      await held;
+    }, { timeout: 15000 });
+    await ready;
+    try {
+      const result = await runDueScheduledWorkflows(1);
+      expect(result.queuedRunCount).toBe(1);
+      expect((await prisma.workflowRun.findUniqueOrThrow({ where: { id: result.runIds[0] } })).workflowId).toBe(second.workflow.id);
+      expect(await prisma.workflowScheduleState.findUnique({ where: { workflowId: first.workflow.id } })).toBeNull();
+    } finally { release(); await locked; }
+    expect((await runDueScheduledWorkflows(1)).queuedRunCount).toBe(1);
+  });
+
+  it("does not schedule archived apps, suspended tenants or suspended creators", async () => {
+    const prisma = getPrismaClient();
+    const { app } = await setupScheduleApp([1]);
+    await prisma.tenant.update({ where: { id: actors[0].tenantId }, data: { status: "inactive" } });
+    try { expect((await runDueScheduledWorkflows()).queuedRunCount).toBe(0); }
+    finally { await prisma.tenant.update({ where: { id: actors[0].tenantId }, data: { status: "active" } }); }
+    await prisma.user.update({ where: { id: actors[0].id }, data: { status: "inactive" } });
+    try { expect((await runDueScheduledWorkflows()).queuedRunCount).toBe(0); }
+    finally { await prisma.user.update({ where: { id: actors[0].id }, data: { status: "active" } }); }
+    await prisma.app.update({ where: { id: app.id }, data: { status: "archived" } });
+    expect((await runDueScheduledWorkflows()).queuedRunCount).toBe(0);
+  });
+
+  it("records a missing trigger table as a scheduling error without advancing a successful cycle", async () => {
+    const prisma = getPrismaClient();
+    const { app, tables, workflow, graph } = await setupScheduleApp([1]);
+    graph.nodes[0].data.config = { tableId: tables[0].id, scheduleIntervalMinutes: 30 };
+    await updateWorkflowForApp(actors[0], app.id, workflow.id, { definitionJson: graph });
+    await prisma.appTable.delete({ where: { id: tables[0].id } });
+    expect(await runDueScheduledWorkflows(50)).toMatchObject({ queuedRunCount: 0, completedCycleCount: 0, failures: [{ workflowId: workflow.id, message: expect.stringContaining("対象テーブル"), backoffPersisted: true }] });
+    expect((await getWorkflowScheduleForApp(actors[0], app.id, workflow.id)).lastError).toContain("対象テーブル");
+  });
+
+  it("permits scoped read-only schedule metadata but rejects a creator without execution rights", async () => {
+    const prisma = getPrismaClient();
+    const { app, workflow } = await setupScheduleApp([1]);
+    const viewer = await prisma.user.create({ data: { tenantId: actors[0].tenantId, name: "Viewer", email: `${app.code}@viewer.example` } });
+    const role = await prisma.role.create({ data: { tenantId: actors[0].tenantId, name: `Viewer ${app.code}`, roleType: "viewer", permissionsJson: ["workflow:read"] } });
+    await prisma.userRole.create({ data: { tenantId: actors[0].tenantId, userId: viewer.id, roleId: role.id, appId: app.id } });
+    const user: User = { ...actors[0], id: viewer.id, name: viewer.name, email: viewer.email };
+    expect(await getWorkflowScheduleForApp(user, app.id, workflow.id)).toMatchObject({ nextDueAt: null, cycleInProgress: false });
+    await expect(getWorkflowScheduleForApp({ ...user, tenantId: "other-tenant" }, app.id, workflow.id)).rejects.toMatchObject({ status: 404 });
+    await prisma.workflow.update({ where: { id: workflow.id }, data: { createdById: viewer.id } });
+    const result = await runDueScheduledWorkflows(50);
+    expect(result).toMatchObject({ queuedRunCount: 0, failures: [{ workflowId: workflow.id, backoffPersisted: true }] });
+    expect(await prisma.workflowRun.count({ where: { workflowId: workflow.id } })).toBe(0);
+    expect((await getWorkflowScheduleForApp(user, app.id, workflow.id)).lastError).toBeTruthy();
+  });
 
   it("runs the false edge without touching approval nodes, independent of array order", async () => {
     const { record, workflow, input } = await setupRun(5);

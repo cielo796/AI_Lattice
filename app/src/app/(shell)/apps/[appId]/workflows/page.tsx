@@ -8,6 +8,7 @@ import { Badge } from "@/components/shared/Badge";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
 import { WorkflowInspector, WorkflowField, workflowInputClass } from "@/components/workflow/WorkflowInspector";
 import { WorkflowRunHistory } from "@/components/workflow/WorkflowRunHistory";
+import { WorkflowScheduleStatus } from "@/components/workflow/WorkflowScheduleStatus";
 import { AICommandBar } from "@/components/workflow/AICommandBar";
 import { createWorkflow, deleteWorkflow, getWorkflowEditorContext, listWorkflows, updateWorkflow } from "@/lib/api/workflows";
 import { getCurrentPermissions } from "@/lib/api/rbac";
@@ -162,6 +163,7 @@ export default function WorkflowEditorPage() {
             {validationErrors.length ? <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-error">{validationErrors.map((message) => <li key={message}>{message}</li>)}</ul> : <p className="mt-2 text-xs text-on-success-container">定義と参照先の検証に問題はありません。</p>}
           </section>
           <WorkflowInspector definition={draft.definitionJson} context={context} selectedNodeId={selection.nodeId ?? ""} selectedEdgeId={selection.edgeId ?? ""} triggerType={draft.triggerType} onTriggerTypeChange={changeTriggerType} onChange={(definitionJson) => setDraft({ ...draft, definitionJson })} onSelect={setSelection} readOnly={readOnly} />
+          {activeWorkflow?.triggerType === "schedule" && <WorkflowScheduleStatus key={`${activeWorkflow.id}:${activeWorkflow.updatedAt}`} appId={appId} workflowId={activeWorkflow.id} />}
           <section className="space-y-2 rounded-xl border border-outline-variant p-3" aria-label="グラフ一覧">
             <h2 className="text-xs font-bold text-on-surface">ノードと接続</h2>
             {draft.definitionJson.nodes.map((node) => <button key={node.id} type="button" onClick={() => setSelection({ nodeId: node.id })} className={cn("block w-full rounded p-2 text-left text-xs", selection.nodeId === node.id ? "bg-primary-container" : "bg-surface-container-low")}>ノード: {node.data.label}</button>)}

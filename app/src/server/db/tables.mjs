@@ -17,6 +17,7 @@ export const REQUIRED_DATABASE_TABLES = [
   "attachments",
   "workflows",
   "workflow_runs",
+  "workflow_schedule_states",
   "app_approval_settings",
   "app_approval_approvers",
   "approvals",

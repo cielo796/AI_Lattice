@@ -32,6 +32,7 @@ export function validateWorkflowNodeConfig(node: WorkflowDefinition["nodes"][num
   if (config.required !== undefined && typeof config.required !== "boolean") errors.push("required は真偽値を指定してください。");
   if (node.position && (!Number.isFinite(node.position.x) || !Number.isFinite(node.position.y))) errors.push("ノード位置が不正です。");
   if (node.data.nodeType === "trigger" && config.triggerType !== undefined && (!["create", "update", "status_change", "schedule", "webhook"].includes(String(config.triggerType)) || (triggerType && config.triggerType !== triggerType))) errors.push("ノードのトリガー種別をワークフローと一致させてください。");
+  if (node.data.nodeType === "trigger" && config.scheduleIntervalMinutes !== undefined && (!Number.isInteger(config.scheduleIntervalMinutes) || Number(config.scheduleIntervalMinutes) < 1 || Number(config.scheduleIntervalMinutes) > 10080)) errors.push("スケジュール間隔は1〜10080分の整数で指定してください。");
   if (node.data.nodeType === "notification" && config.roleType !== undefined && !roleTypes.includes(String(config.roleType))) errors.push("通知先ロールが不正です。");
   if (node.data.nodeType === "condition") {
     const configured = ["fieldCode", "statusFieldCode", "operator", "value", "expectedValue", "status"].some((key) => config[key] !== undefined);

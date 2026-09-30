@@ -116,6 +116,7 @@ model Tenant {
   auditLogs              AuditLog[]
   workflows              Workflow[]
   workflowRuns           WorkflowRun[]
+  workflowSchedules      WorkflowScheduleState[]
   approvals              Approval[]
   appApprovalSettings    AppApprovalSetting[]
   appApprovalApprovers   AppApprovalApprover[]
@@ -499,6 +500,7 @@ model AppRecord {
   @@unique([tableId, recordNo])
   @@index([tenantId])
   @@index([appId, tableId, updatedAt])
+  @@index([tenantId, appId, id])
   @@index([tableId, deletedAt])
   @@index([createdById])
   @@index([updatedById])
@@ -560,11 +562,34 @@ model Workflow {
   createdBy User       @relation("WorkflowCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   approvals Approval[]
   runs      WorkflowRun[]
+  schedule  WorkflowScheduleState?
 
   @@index([tenantId])
   @@index([appId, status])
   @@index([createdById])
   @@map("workflows")
+}
+
+model WorkflowScheduleState {
+  workflowId        String    @id @map("workflow_id")
+  tenantId          String    @map("tenant_id")
+  definitionHash    String    @map("definition_hash")
+  workflowUpdatedAt DateTime  @map("workflow_updated_at")
+  cycleId           String?   @map("cycle_id")
+  cycleStartedAt    DateTime? @db.Timestamptz(3) @map("cycle_started_at")
+  cursorRecordId    String?   @map("cursor_record_id")
+  nextDueAt         DateTime  @default(now()) @db.Timestamptz(3) @map("next_due_at")
+  lastBatchAt       DateTime? @db.Timestamptz(3) @map("last_batch_at")
+  lastError         String?   @map("last_error")
+  revision          Int       @default(0)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([nextDueAt, lastBatchAt])
+  @@index([tenantId])
+  @@map("workflow_schedule_states")
 }
 
 model WorkflowRun {

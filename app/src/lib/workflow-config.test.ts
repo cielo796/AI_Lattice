@@ -13,6 +13,18 @@ function graph(nodeType: WorkflowDefinition["nodes"][number]["data"]["nodeType"]
 }
 
 describe("workflow config validation", () => {
+  it.each([0, 10081, 1.5, "60", null, true, NaN])("rejects invalid schedule intervals: %s", (scheduleIntervalMinutes) => {
+    const trigger = graph("status_update", { status: "done" }).nodes[0];
+    trigger.data.config = { scheduleIntervalMinutes };
+    expect(validateWorkflowNodeConfig(trigger, "schedule")).toHaveLength(1);
+  });
+
+  it.each([1, 60, 10080])("accepts a bounded schedule interval: %s", (scheduleIntervalMinutes) => {
+    const trigger = graph("status_update", { status: "done" }).nodes[0];
+    trigger.data.config = { scheduleIntervalMinutes };
+    expect(validateWorkflowNodeConfig(trigger, "schedule")).toEqual([]);
+  });
+
   it.each([
     ["api_call", { url: "https://example.com", timeoutMs: 99 }],
     ["api_call", { bodyTemplate: "not json" }],

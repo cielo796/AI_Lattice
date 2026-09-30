@@ -79,7 +79,10 @@ export function WorkflowInspector({ definition, context, selectedNodeId, selecte
         <WorkflowField label="ノードのトリガー種別"><select className={workflowInputClass} value={triggerType} onChange={(event) => onTriggerTypeChange(event.target.value as Workflow["triggerType"])}>{Object.entries(workflowTriggerLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></WorkflowField>
         <WorkflowField label="対象テーブル"><select className={workflowInputClass} value={String(config.tableId ?? "")} onChange={(event) => patchConfig({ tableId: event.target.value || undefined, tableCode: undefined })}><option value="">アプリ内の全テーブル</option>{context?.tables.map((table) => <option key={table.id} value={table.id}>{table.name} ({table.code})</option>)}</select></WorkflowField>
         {config.tableCode !== undefined && <p className="text-xs text-on-surface-variant">既存のテーブルコード指定: {String(config.tableCode)}</p>}
-        {triggerType === "schedule" && <p className="text-xs text-on-surface-variant">保護されたcron endpointから起動します。実行間隔は外部cronで管理します。</p>}
+        {triggerType === "schedule" && <>
+          <WorkflowField label="スケジュール間隔（分）"><input type="number" min={1} max={10080} step={1} className={workflowInputClass} value={Number(config.scheduleIntervalMinutes ?? 60)} onChange={(event) => patchConfig({ scheduleIntervalMinutes: Number(event.target.value) })} /></WorkflowField>
+          <p className="text-xs text-on-surface-variant">保護されたcronで実行待ちへ登録し、別のdispatch workerが実行します。全対象の登録完了から指定時間後に次の周期を開始します。処理設定・接続・対象テーブルを変更すると新しい周期になります。</p>
+        </>}
         {triggerType === "webhook" && <p className="text-xs text-warning">Webhook受信endpointは未実装です。現在は手動実行のみ利用できます。</p>}
       </>}
       {node.data.nodeType === "condition" && <>
