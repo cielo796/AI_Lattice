@@ -32,10 +32,11 @@ AIで業務アプリを作り、実データで運用し、人が承認・管理
 - ワークフロー: `workflow_runs` とapprovalのrun/node識別をadditive migrationで追加。グラフ定義snapshot、分岐、承認停止・再開、複数承認ノード、同時判断ロック、承認方式4種、実行履歴UI・再開APIを実装。
 - `graph.integration.test.ts`: 新規の実PostgreSQL DBに15 migrationを適用後、10件成功。false分岐、イベント重複、二段階承認、定義snapshot、非承認者の拒否、同時判断、app policy/all/any/sequential/quorum、失敗ポリシー、保存済み判断からの再開を検証。
 - `workflow-graph.spec.ts` / `governance-workflow.spec.ts` / `runtime-smoke.spec.ts`: ブラウザーで3件成功。二段階の承認ボタン操作、後続レコード更新、実行履歴、既存レコード・添付・コメント・管理画面操作を確認。
-- `npm run quality`: 最終確認で46ファイル・232件成功、実DB専用2ファイル・11件skip。文字化けチェック、TypeScript、ESLintにエラーなし（既存の外部フォント警告1件）。`git diff --check` 成功。
+- `npm run quality`: 2026年9月30日の確認で47ファイル・241件成功、実DB専用2ファイル・11件skip。文字化けチェック、TypeScript、ESLintにエラーなし（既存の外部フォント警告1件）。`git diff --check` 成功。
 - production build: Node 22・Cドライブ検証コピーでワークフロー追加後も成功（43 static pages生成）。その成果物を `next start` で起動し、`workflow-graph.spec.ts` が再度成功。Dドライブ直接buildには既知のEISDIR/readlink障害がある。
-- Docker Engineが起動しないため、loopback専用・テスト専用のembedded PostgreSQL 16で検証。アプリの依存関係には追加していない。本番DBは変更していない。
-- GitHub Actionsに初期導入E2Eとワークフロー実DB統合テストを追加したが、pushしていないためリモートCIは未実行。
+- ローカル実DB検証はloopback専用・テスト専用のembedded PostgreSQL 16を使用。アプリの依存関係には追加していない。9月30日には専用スキーマ指定で統合テスト10件も成功。
+- 2026年9月30日: Supabaseの復元完了を確認し、既存の介護DBとは別の `ai_lattice` スキーマに28テーブル・15 migrationを配置。承認済みの専用DBロール・公式CA検証付きの接続を設定し、Supabase上のE2E3件と診断API HTTP 200を確認。構成と運用は [DB構成と運用](database-setup.md) に記録。
+- GitHub PR #30の初回リモートCIは4件成功、E2Eのみ起動前のデモseed確認で失敗。スキーマ診断をE2E前、デモを含む診断をE2E後へ移す修正を実装した。リモートでの再検証は修正コミット反映後のCIで確認する。
 
 ## 次に必要な実装・監査
 

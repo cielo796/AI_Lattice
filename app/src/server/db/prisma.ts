@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { getDatabaseSchema, getPostgresConnectionOptions } from "./connection.mjs";
 
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;
@@ -12,7 +13,9 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL is not set");
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg(getPostgresConnectionOptions(connectionString), {
+    schema: getDatabaseSchema(connectionString),
+  });
 
   return new PrismaClient({
     adapter,

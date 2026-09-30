@@ -19,6 +19,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:health": "node scripts/check-db-health.mjs",
+    "db:supabase:export": "node scripts/export-supabase-bootstrap.mjs",
     "db:studio": "prisma studio"
   },
   "dependencies": {

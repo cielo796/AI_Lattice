@@ -22,6 +22,12 @@ npm run db:migrate:deploy
 
 Dockerを使わない場合は、用意したPostgreSQLへの `DATABASE_URL` を `.env` に設定して `db:start` を省略してください。既存データを消すmigration resetは必要ありません。
 
+### Supabase
+
+Supabaseの構成・接続設定・確認結果は [DB構成と運用](../docs/database-setup.md) を参照してください。既存の別アプリと共有する場合は、`DATABASE_URL` の `schema=ai_lattice` で専用スキーマを使用できます。アプリのPrismaクエリ、承認ロック用SQL、DB診断は同じスキーマを参照します。
+
+`DIRECT_URL` を設定すると、Prismaのmigrationはそちらを使用します。アプリの `DATABASE_URL` と同じDB・スキーマを指定し、migrationにはSession pooler（5432）かdirect connectionを使用してください。テスト用DBへ切り替える場合は `DIRECT_URL` も切り替えてください。未設定なら `DATABASE_URL` を使用します。
+
 `.env` で `DEMO_AUTO_SEED=false` とし、`SETUP_TOKEN` と `SECRET_ENCRYPTION_KEY` にそれぞれ別のランダム値を設定します。値の生成例（2回実行）:
 
 ```powershell
@@ -68,6 +74,8 @@ npm run e2e
 ```
 
 `quality` は文字化け・ESLint・Vitest・TypeScriptを確認します。E2Eはテストデータを書き込むため、専用のDBで実行してください。通常のE2Eでは `DEMO_AUTO_SEED=true` を使用します。WindowsのE2EランナーはNode 22を使用し、ソースと依存関係をユーザーの一時ディレクトリにコピーして起動します。
+
+デモ自動作成前は `npm run db:health -- --schema-only` で接続・全28テーブル・migrationだけを確認できます。通常の `db:health` はデモ有効時にデモ組織・ユーザーの存在も確認します。CIでは起動前にスキーマを確認し、E2E後にデモデータを含む診断を実行します。
 
 初期導入のE2Eは、migration適用済みで組織がない専用DBを指定して別途実行します。
 
