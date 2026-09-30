@@ -11,6 +11,6 @@ export function getPostgresConnectionOptions(connectionString) {
   const url = new URL(connectionString);
   const existingOptions = url.searchParams.get("options")?.trim() ?? "";
   url.searchParams.delete("schema");
-  url.searchParams.set("options", `${existingOptions} -c search_path=${schema}`.trim());
+  url.searchParams.set("options", `${existingOptions} -c search_path=${schema} -c timezone=UTC`.trim());
   return { connectionString: url.toString(), connectionTimeoutMillis: 10_000 };
 }

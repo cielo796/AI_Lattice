@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_WORKFLOW_DEFINITION, createWorkflowForApp, listWorkflowsForApp, runApprovalWorkflowsForRecord, updateApprovalDecision } from "./service";
+import { DEFAULT_WORKFLOW_DEFINITION, createWorkflowForApp, enqueueWorkflowsForRecord, listWorkflowsForApp, runApprovalWorkflowsForRecord, updateApprovalDecision } from "./service";
 import type { User } from "@/types/user";
-import { Prisma } from "@prisma/client";
 
 const mocks = vi.hoisted(() => ({
   getPrismaClient: vi.fn(), requirePermission: vi.fn(),
@@ -54,7 +53,7 @@ describe("workflows service", () => {
     return {
       workflow: { findMany: vi.fn().mockResolvedValue([workflow]) },
       appRecord: { findFirst: vi.fn().mockResolvedValue({ id: input.recordId, status: "draft", dataJson: {} }) },
-      workflowRun: { upsert: vi.fn().mockResolvedValue({ id: "run_1" }) },
+      workflowRun: { createMany: vi.fn().mockResolvedValue({ count: 1 }), findFirstOrThrow: vi.fn().mockResolvedValue({ id: "run_1" }) },
       approval: { findMany: vi.fn().mockResolvedValue([]) },
     };
   }
@@ -106,30 +105,41 @@ describe("workflows service", () => {
   });
 
   it("persists an event-scoped immutable graph before dispatching, rather than running array order", async () => {
-    const prisma = {
-      workflow: { findMany: vi.fn().mockResolvedValue([workflow]) },
-      appRecord: { findFirst: vi.fn().mockResolvedValue({ id: input.recordId, status: "draft", dataJson: {} }) },
-      workflowRun: { upsert: vi.fn().mockResolvedValue({ id: "run_1" }) },
-      approval: { findMany: vi.fn().mockResolvedValue([]) },
-    };
+    const prisma = dispatchPrisma();
     mocks.getPrismaClient.mockReturnValue(prisma);
     await runApprovalWorkflowsForRecord(user, input);
-    expect(prisma.workflowRun.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      where: { workflowId_eventKey: { workflowId: workflow.id, eventKey: "event_1" } },
-      update: {},
-      create: expect.objectContaining({ actorId: user.id, definitionJson: expect.objectContaining({ edges: DEFAULT_WORKFLOW_DEFINITION.edges }), stateJson: { queue: ["wf-node-1"], executions: [] } }),
+    expect(prisma.workflowRun.createMany).toHaveBeenCalledWith(expect.objectContaining({
+      skipDuplicates: true,
+      data: [expect.objectContaining({ actorId: user.id, definitionJson: expect.objectContaining({ edges: DEFAULT_WORKFLOW_DEFINITION.edges }), contextJson: expect.objectContaining({ recordSnapshot: { status: "draft", dataJson: {} } }), stateJson: { queue: ["wf-node-1"], executions: [] } })],
     }));
     expect(mocks.executeSavedWorkflowRun).toHaveBeenCalledWith(user, "run_1", expect.any(Function));
   });
 
   it("recovers a racing unique event insert by dispatching the already persisted run", async () => {
     const prisma = dispatchPrisma();
-    prisma.workflowRun.upsert.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("Duplicate event", { code: "P2002", clientVersion: "7.7.0" }));
-    const findFirst = vi.fn().mockResolvedValue({ id: "winner_run" });
-    mocks.getPrismaClient.mockReturnValue({ ...prisma, workflowRun: { ...prisma.workflowRun, findFirst } });
+    prisma.workflowRun.createMany.mockResolvedValue({ count: 0 });
+    prisma.workflowRun.findFirstOrThrow.mockResolvedValue({ id: "winner_run" });
+    mocks.getPrismaClient.mockReturnValue(prisma);
     await runApprovalWorkflowsForRecord(user, input);
-    expect(findFirst).toHaveBeenCalledWith({ where: { workflowId: workflow.id, eventKey: input.eventKey, tenantId: user.tenantId } });
+    expect(prisma.workflowRun.findFirstOrThrow).toHaveBeenCalledWith({ where: { workflowId: workflow.id, eventKey: input.eventKey, tenantId: user.tenantId } });
     expect(mocks.executeSavedWorkflowRun).toHaveBeenCalledWith(user, "winner_run", expect.any(Function));
+  });
+
+  it("queues the captured record event without dispatching before transaction commit", async () => {
+    const prisma = dispatchPrisma();
+    expect(await enqueueWorkflowsForRecord(user, input, prisma as never)).toEqual(["run_1"]);
+    expect(mocks.executeSavedWorkflowRun).not.toHaveBeenCalled();
+    expect(mocks.getPrismaClient).not.toHaveBeenCalled();
+  });
+
+  it("treats a lost API response as an uncertain outcome instead of allowing automatic retry", async () => {
+    mocks.getPrismaClient.mockReturnValue(dispatchPrisma());
+    vi.stubEnv("WORKFLOW_API_ALLOWED_ORIGINS", "https://example.com");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection lost after send")));
+    const execute = await executor();
+    await expect(execute(user, input, { id: workflow.id, name: workflow.name, runId: "run_1", sourceWorkflowId: workflow.id }, {
+      id: "api", data: { label: "API", nodeType: "api_call", config: { url: "https://example.com", failurePolicy: "continue" } },
+    }, { appRecord: { findFirst: vi.fn().mockResolvedValue({ id: input.recordId }) } } as never)).rejects.toMatchObject({ message: expect.stringContaining("送信結果を確認できません") });
   });
 
   it("rejects activation of a cyclic graph before writing", async () => {

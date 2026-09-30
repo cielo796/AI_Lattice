@@ -141,7 +141,7 @@ export default function WorkflowEditorPage() {
           <span className="block truncate text-sm font-semibold text-on-surface">{workflow.name}</span>
           <span className="mt-1 block text-xs text-on-surface-variant">{workflowTriggerLabels[workflow.triggerType]} / {workflow.status === "active" ? "有効" : "下書き"}</span>
         </button>)}</div>}
-        {activeWorkflow && <><Button variant="danger" size="sm" className="mt-4" disabled={readOnly} onClick={() => void deleteCurrentWorkflow()}>ワークフローを削除</Button><WorkflowRunHistory key={activeWorkflow.id} appId={appId} workflowId={activeWorkflow.id} /></>}
+        {activeWorkflow && <><Button variant="danger" size="sm" className="mt-4" disabled={readOnly} onClick={() => void deleteCurrentWorkflow()}>ワークフローを削除</Button><WorkflowRunHistory key={activeWorkflow.id} appId={appId} workflowId={activeWorkflow.id} canManage={canManage} /></>}
       </aside>
       <section className="relative h-[65vh] min-w-0 flex-1 xl:sticky xl:top-14 xl:h-[calc(100vh-3.5rem)]" data-guide="workflow-canvas">
         {draft ? <WorkflowCanvas key={draft.id} definition={draft.definitionJson} selectedNodeId={selection.nodeId ?? ""} selectedEdgeId={selection.edgeId ?? ""} onSelect={setSelection} onChange={(definitionJson) => setDraft((current) => current ? { ...current, definitionJson } : null)} readOnly={readOnly} onError={setError} /> : <div className="flex h-full items-center justify-center text-sm text-on-surface-variant">ワークフローを選択または作成してください。</div>}

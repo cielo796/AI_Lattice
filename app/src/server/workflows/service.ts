@@ -24,7 +24,7 @@ import type { User } from "@/types/user";
 import { validateWorkflowGraph, workflowEntryId } from "@/lib/workflow-graph";
 import { parseWorkflowHeaders, validateWorkflowReferences } from "@/lib/workflow-config";
 import { loadWorkflowEditorContext } from "./editor-context";
-import { executeSavedWorkflowRun, toWorkflowRun, workflowJson, type WorkflowNodeExecutor } from "./execution";
+import { executeSavedWorkflowRun, recoverInterruptedWorkflowRun, toWorkflowRun, workflowJson, WorkflowUncertainOutcomeError, type WorkflowNodeExecutor } from "./execution";
 import { resolveApproverUsers } from "./app-approval-settings";
 
 export class WorkflowsServiceError extends AppsServiceError {
@@ -83,6 +83,7 @@ export interface RunApprovalWorkflowInput {
   workflowIds?: string[];
   eventKey?: string;
   failOnError?: boolean;
+  recordSnapshot?: { status: string; dataJson: Prisma.JsonValue };
 }
 
 const WORKFLOW_TRIGGER_TYPES: Workflow["triggerType"][] = [
@@ -1010,25 +1011,17 @@ async function executeApiCallNode(
     if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, renderValue(child)]));
     return value;
   };
+  const requestBody = method === "GET" || method === "HEAD" ? undefined : JSON.stringify(node.data.config?.bodyTemplate !== undefined ? renderValue(JSON.parse(String(node.data.config.bodyTemplate))) : {
+    workflowId: workflow.id, workflowName: workflow.name, appId: input.appId, appCode: input.appCode,
+    tableId: input.tableId, tableCode: input.tableCode, recordId: input.recordId, recordTitle: input.recordTitle,
+  });
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
       method,
       headers: { "content-type": "application/json", ...Object.fromEntries(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), renderWorkflowTemplate(value, input)])), "idempotency-key": `${workflow.runId}:${node.id}` },
-      body:
-        method === "GET" || method === "HEAD"
-          ? undefined
-          : JSON.stringify(node.data.config?.bodyTemplate !== undefined ? renderValue(JSON.parse(String(node.data.config.bodyTemplate))) : {
-              workflowId: workflow.id,
-              workflowName: workflow.name,
-              appId: input.appId,
-              appCode: input.appCode,
-              tableId: input.tableId,
-              tableCode: input.tableCode,
-              recordId: input.recordId,
-              recordTitle: input.recordTitle,
-            }),
+      body: requestBody,
       signal: controller.signal,
       redirect: "manual",
     });
@@ -1053,6 +1046,9 @@ async function executeApiCallNode(
         status: response.status,
       },
     }, transaction);
+  } catch (error) {
+    if (error instanceof WorkflowsServiceError) throw error;
+    throw new WorkflowUncertainOutcomeError(`API送信結果を確認できません: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     clearTimeout(timeout);
   }
@@ -1080,38 +1076,45 @@ async function executeAIActionNode(
     action,
     undefined,
     { model: getConfigString(node.data.config, "model"), promptTemplateKey: getConfigString(node.data.config, "promptTemplateKey") }
-  );
-  const output = formatAIWorkflowResult(result);
-  if (node.data.config?.output === "field") {
-    const fieldCode = getConfigString(node.data.config, "outputFieldCode");
-    const record = await prisma.appRecord.findFirst({ where: { id: input.recordId, tenantId: user.tenantId, appId: input.appId, tableId: input.tableId, deletedAt: null } });
-    const field = await prisma.appField.findFirst({ where: { tenantId: user.tenantId, appId: input.appId, tableId: input.tableId, code: fieldCode, fieldType: { in: ["text", "textarea", "ai_generated"] } } });
-    if (!record || !field || !fieldCode) throw new WorkflowsServiceError("AI出力先フィールドが存在しません。", 400);
-    await prisma.appRecord.update({ where: { id: record.id }, data: { dataJson: workflowJson({ ...toDataObject(record.dataJson), [fieldCode]: output }), updatedById: user.id } });
-  } else await prisma.recordComment.create({
-    data: {
-      id: crypto.randomUUID(),
-      tenantId: user.tenantId,
-      recordId: input.recordId,
-      commentText: output,
-      createdById: user.id,
-      isSystem: true,
-    },
+  ).catch((error: unknown) => {
+    if (error instanceof AppsServiceError && error.status < 500) throw error;
+    throw new WorkflowUncertainOutcomeError(`AI処理結果を確認できません: ${error instanceof Error ? error.message : String(error)}`);
   });
+  try {
+    const output = formatAIWorkflowResult(result);
+    if (node.data.config?.output === "field") {
+      const fieldCode = getConfigString(node.data.config, "outputFieldCode");
+      const record = await prisma.appRecord.findFirst({ where: { id: input.recordId, tenantId: user.tenantId, appId: input.appId, tableId: input.tableId, deletedAt: null } });
+      const field = await prisma.appField.findFirst({ where: { tenantId: user.tenantId, appId: input.appId, tableId: input.tableId, code: fieldCode, fieldType: { in: ["text", "textarea", "ai_generated"] } } });
+      if (!record || !field || !fieldCode) throw new WorkflowsServiceError("AI出力先フィールドが存在しません。", 400);
+      await prisma.appRecord.update({ where: { id: record.id }, data: { dataJson: workflowJson({ ...toDataObject(record.dataJson), [fieldCode]: output }), updatedById: user.id } });
+    } else await prisma.recordComment.create({
+      data: {
+        id: crypto.randomUUID(),
+        tenantId: user.tenantId,
+        recordId: input.recordId,
+        commentText: output,
+        createdById: user.id,
+        isSystem: true,
+      },
+    });
 
-  await recordAuditLog(user, {
-    actionType: "WORKFLOW_AI_ACTION",
-    resourceType: "workflow",
-    resourceId: workflow.id,
-    resourceName: workflow.name,
-    detailJson: {
-      nodeId: node.id,
-      action,
-      modelName: result.modelName,
-      totalTokens: result.usage.totalTokens,
-    },
-    aiInvolvement: "assisted",
-  }, prisma);
+    await recordAuditLog(user, {
+      actionType: "WORKFLOW_AI_ACTION",
+      resourceType: "workflow",
+      resourceId: workflow.id,
+      resourceName: workflow.name,
+      detailJson: {
+        nodeId: node.id,
+        action,
+        modelName: result.modelName,
+        totalTokens: result.usage.totalTokens,
+      },
+      aiInvolvement: "assisted",
+    }, prisma);
+  } catch (error) {
+    throw new WorkflowUncertainOutcomeError(`AI処理後の保存結果を確認できません: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 async function executeWorkflowSideEffectNode(
@@ -1649,9 +1652,10 @@ export async function runWorkflowForRecord(
   });
 }
 
-export async function runApprovalWorkflowsForRecord(
+export async function enqueueWorkflowsForRecord(
   user: User,
-  input: RunApprovalWorkflowInput
+  input: RunApprovalWorkflowInput,
+  prisma: Prisma.TransactionClient = getPrismaClient()
 ) {
   const triggerTypes = [...new Set(input.triggerTypes)];
 
@@ -1659,7 +1663,6 @@ export async function runApprovalWorkflowsForRecord(
     return [];
   }
 
-  const prisma = getPrismaClient();
   const workflows = await prisma.workflow.findMany({
     where: {
       tenantId: user.tenantId,
@@ -1697,38 +1700,42 @@ export async function runApprovalWorkflowsForRecord(
     const entryId = workflowEntryId(definition);
     const trigger = definition.nodes.find((node) => node.id === entryId)?.data.config;
     if ((trigger?.tableId && trigger.tableId !== input.tableId) || (trigger?.tableCode && trigger.tableCode !== input.tableCode)) continue;
-    const run = await prisma.workflowRun.upsert({
-      where: { workflowId_eventKey: { workflowId: workflow.id, eventKey } },
-      update: {},
-      create: {
+    await prisma.workflowRun.createMany({
+      skipDuplicates: true,
+      data: [{
         tenantId: user.tenantId, appId: input.appId, recordId: input.recordId,
         workflowId: workflow.id, workflowName: workflow.name, actorId: user.id, eventKey,
-        definitionJson: workflowJson(definition), contextJson: workflowJson(input),
+        definitionJson: workflowJson(definition), contextJson: workflowJson({ ...input, recordSnapshot: { status: record.status, dataJson: record.dataJson } }),
         stateJson: workflowJson({ queue: entryId ? [entryId] : [], executions: [] }),
         ...(validationErrors.length ? { status: "failed", error: validationErrors.join("\n"), finishedAt: new Date() } : {}),
-      },
-    }).catch(async (error: unknown) => {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
-      const existing = await prisma.workflowRun.findFirst({ where: { workflowId: workflow.id, eventKey, tenantId: user.tenantId } });
-      if (!existing) throw error;
-      return existing;
+      }],
     });
+    const run = await prisma.workflowRun.findFirstOrThrow({ where: { workflowId: workflow.id, eventKey, tenantId: user.tenantId } });
     runIds.push(run.id);
-    await executeSavedWorkflowRun(user, run.id, executeGraphNode);
   }
+  return runIds;
+}
+
+export async function dispatchWorkflowRunIds(user: Pick<User, "tenantId">, runIds: string[], failOnError = false) {
   if (!runIds.length) return [];
-  if (input.failOnError) {
+  const prisma = getPrismaClient();
+  for (const runId of runIds) await executeSavedWorkflowRun(user, runId, executeGraphNode);
+  if (failOnError) {
     const failed = await prisma.workflowRun.findFirst({ where: { id: { in: runIds }, tenantId: user.tenantId, status: "failed" } });
     if (failed) throw new WorkflowsServiceError(`ワークフロー「${failed.workflowName}」が失敗しました: ${failed.error} (実行ID: ${failed.id})`, 422);
   }
   return (await prisma.approval.findMany({ where: { tenantId: user.tenantId, workflowRunId: { in: runIds } }, include: approvalInclude() })).map(toApproval);
 }
 
+export async function runApprovalWorkflowsForRecord(user: User, input: RunApprovalWorkflowInput) {
+  return dispatchWorkflowRunIds(user, await enqueueWorkflowsForRecord(user, input), input.failOnError);
+}
+
 const executeGraphNode: WorkflowNodeExecutor = async (user, input, workflow, node, transaction) => {
   if (node.data.nodeType === "trigger") return;
   const record = await transaction.appRecord.findFirst({ where: { id: input.recordId, tenantId: user.tenantId, appId: input.appId, tableId: input.tableId, deletedAt: null } });
   if (!record) throw new WorkflowsServiceError("対象レコードが見つかりません。", 404);
-  if (node.data.nodeType === "condition") return { outcome: conditionNodeMatches(node, record) ? "yes" : "no" };
+  if (node.data.nodeType === "condition") return { outcome: conditionNodeMatches(node, input.recordSnapshot ?? record) ? "yes" : "no" };
   if (node.data.nodeType !== "approval") {
     await executeWorkflowSideEffectNode(user, input, workflow, node, transaction);
     return;
@@ -1774,6 +1781,12 @@ export async function resumeWorkflowRun(user: User, appId: string, runId: string
   if (!["ready", "waiting"].includes(run.status)) throw new WorkflowsServiceError("開始待ち・承認待ちの実行のみ再開できます。", 409);
   await executeSavedWorkflowRun(user, run.id, executeGraphNode);
   return toWorkflowRun(await prisma.workflowRun.findUniqueOrThrow({ where: { id: run.id } }));
+}
+
+export async function recoverWorkflowRun(user: User, appId: string, runId: string, input: import("@/types/workflow").WorkflowRecoveryInput) {
+  await recoverInterruptedWorkflowRun(user, appId, runId, input);
+  if (input.action !== "fail") await executeSavedWorkflowRun(user, runId, executeGraphNode);
+  return toWorkflowRun(await getPrismaClient().workflowRun.findFirstOrThrow({ where: { id: runId, tenantId: user.tenantId, appId } }));
 }
 
 export async function createApprovalForRecord(

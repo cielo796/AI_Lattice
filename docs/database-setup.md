@@ -69,10 +69,12 @@ npm run db:supabase:export -- ../.cache/supabase-bootstrap.sql ai_lattice_app
 
 ## 今回の確認
 
-- 専用スキーマの28テーブル、15件のmigration履歴、全テーブルのRLSを確認しました。
+- 専用スキーマの28テーブル、16件のmigration履歴、全テーブルのRLSを確認しました。9月30日の永続実行追加では `20260930000000_workflow_dispatch_leases` の列・索引だけを追加し、テーブル数や既存の介護DBは変更していません。
 - migrationのchecksumをリポジトリのSQLと照合し、全件一致しました。
+- migration SQLの改行は `.gitattributes` で固定します。新規SQLはLF、既存9本はSupabaseに適用したバイト列と同じCRLFを指定し、Windows/Linuxのcheckoutによるchecksum差を防ぎます。SQL本文やDBの適用済みchecksumは書き換えていません。
 - `prisma migrate status` は適用済み、`prisma migrate diff` は差分なしでした。
 - Session poolerへのクライアント接続でTLSとCA・ホスト名検証を確認しました。
+- 接続の時刻設定はUTCです。実行期限はタイムゾーン付き列で保存し、DBの時計を用いて延長します。[ワークフローの永続実行と復旧](workflow-operations.md) にworkerの起動・復旧判断・配置時のdrain手順を記載しています。
 - Supabaseを接続先にした管理・レコード操作・二段階承認のブラウザーE2Eは3件成功しました。検証用アプリはテスト終了時に削除され、デモデータは残しています。
 - `npm run quality` は241件成功（実DB専用11件skip）、専用スキーマを使うローカル実DB統合テストは10件成功しました。診断API `/api/health/db` はHTTP 200・正常を返しました。
 - GitHub ActionsのE2EはSupabaseではなく、ジョブ内の一時PostgreSQLを使います。前回の失敗はデモ作成前のDB診断によるもので、Supabaseの停止とは別です。CIの診断順序を修正しています。

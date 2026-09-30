@@ -68,12 +68,19 @@ export interface WorkflowRun {
   workflowId: string | null;
   workflowName: string;
   recordId: string;
-  status: "ready" | "running" | "waiting" | "completed" | "failed";
+  status: "ready" | "running" | "waiting" | "interrupted" | "completed" | "failed";
   state: WorkflowRunState;
   error: string | null;
   createdAt: string;
   updatedAt: string;
   finishedAt: string | null;
+}
+
+export interface WorkflowRecoveryInput {
+  action: "retry" | "skip" | "fail";
+  reason: string;
+  expectedUpdatedAt: string;
+  confirmExternalOutcome?: boolean;
 }
 
 export interface Workflow {

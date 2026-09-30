@@ -1,22 +1,11 @@
 import { NextResponse } from "next/server";
-import { ServiceError } from "@/server/errors/service-error";
+import { authorizeWorkflowCron } from "@/server/workflows/internal-auth";
 import { runDueScheduledWorkflows } from "@/server/workflows/scheduler";
 import { toRouteErrorResponse } from "@/app/api/_helpers";
 
-function authorize(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret) {
-    throw new ServiceError("CRON_SECRET is not configured.", 503);
-  }
-
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
-    throw new ServiceError("Unauthorized", 401);
-  }
-}
-
 export async function POST(request: Request) {
   try {
-    authorize(request);
+    authorizeWorkflowCron(request);
     const url = new URL(request.url);
     const limitValue = url.searchParams.get("limit");
     const limit = limitValue ? Number.parseInt(limitValue, 10) : undefined;

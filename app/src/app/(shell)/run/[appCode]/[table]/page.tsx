@@ -652,7 +652,7 @@ export default function RuntimeViewPage() {
       setRecordPanelMode(null);
       setRefreshKey((current) => current + 1);
       setError(null);
-      pushToast({ title: "レコードを作成しました", variant: "success" });
+      pushToast({ title: "レコードを作成しました", description: record.workflowDispatchPending ? "ワークフローは実行待ちです。保存は完了しています。" : undefined, variant: "success" });
     } catch (nextError) {
       const error =
         nextError instanceof Error
@@ -688,7 +688,7 @@ export default function RuntimeViewPage() {
       setRecordPanelMode(null);
       setRefreshKey((current) => current + 1);
       setError(null);
-      pushToast({ title: "レコードを更新しました", variant: "success" });
+      pushToast({ title: "レコードを更新しました", description: record.workflowDispatchPending ? "ワークフローは実行待ちです。保存は完了しています。" : undefined, variant: "success" });
     } catch (nextError) {
       const error =
         nextError instanceof Error

@@ -1,0 +1,10 @@
+app/prisma/migrations/**/migration.sql text eol=lf
+app/prisma/migrations/20260414053842_init/migration.sql text eol=crlf
+app/prisma/migrations/20260416063000_add_runtime_records/migration.sql text eol=crlf
+app/prisma/migrations/20260428042000_add_audit_logs/migration.sql text eol=crlf
+app/prisma/migrations/20260513090000_add_workflows_approvals/migration.sql text eol=crlf
+app/prisma/migrations/20260514090000_add_tenant_openai_settings/migration.sql text eol=crlf
+app/prisma/migrations/20260516093000_add_app_views/migration.sql text eol=crlf
+app/prisma/migrations/20260516102000_add_app_forms/migration.sql text eol=crlf
+app/prisma/migrations/20260602123000_add_record_numbers/migration.sql text eol=crlf
+app/prisma/migrations/20260610112550_add_app_versions/migration.sql text eol=crlf

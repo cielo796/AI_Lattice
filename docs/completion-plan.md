@@ -42,10 +42,16 @@ AIで業務アプリを作り、実データで運用し、人が承認・管理
 - 編集後の `npm run quality` は50ファイル・273件成功（実DB専用2ファイル・11件skip）、TypeScript・ESLintエラーなし、既存フォント警告1件。実DB統合10件とサービス単体11件も成功。統合検証でイベント同時登録のP2002競合を確認し、既存の同一イベント実行を取得するよう修正した。
 - Node 22・Cドライブコピーで編集追加後のproduction build成功（43 static pages）。その `next start` 成果物で `workflow-editor.spec.ts` / `workflow-graph.spec.ts` / `governance-workflow.spec.ts` / `runtime-smoke.spec.ts` が4件成功。ポートをドラッグした接続、座標移動、接続ラベル編集、保存再読込、保存した二分岐の実レコード実行まで確認した。開発時のReact Flow Strict Mode警告と並行build時の一時的なdev manifest読取エラーは本番実行では再現しなかった。
 
+- 永続実行追加後の `npm run quality`: 52ファイル・295件成功、実DB専用2ファイル・22件skip。TypeScript・ESLintエラーなし、既存フォント警告1件。専用PostgreSQLスキーマに16 migrationを適用して統合21件成功。レコードとqueueのrollback、保存後dispatch障害、イベントsnapshot、同時更新、期限切れ回復の競合、行ロック中の回復回避、外部結果不明の隔離、管理者のretry/skip/fail・別テナント拒否、checkpoint失敗時のsnapshot整合性を確認。
+- 永続実行追加後のブラウザーE2E: `workflow-recovery.spec.ts` / `workflow-graph.spec.ts` / `workflow-editor.spec.ts` / `governance-workflow.spec.ts` / `runtime-smoke.spec.ts` の5件成功。復旧理由・確認checkbox・画面からの処理済み判断・後続実行・監査ログ・重複判断409まで確認した。復旧用fixtureは明示許可したloopbackテストDBに限定し、CIでも実行する。
+- 実DB検証でDB既定のAsia/TokyoとPrisma日時の差により実行期限が誤判定される問題を検出。接続のUTC統一、期限列のtimestamptz化、DB時計による期限延長で修正し、統合テストを再実行した。Supabaseの専用スキーマにも16番目のmigrationを適用し、28テーブル・全28テーブルRLS、checksum一致、UTC、TLS検証済み接続を再確認。既存の介護DBは変更していない。
+- migrationの改行も監査。既存9本の適用済みchecksumはCRLF、他のSQLはLFだったため、`.gitattributes` にその改行を固定した。SQL本文やDB履歴を変更せず、Gitの改行設定が異なる場合もcheckout filterの出力が現在の適用済みSQLと一致することを確認した。
+- 最新ソースのproduction buildはNode 22・Cドライブ検証コピー・webpackで成功（44 static pages）。Turbopackは検証コピーのnode_modules junctionをルート外として拒否したため、この環境ではwebpackを使用した。本番成果物の起動は実行ツールのポリシーで拒否され、今回の5件E2Eは通常の開発サーバー起動経路で検証した。本番成果物での追加E2E、React Flowの開発時の警告とレイアウト挙動の再監査は残る。
+
 ## 次に必要な実装・監査
 
 - R1/R2: 基本的な編集UI・config/参照先検証・保存再読込E2Eは実装・検証済み。全画面遷移の未保存保護、全権限・モバイル操作、運用中の参照先変更、Prompt to Workflowを含む最終受け入れ監査は残る。操作と制約は [編集ガイド](workflow-editor.md) に記録。
-- R3/R4/R7: recordイベントの永続outbox、プロセス停止後の運用回復、Webhook受信、スケジュールの公平性と重複イベント制御。外部API/AIの厳密なexactly-onceは保証できていない。実行中の自動再送は行わない。
+- R3/R4/R7: recordイベントの永続outbox、token付き実行権、期限切れDBノードの回復、外部結果不明の隔離、管理者の復旧判断を実装。Webhook受信、スケジュールの公平性と重複イベント制御、実プロセス停止の長時間fault injection、配置先のworker定期実行・監視は残る。外部API/AIの厳密なexactly-onceは保証しない。[運用手順](workflow-operations.md) を参照。
 - A1〜A6/R5: 関連レコード更新・加減算等の承認後アクション、申請条件・View同期・公開snapshotの全受け入れ条件を再監査する。手動アプリ申請の同時作成対策と代理承認ポリシーにも不足がある。
 - R6/R8: 通知先roleのapp/table scope、全権限組み合わせ、別テナントのAPI E2E、ランタイムで操作できない承認ボタンの表示制御を監査する。
 - AI: Prompt to Workflowは未接続を明示して無効化しただけで、生成preview/applyは未実装。Model Gateway・実モデル評価・外部連携は別途完成させる。
