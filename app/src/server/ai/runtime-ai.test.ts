@@ -119,6 +119,12 @@ describe("buildRecordContext", () => {
 });
 
 describe("executeRuntimeAIAction", () => {
+  it("passes a workflow-selected model through the gateway and reports it", async () => {
+    const { client, create } = createFakeClient({ summary: "検証用の要約", keyPoints: [] });
+    const result = await executeRuntimeAIAction(user, "support-desk", "tickets", "rec-001", "summarize", client, { model: "configured-model" });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ model: "configured-model" }));
+    expect(result.modelName).toBe("configured-model");
+  });
   it("returns a normalized summary result", async () => {
     const { client, create } = createFakeClient({
       summary: "ログイン不具合のチケットで、現在調査中です。",

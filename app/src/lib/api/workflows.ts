@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api/client";
-import type { Workflow, WorkflowDefinition } from "@/types/workflow";
+import type { Workflow, WorkflowDefinition, WorkflowEditorContext } from "@/types/workflow";
 
 export interface CreateWorkflowInput {
   name: string;
@@ -53,6 +53,10 @@ export async function deleteWorkflow(appId: string, workflowId: string) {
   await apiFetch<string>(workflowPath(appId, workflowId), {
     method: "DELETE",
   });
+}
+
+export async function getWorkflowEditorContext(appId: string) {
+  return apiFetch<WorkflowEditorContext>(`${workflowsPath(appId)}/editor-context`);
 }
 
 export async function runWorkflow(

@@ -1,6 +1,6 @@
 # AI Lattice 完成に向けた実装・検証計画
 
-更新: 2026-09-29
+更新: 2026-09-30
 
 ## 目標
 
@@ -36,11 +36,15 @@ AIで業務アプリを作り、実データで運用し、人が承認・管理
 - production build: Node 22・Cドライブ検証コピーでワークフロー追加後も成功（43 static pages生成）。その成果物を `next start` で起動し、`workflow-graph.spec.ts` が再度成功。Dドライブ直接buildには既知のEISDIR/readlink障害がある。
 - ローカル実DB検証はloopback専用・テスト専用のembedded PostgreSQL 16を使用。アプリの依存関係には追加していない。9月30日には専用スキーマ指定で統合テスト10件も成功。
 - 2026年9月30日: Supabaseの復元完了を確認し、既存の介護DBとは別の `ai_lattice` スキーマに28テーブル・15 migrationを配置。承認済みの専用DBロール・公式CA検証付きの接続を設定し、Supabase上のE2E3件と診断API HTTP 200を確認。構成と運用は [DB構成と運用](database-setup.md) に記録。
-- GitHub PR #30の初回リモートCIは4件成功、E2Eのみ起動前のデモseed確認で失敗。スキーマ診断をE2E前、デモを含む診断をE2E後へ移す修正を実装した。リモートでの再検証は修正コミット反映後のCIで確認する。
+- GitHub PR #30の初回リモートCIは4件成功、E2Eのみ起動前のデモseed確認で失敗。スキーマ診断の順序を修正した `0bbf84f8` のCI run `36660891586` は5ジョブすべて成功。PR #30がマージ済みであることもGitHubから確認した。
+- 9月30日: ワークフロー編集で7種のノードの追加・移動・複製・削除・接続、接続ラベル編集、全ノードのインスペクタ、名前・trigger・状態、空/アプリ承認テンプレート、未保存表示・切替確認を実装。権限不足は閲覧専用となる。
+- config検証を強化し、有効化時に同一アプリのtable/field・有効ユーザー・アプリ承認設定・Prompt Template・API許可先を現在のDBと照合する。APIのJSONテンプレート・安全なヘッダー・timeout、AIのmodel/prompt・コメント/フィールド出力も実行側へ接続した。外部通信そのものはモック検証であり実サービス評価は残る。
+- 編集後の `npm run quality` は50ファイル・273件成功（実DB専用2ファイル・11件skip）、TypeScript・ESLintエラーなし、既存フォント警告1件。実DB統合10件とサービス単体11件も成功。統合検証でイベント同時登録のP2002競合を確認し、既存の同一イベント実行を取得するよう修正した。
+- Node 22・Cドライブコピーで編集追加後のproduction build成功（43 static pages）。その `next start` 成果物で `workflow-editor.spec.ts` / `workflow-graph.spec.ts` / `governance-workflow.spec.ts` / `runtime-smoke.spec.ts` が4件成功。ポートをドラッグした接続、座標移動、接続ラベル編集、保存再読込、保存した二分岐の実レコード実行まで確認した。開発時のReact Flow Strict Mode警告と並行build時の一時的なdev manifest読取エラーは本番実行では再現しなかった。
 
 ## 次に必要な実装・監査
 
-- R1/R2: ノード別の厳密なconfig・参照先検証、編集UIで全ノードの追加・接続・削除・設定、テンプレート・名前・trigger編集、保存再読込E2E。
+- R1/R2: 基本的な編集UI・config/参照先検証・保存再読込E2Eは実装・検証済み。全画面遷移の未保存保護、全権限・モバイル操作、運用中の参照先変更、Prompt to Workflowを含む最終受け入れ監査は残る。操作と制約は [編集ガイド](workflow-editor.md) に記録。
 - R3/R4/R7: recordイベントの永続outbox、プロセス停止後の運用回復、Webhook受信、スケジュールの公平性と重複イベント制御。外部API/AIの厳密なexactly-onceは保証できていない。実行中の自動再送は行わない。
 - A1〜A6/R5: 関連レコード更新・加減算等の承認後アクション、申請条件・View同期・公開snapshotの全受け入れ条件を再監査する。手動アプリ申請の同時作成対策と代理承認ポリシーにも不足がある。
 - R6/R8: 通知先roleのapp/table scope、全権限組み合わせ、別テナントのAPI E2E、ランタイムで操作できない承認ボタンの表示制御を監査する。

@@ -55,12 +55,14 @@ export interface ModelGatewayJsonRequest {
   appId?: string;
   recordId?: string;
   promptTemplateKey?: string;
+  requirePromptTemplate?: boolean;
   promptTemplateVersionId?: string;
   metadata?: Record<string, unknown>;
 }
 
 export interface ModelGatewayJsonResponse {
   outputText?: string;
+  modelName?: string;
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -311,11 +313,13 @@ async function resolvePromptTemplateRequest(
       operation: request.operation,
       key: request.promptTemplateKey,
     });
-  } catch {
+  } catch (error) {
+    if (request.requirePromptTemplate) throw error;
     return request;
   }
 
   if (!activeTemplate) {
+    if (request.requirePromptTemplate) throw new AppsServiceError("指定したPrompt Templateの有効なバージョンがありません。", 400);
     return request;
   }
 
@@ -363,6 +367,7 @@ export async function generateJsonWithModelGateway(
 
     return {
       outputText: response.output_text,
+      modelName: resolvedRequest.model,
       usage,
     };
   } catch (error) {

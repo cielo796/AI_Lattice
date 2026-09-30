@@ -113,7 +113,8 @@ Remove-Item Env:TEST_WORKFLOW_DATABASE_URL
 - ノードの失敗は既定で停止します。`failurePolicy="continue"` を指定した副作用ノードのみ、失敗を記録して後続へ進めます。
 - API送信は、管理者が `WORKFLOW_API_ALLOWED_ORIGINS` に指定したオリジンだけを許可します。例: `https://api.example.com,https://hooks.example.com`。未設定なら送信不可、リダイレクトには追従しません。信頼できる接続先のみ登録してください。
 - 外部APIには実行・ノードごとの `Idempotency-Key` を付けます。ただし受信側の対応が必要で、外部副作用の厳密な一度限りの保証はありません。プロセス停止で `running` に残った実行は自動再送せず、管理者が接続先と履歴を確認します。
-- グラフ編集UI、Webhook受信、Prompt to Workflowには未完成部分があります。AIコマンド欄は誤操作を避けるため準備中として無効化しています。
+- グラフ編集では全7種のノードを追加・移動・複製・削除・接続でき、ノード設定、接続ラベル、名前・トリガー・状態を編集できます。空/アプリ承認テンプレートから作成し、有効化前にconfig・参照先を検証します。[ワークフロー編集ガイド](../docs/workflow-editor.md)を参照してください。
+- 編集と保存したグラフの実行は `npm run e2e -- workflow-editor.spec.ts` で検証します。Webhook受信、Prompt to Workflowなどには未完成部分があります。AIコマンド欄は誤操作を避けるため準備中として無効化しています。
 
 ## 定期ワークフロー
 

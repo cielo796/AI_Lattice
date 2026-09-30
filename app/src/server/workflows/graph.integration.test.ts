@@ -65,6 +65,10 @@ describe.skipIf(!connection)("workflow graph against PostgreSQL", () => {
     appId = app.id;
     const table = await prisma.appTable.create({ data: { tenantId: tenant.id, appId, name: "申請", code: "requests" } });
     tableId = table.id;
+    await prisma.appField.createMany({ data: [
+      { tenantId: tenant.id, appId, tableId, name: "件名", code: "title", fieldType: "text" },
+      { tenantId: tenant.id, appId, tableId, name: "金額", code: "amount", fieldType: "number" },
+    ] });
   });
 
   afterAll(async () => { await getPrismaClient().$disconnect(); vi.unstubAllEnvs(); });
@@ -160,7 +164,7 @@ describe.skipIf(!connection)("workflow graph against PostgreSQL", () => {
   });
 
   it.each(["fail", "continue"])("records node failures and honors the %s policy", async (failurePolicy) => {
-    vi.stubEnv("WORKFLOW_API_ALLOWED_ORIGINS", "");
+    vi.stubEnv("WORKFLOW_API_ALLOWED_ORIGINS", "https://blocked.example");
     const graph: WorkflowDefinition = {
       nodes: [
         { id: "start", data: { label: "開始", nodeType: "trigger" } },
@@ -170,6 +174,7 @@ describe.skipIf(!connection)("workflow graph against PostgreSQL", () => {
       edges: [{ id: "01", source: "start", target: "api" }, { id: "02", source: "api", target: "after" }],
     };
     const { record, workflow, input } = await setupRun(50, graph);
+    vi.stubEnv("WORKFLOW_API_ALLOWED_ORIGINS", "");
     await runApprovalWorkflowsForRecord(actors[0], input);
     const [run] = await listWorkflowRunsForApp(actors[0], appId, workflow.id);
     expect(run.status).toBe(failurePolicy === "fail" ? "failed" : "completed");

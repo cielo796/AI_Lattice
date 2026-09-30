@@ -22,6 +22,8 @@ import type {
 } from "@/types/workflow";
 import type { User } from "@/types/user";
 import { validateWorkflowGraph, workflowEntryId } from "@/lib/workflow-graph";
+import { parseWorkflowHeaders, validateWorkflowReferences } from "@/lib/workflow-config";
+import { loadWorkflowEditorContext } from "./editor-context";
 import { executeSavedWorkflowRun, toWorkflowRun, workflowJson, type WorkflowNodeExecutor } from "./execution";
 import { resolveApproverUsers } from "./app-approval-settings";
 
@@ -1000,16 +1002,24 @@ async function executeApiCallNode(
     getConfigString(node.data.config, "method") ?? "POST"
   ).toUpperCase();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
+  const timeoutMs = typeof node.data.config?.timeoutMs === "number" ? node.data.config.timeoutMs : 5000;
+  const headers = parseWorkflowHeaders(node.data.config?.headers);
+  const renderValue = (value: unknown): unknown => {
+    if (typeof value === "string") return renderWorkflowTemplate(value, input);
+    if (Array.isArray(value)) return value.map(renderValue);
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, renderValue(child)]));
+    return value;
+  };
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json", "Idempotency-Key": `${workflow.runId}:${node.id}` },
+      headers: { "content-type": "application/json", ...Object.fromEntries(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), renderWorkflowTemplate(value, input)])), "idempotency-key": `${workflow.runId}:${node.id}` },
       body:
         method === "GET" || method === "HEAD"
           ? undefined
-          : JSON.stringify({
+          : JSON.stringify(node.data.config?.bodyTemplate !== undefined ? renderValue(JSON.parse(String(node.data.config.bodyTemplate))) : {
               workflowId: workflow.id,
               workflowName: workflow.name,
               appId: input.appId,
@@ -1022,6 +1032,7 @@ async function executeApiCallNode(
       signal: controller.signal,
       redirect: "manual",
     });
+    await response.body?.cancel();
 
     if (!response.ok) {
       throw new WorkflowsServiceError(
@@ -1055,6 +1066,7 @@ async function executeAIActionNode(
   prisma: Prisma.TransactionClient
 ) {
   const action = getConfigString(node.data.config, "action") ?? "summarize";
+  await requirePermission(user, "ai:execute", { appId: input.appId, tableId: input.tableId });
 
   if (!isRuntimeAIAction(action)) {
     throw new WorkflowsServiceError("Workflow AI action is invalid", 400);
@@ -1065,14 +1077,23 @@ async function executeAIActionNode(
     input.appCode,
     input.tableCode,
     input.recordId,
-    action
+    action,
+    undefined,
+    { model: getConfigString(node.data.config, "model"), promptTemplateKey: getConfigString(node.data.config, "promptTemplateKey") }
   );
-  await prisma.recordComment.create({
+  const output = formatAIWorkflowResult(result);
+  if (node.data.config?.output === "field") {
+    const fieldCode = getConfigString(node.data.config, "outputFieldCode");
+    const record = await prisma.appRecord.findFirst({ where: { id: input.recordId, tenantId: user.tenantId, appId: input.appId, tableId: input.tableId, deletedAt: null } });
+    const field = await prisma.appField.findFirst({ where: { tenantId: user.tenantId, appId: input.appId, tableId: input.tableId, code: fieldCode, fieldType: { in: ["text", "textarea", "ai_generated"] } } });
+    if (!record || !field || !fieldCode) throw new WorkflowsServiceError("AI出力先フィールドが存在しません。", 400);
+    await prisma.appRecord.update({ where: { id: record.id }, data: { dataJson: workflowJson({ ...toDataObject(record.dataJson), [fieldCode]: output }), updatedById: user.id } });
+  } else await prisma.recordComment.create({
     data: {
       id: crypto.randomUUID(),
       tenantId: user.tenantId,
       recordId: input.recordId,
-      commentText: formatAIWorkflowResult(result),
+      commentText: output,
       createdById: user.id,
       isSystem: true,
     },
@@ -1444,8 +1465,12 @@ export async function createWorkflowForApp(
   const triggerType = assertWorkflowTriggerType(input.triggerType);
   const status = assertWorkflowStatus(input.status);
   const definition = normalizeWorkflowDefinition(input.definitionJson);
-  const validationErrors = validateWorkflowGraph(definition, { active: status === "active" });
+  const validationErrors = validateWorkflowGraph(definition, { active: status === "active", triggerType });
   if (validationErrors.length) throw new WorkflowsServiceError(validationErrors.join("\n"), 400);
+  if (status === "active") {
+    const referenceErrors = validateWorkflowReferences(definition, await loadWorkflowEditorContext(user, app.id));
+    if (referenceErrors.length) throw new WorkflowsServiceError(referenceErrors.join("\n"), 400);
+  }
   const prisma = getPrismaClient();
   const workflow = await prisma.workflow.create({
     data: {
@@ -1488,7 +1513,7 @@ export async function updateWorkflowForApp(
   await ensureDemoBuilderData();
   const existingWorkflow = await getWorkflowOrThrow(user, appId, workflowId);
   await requirePermission(user, "workflow:manage", { appId });
-  const nextName = input.name?.trim() || existingWorkflow.name;
+  const nextName = input.name !== undefined ? assertNonEmpty(input.name, "Workflow name") : existingWorkflow.name;
   const nextTriggerType =
     input.triggerType !== undefined
       ? assertWorkflowTriggerType(input.triggerType)
@@ -1501,8 +1526,12 @@ export async function updateWorkflowForApp(
     input.definitionJson !== undefined
       ? normalizeWorkflowDefinition(input.definitionJson)
       : normalizeWorkflowDefinition(existingWorkflow.definitionJson);
-  const validationErrors = validateWorkflowGraph(nextDefinition, { active: nextStatus === "active" });
+  const validationErrors = validateWorkflowGraph(nextDefinition, { active: nextStatus === "active", triggerType: nextTriggerType });
   if (validationErrors.length) throw new WorkflowsServiceError(validationErrors.join("\n"), 400);
+  if (nextStatus === "active") {
+    const referenceErrors = validateWorkflowReferences(nextDefinition, await loadWorkflowEditorContext(user, appId));
+    if (referenceErrors.length) throw new WorkflowsServiceError(referenceErrors.join("\n"), 400);
+  }
   const prisma = getPrismaClient();
   const workflow = await prisma.workflow.update({
     where: { id: existingWorkflow.id },
@@ -1678,6 +1707,11 @@ export async function runApprovalWorkflowsForRecord(
         stateJson: workflowJson({ queue: entryId ? [entryId] : [], executions: [] }),
         ...(validationErrors.length ? { status: "failed", error: validationErrors.join("\n"), finishedAt: new Date() } : {}),
       },
+    }).catch(async (error: unknown) => {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+      const existing = await prisma.workflowRun.findFirst({ where: { workflowId: workflow.id, eventKey, tenantId: user.tenantId } });
+      if (!existing) throw error;
+      return existing;
     });
     runIds.push(run.id);
     await executeSavedWorkflowRun(user, run.id, executeGraphNode);

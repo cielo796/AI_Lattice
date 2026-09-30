@@ -121,6 +121,23 @@ describe("model gateway", () => {
     });
   });
 
+  it("refuses a missing explicitly selected prompt instead of silently changing instructions", async () => {
+    const prisma = getPrismaClient();
+    getPrismaClient.mockReturnValue({ ...prisma, promptTemplateVersion: { findFirst: vi.fn().mockResolvedValue(null) } });
+    const client = { responses: { create: vi.fn() } };
+    await expect(generateJsonWithModelGateway({ ...request(), promptTemplateKey: "explicit-template", requirePromptTemplate: true }, client)).rejects.toMatchObject({ status: 400 });
+    expect(client.responses.create).not.toHaveBeenCalled();
+  });
+
+  it("reports the effective model selected by the active prompt template", async () => {
+    const prisma = getPrismaClient();
+    getPrismaClient.mockReturnValue({ ...prisma, promptTemplateVersion: { findFirst: vi.fn().mockResolvedValue({ id: "version", version: 1, modelName: "configured-model", instructions: "Configured instructions", responseSchemaJson: null, promptTemplate: { key: "explicit-template", name: "Template", operation: request().operation } }) } });
+    const client = { responses: { create: vi.fn().mockResolvedValue({ output_text: "{}" }) } };
+    const result = await generateJsonWithModelGateway({ ...request(), promptTemplateKey: "explicit-template", requirePromptTemplate: true }, client);
+    expect(result.modelName).toBe("configured-model");
+    expect(client.responses.create).toHaveBeenCalledWith(expect.objectContaining({ model: "configured-model", instructions: "Configured instructions" }));
+  });
+
   it("lists execution logs for the current tenant", async () => {
     const prisma = {
       aiExecutionLog: {

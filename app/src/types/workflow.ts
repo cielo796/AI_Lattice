@@ -33,6 +33,19 @@ export interface WorkflowDefinition {
   }>;
 }
 
+export interface WorkflowEditorContext {
+  tables: Array<{
+    id: string;
+    code: string;
+    name: string;
+    fields: Array<{ code: string; name: string; fieldType: string }>;
+  }>;
+  users: Array<{ id: string; name: string }>;
+  approvalPolicy: { enabled: boolean; targetTableId: string | null } | null;
+  allowedApiOrigins: string[];
+  promptTemplates: Array<{ key: string; name: string; operation: string }>;
+}
+
 export interface WorkflowNodeExecution {
   nodeId: string;
   nodeType: WorkflowNodeType;
