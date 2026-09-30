@@ -2,6 +2,7 @@
 
 import { ShellChromeProvider } from "./ShellChrome";
 import { Sidebar } from "./Sidebar";
+import { ShellContent } from "./ShellContent";
 import { TopBar } from "./TopBar";
 
 interface AppShellProps {
@@ -17,7 +18,9 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
       <div className="min-h-screen bg-surface-container-low">
         <Sidebar />
         <TopBar title={title} breadcrumbs={breadcrumbs} actions={actions} />
-        <main className="min-h-screen pt-14 md:ml-64">{children}</main>
+        <ShellContent>
+          <main className="min-h-screen pt-14">{children}</main>
+        </ShellContent>
       </div>
     </ShellChromeProvider>
   );

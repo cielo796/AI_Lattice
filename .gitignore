@@ -38,6 +38,8 @@ desktop.ini
 
 # Testing
 coverage/
+app/test-results/
+app/playwright-report/
 
 # Turbopack
 .turbo/

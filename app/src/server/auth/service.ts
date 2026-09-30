@@ -7,6 +7,7 @@ import { getPrismaClient } from "@/server/db/prisma";
 interface LoginInput {
   email: string;
   password: string;
+  tenantCode?: string;
 }
 
 function toPublicUser(user: {
@@ -31,7 +32,7 @@ function toPublicUser(user: {
   };
 }
 
-export async function authenticateUser({ email, password }: LoginInput) {
+export async function authenticateUser({ email, password, tenantCode }: LoginInput) {
   const normalizedEmail = email.trim().toLowerCase();
 
   if (!normalizedEmail || !password) {
@@ -41,12 +42,18 @@ export async function authenticateUser({ email, password }: LoginInput) {
   await ensureDemoAuthData();
 
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const users = await prisma.user.findMany({
     where: {
       email: normalizedEmail,
       status: "active",
+      tenant: {
+        status: "active",
+        ...(tenantCode ? { code: tenantCode.trim().toLowerCase() } : {}),
+      },
     },
+    take: 2,
   });
+  const user = users.length === 1 ? users[0] : null;
 
   if (!user?.passwordHash) {
     return null;
@@ -75,7 +82,7 @@ export async function findUserById(userId: string) {
   return user ? toPublicUser(user) : null;
 }
 
-export async function findUserByEmailForAudit(email: string) {
+export async function findUserByEmailForAudit(email: string, tenantCode?: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
   if (!normalizedEmail) {
@@ -85,11 +92,14 @@ export async function findUserByEmailForAudit(email: string) {
   await ensureDemoAuthData();
 
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const users = await prisma.user.findMany({
     where: {
       email: normalizedEmail,
+      ...(tenantCode ? { tenant: { code: tenantCode.trim().toLowerCase() } } : {}),
     },
+    take: 2,
   });
+  const user = users.length === 1 ? users[0] : null;
 
   return user ? toPublicUser(user) : null;
 }

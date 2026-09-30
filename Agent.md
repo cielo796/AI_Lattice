@@ -1213,12 +1213,12 @@ Current implementation snapshot:
 
 ### Updated Immediate Next Steps
 
-1. Runtime AI（レコード要約 / 次アクション / 返信案）を Model Gateway 上に実装する
+1. ~~Runtime AI（レコード要約 / 次アクション / 返信案）を Model Gateway 上に実装する~~（2026-06-10 second pass で完了）
 2. Prompt Template の CRUD / active version 解決 / Gateway からの利用を追加する
 3. AI 提案の Human-in-the-Loop 承認導線を追加する
-4. publish / versioning / RBAC / app settings を追加する
+4. ~~publish / versioning / app settings を追加する~~（2026-06-10 second pass で完了）。RBAC は未実装
 5. Workflow engine を approval node 以外（条件分岐、通知、API call、AI action、schedule/webhook）へ拡張する
-6. `/admin/users`、`/admin/roles`、`/admin/tenant` を実装する
+6. ~~`/admin/users` を実装する~~（2026-06-10 second pass で完了）。`/admin/roles`、`/admin/tenant` は未実装
 7. E2E テストを追加して主要ユースケース（AI app builder → AI refine → record CRUD → workflow approval → audit）を固定する
 
 ## Implementation Update (2026-04-14)
@@ -1293,6 +1293,136 @@ Current implementation snapshot:
 - Not implemented:
   Runtime AI execution/persistence, prompt template management, publish/versioning, RBAC, app settings, admin users/roles/tenant screens, and broad E2E coverage.
 
+## Implementation Update (2026-06-10, second pass)
+
+### Completed in this pass
+
+- Added Runtime AI execution via the Model Gateway: record summarization (`record.summarize`), next-action suggestions (`record.next_actions`), and reply drafting (`record.reply_draft`) with strict JSON schemas, Japanese instructions, and full AI execution logging (`src/server/ai/runtime-ai.ts`, `POST /api/run/:appCode/:table/:recordId/ai`).
+- Added `RecordAIPanel` to the runtime AI sidebar: per-record AI summary with key points, prioritized next actions, and reply drafts that can be posted directly as record comments or copied. AI output is visually marked with the AI signal color and an "AI生成" model badge; heuristic local summaries remain as the pre-AI fallback.
+- Added publish/versioning: `app_versions` table and migration, `publishAppForUser` snapshotting tables/fields/views/forms/workflows into `metadata_json` with per-app version numbers, `POST /api/apps/:id/publish`, `GET /api/apps/:id/versions`, and audit logging (`APP_PUBLISH`).
+- Added `/apps/:id/settings`: edit name/description/icon, publish with version history list, archive/unarchive toggle, and app deletion (danger zone). Linked from the app-scoped sidebar.
+- Added `/admin/users`: DB-backed tenant user list with last login and created app/record counts, activate/deactivate with self-protection, session invalidation on deactivation, and `USER_STATUS_UPDATE` audit logs (`GET /api/admin/users`, `PATCH /api/admin/users/:userId`).
+- Record comments now resolve author display names (`createdByName`) instead of raw user IDs across runtime and mobile views.
+- Home dashboard stats are now real data (published/draft app counts, pending approvals, today's AI executions) and stat cards link to their screens; the static "AI からの提案" mock was replaced with actionable quick-action cards.
+- Login screen now states the actual demo account instead of claiming any credentials work; AI sidebar's non-functional tab bar was removed; AI log screen labels the new runtime AI operations.
+- Test coverage: 116 unit/integration tests passing (runtime AI normalization/context building, publish/versioning, admin users), plus `npm run quality` (mojibake + lint + tsc) green.
+- Verified end-to-end in the browser: login → record selection → AI summary/next actions/reply draft → comment post → AI execution log entries → app publish v1 → user deactivate/reactivate.
+
+### Known environment issue
+
+- `next build` fails on this Windows workspace both with Turbopack (junction creation panic) and webpack (`EISDIR: readlink` on a route file). Confirmed identical at the previous HEAD, so it predates this pass; CI quality gate does not include `next build`.
+
+### Current implementation status (2026-06-10, second pass)
+
+- DB-backed and working:
+  auth, sessions, apps, tables, fields, cross-app master references, views, forms, records with record numbers, comments (with author names), attachments, back-references, workflows, approvals, audit logs, AI execution logs, tenant OpenAI settings, runtime AI (summary / next actions / reply draft), app publish/versioning, app settings, and admin user management.
+- Partially implemented:
+  Workflow execution supports the approval-node path for create/update/status_change triggers, but does not yet execute condition branching, notifications, API calls, AI actions, schedule triggers, or webhook triggers.
+- Partially implemented:
+  AI operations are Model Gateway-backed with execution logs, but prompt templates are only modeled in the database and are not yet editable or resolved at runtime.
+- Not implemented:
+  prompt template management UI/API, RBAC, admin roles/tenant screens, notifications center, and broad E2E coverage.
+
+## Implementation Update (2026-06-15)
+
+### Completed in this pass
+
+- Added Prompt Template management: DB-backed admin APIs and `/admin/prompt-templates` UI for template creation, version creation, and active-version switching. Model Gateway now resolves active template versions by operation/key and falls back to built-in prompts when no active template exists.
+- Added RBAC foundation: `roles` / `user_roles` models, default demo role seeding, permission helpers, `/admin/roles` UI/API, role assignment APIs, and enforcement on admin users, OpenAI settings, audit log/AI log reads, and runtime AI execution.
+- Added `/admin/tenant` UI/API for tenant name/code/status/plan updates with audit logging.
+- Added notifications center: `notifications` model, notification APIs, `/notifications` UI, top-bar/sidebar navigation, read/read-all flows, and workflow notification creation.
+- Extended workflow execution beyond approval nodes: condition evaluation, notification nodes, status updates, API call nodes, AI action nodes, and manual run API for schedule/webhook workflows (`POST /api/apps/:appId/workflows/:workflowId/run`).
+- Added focused coverage for RBAC permission matching, prompt-template active resolution, notification creation/read flows, and status-update workflow execution. Added Playwright coverage for admin governance pages and non-approval workflow execution.
+
+### Current implementation status (2026-06-15)
+
+- DB-backed and working:
+  auth, sessions, apps, tables, fields, cross-app master references, views, forms, records with record numbers, comments, attachments, back-references, workflows/approvals, audit logs, AI execution logs, tenant OpenAI settings, runtime AI, app publish/versioning, app settings, admin user management, prompt template management, RBAC role management, tenant settings, and notifications.
+- Partially implemented:
+  RBAC has role/user assignment and permission enforcement on key admin/AI surfaces; app/table-scoped role assignments are modeled and manageable but not yet applied to every builder/runtime read/write service path.
+- Partially implemented:
+  Workflow condition, notification, status update, API call, and AI action nodes execute for record-triggered/manual workflows. Native background scheduling is exposed as an API-run path for external cron/webhook callers rather than an internal scheduler daemon.
+- Test status:
+  `npm run quality` passes with 125 Vitest tests. Playwright E2E specs were expanded, but local Playwright execution timed out in this Windows workspace before returning results.
+
+## Implementation Update (2026-06-20) — 現状確認と実装ロードマップ
+
+### 現状確認（2026-06-20 検証結果）
+
+ブランチ `codex/complete-mvp-gaps` を対象に実コードを検証した。
+
+- **コミット状況**: 最新コミットは `65cf54d4 Add AI gateway logs and cross-app references`（2026-06-10 相当）。2026-06-15 の作業（RBAC / 通知 / Prompt Template / tenant 設定 / publish / Runtime AI / admin users）は**ワーキングツリー上に存在するが未コミット**。
+- **テスト**: `npm test` で 33 ファイル / 125 テストが green。`npm run quality`（mojibake + lint + test + tsc）は 2026-06-15 時点で green。
+- **規模**: API route 53 本、page 18 本、Prisma モデル 22 個（`Tenant`〜`PromptTemplateVersion`）、API client 14 本を確認。
+- **RBAC 適用範囲**: `hasPermission` / `requirePermission` は admin / AI 系（roles, users, tenant, audit-logs, ai-logs, openai-settings, prompt-templates, runtime AI）に適用済み。**builder / runtime の app / table / field / record CRUD には未適用**。
+- **Workflow 実行**: trigger / condition / approval / notification / status_update / api_call / ai_action ノードを実行。**schedule / webhook は手動 run API のみで、内部スケジューラ常駐は無し**。
+- **E2E**: `e2e/runtime-smoke.spec.ts` と `e2e/governance-workflow.spec.ts` の 2 本。Windows ローカルで Playwright がタイムアウトするため CI でのグリーン確認が未達。
+
+### 未達の MVP スコープ（spec §5.1 / §6 で「○」だが未実装・限定実装）
+
+| 区分 | 項目 | パス | 状態 |
+|---|---|---|---|
+| 共通 | テナント選択 | `/tenants` | 未実装 |
+| 共通 | 個人設定 | `/settings/profile` | 未実装（△） |
+| Builder | 権限設計 GUI | `/apps/:id/permissions` | 未実装 |
+| Builder | フォーム設計（D&D ビルダー） | `/apps/:id/forms` | 限定（table designer 統合の CRUD のみ、専用 D&D 未実装） |
+| Builder | ビュー設計 | `/apps/:id/views` | 限定（table designer 統合のみ、専用画面なし） |
+| Runtime | アプリトップ | `/run/:appCode` | 未実装（`:table` 直下のみ） |
+| Runtime | 承認待ち一覧（現場） | `/run/:appCode/approvals` | 未実装（`/admin/approvals` のみ存在） |
+| Runtime | ダッシュボード | `/run/:appCode/dashboard` | 未実装 |
+| Governance | builder / runtime への RBAC 適用 | — | 未適用 |
+| Workflow | 内部スケジューラ（schedule トリガー常駐実行） | — | 未実装（外部 cron からの API-run のみ） |
+| 品質 | 主要フロー E2E のグリーン化 | — | 未達 |
+
+### Forward Roadmap（残 MVP → Phase 2）
+
+実装は依存順に進める。最優先は **未コミット作業の固定化**と**残 MVP 画面**、次いで **Governance の徹底**、その後 **Phase 2** へ。
+
+#### Sprint 8: MVP ギャップ確定（最優先）
+
+目的: 現ブランチの未コミット作業を固定し、spec の MVP「○」画面を埋める。
+
+- 現ブランチ作業のコミット整理と `npm run quality` 再確認
+- `/run/:appCode`（アプリトップ：テーブル一覧 + サマリ）実装
+- `/run/:appCode/approvals`（現場向け承認待ち一覧、`/admin/approvals` ロジック再利用）実装
+- `/run/:appCode/dashboard`（既存 view の `kpi` / `chart` 集計を利用した基本ダッシュボード）実装
+- `/tenants`（テナント選択。シングルテナント時はスキップ可）実装
+
+完了条件: spec §5.1 の Runtime「○」画面が一通り遷移・表示でき、mock 依存が無い。
+
+#### Sprint 9: Governance 徹底（RBAC を全面適用）
+
+目的: RBAC を builder / runtime の読み書きにも適用し、企業統制を MVP 水準にする。
+
+- app / table / field / record の CRUD サービスに `requirePermission` を適用（resource scope 対応）
+- `/apps/:id/permissions`（ロール × リソース × アクションの権限設計 GUI）実装
+- 権限拒否時の UI（403 表示・操作非活性）整備
+- 権限チェックのユニットテスト追加（許可 / 拒否のマトリクス）
+
+完了条件: spec §9.1 のアプリ / テーブル / レコード単位の制御がロールに応じて効き、監査ログに残る。
+
+#### Sprint 10: 品質保証とスケジューラ
+
+目的: 自動化の最後の穴を塞ぎ、E2E をグリーンにする。
+
+- 内部スケジューラ（schedule トリガー workflow の定期実行）導入、または外部 cron 連携手順の確定
+- Playwright E2E の Windows 環境問題を切り分け、主要フロー（AI app 生成 → refine → record CRUD → workflow approval → audit）をグリーン化
+- `/settings/profile`（個人設定）実装
+
+完了条件: 主要ユースケースの E2E が CI で通り、MVP 一式が通しでデモ可能。
+
+#### Sprint 11+: Phase 2 着手
+
+目的: spec §6.4 / §10 Phase 2 の差別化機能に着手する。
+
+- 類似レコード検索（pgvector によるベクトル検索）
+- メール / 問い合わせ分類、異常値検知
+- Webhook 送受信 / REST API 公開
+- カンバン / カレンダービュー、高度なダッシュボード
+- AIアクション設計 `/apps/:id/ai-actions`、Prompt to Workflow
+
+完了条件: Phase 2 機能のうち優先 2〜3 件が DB-backed で動作する。
+
 ### Definition of Done
 
 各機能は以下を満たして完了とする:
@@ -1325,3 +1455,97 @@ Current implementation snapshot:
 - ユニットテスト: ビジネスロジック / 権限チェック / メタデータバリデーション
 - 統合テスト: API エンドポイント / ワークフロー実行
 - E2Eテスト: 主要ユーザーフロー（アプリ作成 → レコード操作 → 承認）
+
+## Implementation Update (2026-06-22) — Sprint 8〜10 実装結果
+
+ブランチ `codex/mvp-roadmap-20260620` で、2026-06-20 ロードマップの Sprint 8〜10 を実装した。
+
+### 完了項目
+
+- Runtime: `/run/:appCode`、`/run/:appCode/approvals`、`/run/:appCode/dashboard` を DB-backed で追加。
+- Tenant / Profile: `/tenants` と `/settings/profile`（本人の表示名・画像 URL 更新、監査ログ）を追加。
+- RBAC: app / table / field / record / workflow CRUD に resource scope 付き権限チェックを適用。
+- Permissions UI: `/apps/:id/permissions` でアプリ・テーブル単位のロール割り当て / 解除を追加。
+- 403 UX: `/api/auth/permissions` を追加し、Runtime の書き込み操作を権限に応じて非活性化。read 拒否時は専用表示。
+- Schedule: `CRON_SECRET` で保護した `POST /api/internal/workflows/schedules/run` を追加。active な schedule workflow を外部 cron から実行可能。
+- E2E: Windows の filesystem / Node 24 問題を回避する Node 22 + C ドライブ staging runner を追加。
+
+### 検証結果
+
+- `npm run quality`: green（35 test files / 129 tests、lint error 0、TypeScript green）。
+- `npm run e2e -- --project=chromium --reporter=list`: green（2 specs / 2 passed）。
+- Production build: Windows の C staging + Node 22 で green（40 routes の page generation 完了）。
+- E2E 対象: governance 管理画面、Prompt Template、通知、Runtime トップ / ダッシュボード / 承認、権限設計、テナント、プロフィール、workflow 手動実行、record CRUD、コメント、添付、削除。
+- DB: Prisma migration 11件適用済み、`npm run db:health` green。
+
+### 残スコープ
+
+- 専用フォーム D&D 画面と専用ビュー設計画面は、既存 table designer 統合 CRUD のまま。
+- 内部常駐 scheduler daemon は未導入。MVP は外部 cron 連携方式で確定。
+- AI app 生成 / refine の実モデル E2E は OpenAI 設定に依存するため、現在のローカル E2E には含めていない。
+- Sprint 11+ の pgvector、Webhook 送受信、REST API 公開、高度ビュー、AI actions は Phase 2 として未着手。
+
+## Implementation Update (2026-06-29) — MVP 完了確認と Phase 2 ロードマップ
+
+### 現状確認（2026-06-29 検証結果）
+
+ブランチ `codex/rename-kpi-view-summary`。直近コミットは `b8c76386 Rename KPI view type to summary` / `1953b82e Complete MVP governance and runtime workflows`。2026-06-20 ロードマップの Sprint 8〜10 は実装・コミット済みであることを実コードで再確認した。
+
+- **Runtime 画面**: `/run/:appCode`（アプリトップ）、`/run/:appCode/approvals`（現場承認）、`/run/:appCode/dashboard`（ダッシュボード）の page を確認。
+- **共通 / Builder 画面**: `/tenants`、`/settings/profile`、`/apps/:id/permissions` の page を確認。
+- **新規 API**: `/api/auth/permissions`、`/api/internal/workflows/schedules/run`、`/api/settings/profile`、`/api/tenants` を確認。
+- **RBAC 全面適用**: `requirePermission` / `hasPermission` を builder CRUD（`apps/service.ts` 26 箇所）と runtime CRUD（`records/service.ts` 14 箇所）に resource scope 付きで適用済み（2026-06-15 時点の「admin/AI 系のみ」から拡大）。
+- **ビュー型の改名**: KPI ビュー型を `summary` へ改名（migration `20260629090000_rename_kpi_view_to_summary`）。これに伴い spec §7.2 の `view_type` は実態として `list / kanban / calendar / chart / summary`。
+- **検証**: `npm test` → 35 files / 129 tests green。Prisma migration 12 件適用済み。
+
+=> **spec §5.1 / §6 の MVP「○」スコープは、画面・API・DB・RBAC・監査・公開/版管理の観点で一通り充足**。以降の主戦場は Phase 2（差別化機能）と運用品質。
+
+### 残課題（MVP 内の限定実装）
+
+- フォーム D&D 専用ビルダー / ビュー設計専用画面は table designer 統合の CRUD どまり（spec §5.3.2 のフル D&D は未実装）。
+- 内部常駐スケジューラは未導入。schedule トリガーは外部 cron → `/api/internal/workflows/schedules/run` 方式で確定。
+- AI 生成 / refine の実モデル E2E はローカル E2E 未収録（OpenAI 設定依存）。
+- SSO（SAML / OIDC）は未対応（spec §6.1 は △）。
+
+### Forward Roadmap（Phase 2 → Phase 3）
+
+MVP が充足したため、以降は spec §10 Phase 2 / Phase 3 の差別化機能へ進む。優先度は「AI 差別化 → 外部連携 → 高度 UI → エンタープライズ」。
+
+#### Sprint 11: ベクトル検索と AI 分類（差別化の核）
+
+- pgvector 導入（embedding 列 / インデックス / migration）
+- レコード embedding 生成を Model Gateway 経由で実装し、AI execution log に記録
+- 類似レコード検索 API + Runtime AI サイドパネルへ「Similar Incidents」表示（spec §5.3.4）
+- メール / 問い合わせ分類（`classify` AI action）と異常値検知の最小実装
+
+完了条件: 類似検索・分類が DB-backed で動作し、AI 出力に出典レコードを提示できる。
+
+#### Sprint 12: 外部連携（Webhook / REST API）
+
+- Webhook 受信トリガーの実エンドポイント化（`trigger_type=webhook`）と送信ノード
+- アプリ単位の REST CRUD API 自動公開（API キー / スコープ管理）
+- Slack / Teams 通知ノード
+
+完了条件: 外部から record を作成・更新でき、workflow が webhook 受信で起動する。
+
+#### Sprint 13: 高度ビューと AI アクション設計
+
+- カンバン / カレンダービュー（view メタデータ拡張 + Runtime レンダラ）
+- 高度ダッシュボード（複数集計・ドリルダウン）
+- `/apps/:id/ai-actions`（AI アクション定義 GUI、`guardrail_json` / `model_config_json` 設定）
+- Prompt to Workflow（自然言語 → フロー差分適用、spec §6.2 △）
+
+完了条件: 一覧以外のビュー種別が動作し、AI アクションを GUI から定義・実行できる。
+
+#### Sprint 14+: Phase 3 エンタープライズ
+
+- AI エージェント（承認付き自律実行）、RAG（社内文書参照）
+- SSO（SAML / OIDC）、ERP / CRM 双方向同期
+- 内部常駐スケジューラ daemon、Self-hosted / VPC 配置
+- 高度な利用分析（AI 成功率 / コスト分析）、テンプレートマーケットプレイス
+
+### 運用品質（Phase 2 と並行）
+
+- AI 生成 / refine を含む実モデル E2E をオプトインで CI 化
+- 内部スケジューラ daemon の要否判断（外部 cron 継続か常駐化か）
+- フォーム D&D / ビュー設計の専用画面化の要否判断（現行統合 UI で十分かを検証）

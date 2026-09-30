@@ -119,16 +119,12 @@ async function seedDemoAuthData() {
 
   await prisma.tenant.upsert({
     where: { id: DEMO_TENANT.id },
-    update: {
-      name: DEMO_TENANT.name,
-      code: DEMO_TENANT.code,
-      status: DEMO_TENANT.status,
-      planType: DEMO_TENANT.planType,
-    },
+    update: {},
     create: DEMO_TENANT,
   });
 
   const passwordHash = await hashPassword(DEMO_PASSWORD);
+  const createdUserIds = new Set<string>();
 
   for (const demoUser of DEMO_USERS) {
     const existingUser = await prisma.user.findUnique({
@@ -149,20 +145,9 @@ async function seedDemoAuthData() {
           createdAt: new Date(demoUser.createdAt),
         },
       });
-
+      createdUserIds.add(demoUser.id);
       continue;
     }
-
-    await prisma.user.update({
-      where: { id: demoUser.id },
-      data: {
-        tenantId: demoUser.tenantId,
-        email: demoUser.email,
-        name: demoUser.name,
-        status: demoUser.status,
-        ...(existingUser.passwordHash ? {} : { passwordHash }),
-      },
-    });
   }
 
   for (const role of DEMO_ROLE_PRESETS) {
@@ -173,11 +158,7 @@ async function seedDemoAuthData() {
           name: role.name,
         },
       },
-      update: {
-        roleType: role.roleType,
-        permissionsJson: role.permissions,
-        isSystem: true,
-      },
+      update: {},
       create: {
         id: role.id,
         tenantId: DEMO_TENANT_ID,
@@ -209,6 +190,9 @@ async function seedDemoAuthData() {
   });
 
   for (const demoUser of DEMO_USERS) {
+    if (!createdUserIds.has(demoUser.id)) {
+      continue;
+    }
     const roleId =
       demoUser.email === "admin@acme.com" ||
       demoUser.email === "marcus.chen@acme.com"

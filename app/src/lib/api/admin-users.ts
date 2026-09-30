@@ -17,6 +17,13 @@ export async function listAdminUsers() {
   return apiFetch<AdminUserSummary[]>("/api/admin/users");
 }
 
+export async function createAdminUser(input: { name: string; email: string; password: string; roleId: string }) {
+  return apiFetch<AdminUserSummary>("/api/admin/users", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function updateAdminUserStatus(
   userId: string,
   status: "active" | "inactive"

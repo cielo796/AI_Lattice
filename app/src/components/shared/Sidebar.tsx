@@ -48,11 +48,21 @@ function mergeApp(apps: App[], app: App) {
     : [app, ...apps];
 }
 
+function RibbonTooltip({ label }: { label: string }) {
+  return (
+    <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-outline-variant bg-surface px-2.5 py-1.5 text-xs font-semibold text-on-surface opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+      {label}
+    </span>
+  );
+}
+
 interface SidebarContentProps {
   pathname: string | null;
   initialApps?: App[];
   onNavigate?: () => void;
   onClose?: () => void;
+  onToggleCollapsed?: () => void;
+  collapsed?: boolean;
   mobile?: boolean;
 }
 
@@ -61,6 +71,8 @@ function SidebarContent({
   initialApps = [],
   onNavigate,
   onClose,
+  onToggleCollapsed,
+  collapsed = false,
   mobile = false,
 }: SidebarContentProps) {
   const router = useRouter();
@@ -196,13 +208,31 @@ function SidebarContent({
   const showAppSwitcher = isAppScopedPath(pathname);
 
   return (
-    <div className="flex h-full flex-col px-3 py-5">
-      <div className="mb-5 flex items-start justify-between gap-3 px-2">
-        <Link href="/home" onClick={onNavigate} className="flex items-center gap-2.5">
+    <div
+      className={cn(
+        "flex h-full flex-col py-5 transition-[padding] duration-200 ease-out",
+        collapsed ? "px-2" : "px-3"
+      )}
+    >
+      <div
+        className={cn(
+          "mb-5 flex px-2",
+          collapsed
+            ? "flex-col items-center justify-center gap-2"
+            : "items-start justify-between gap-3"
+        )}
+      >
+        <Link
+          href="/home"
+          onClick={onNavigate}
+          className={cn("flex items-center gap-2.5", collapsed && "justify-center")}
+          aria-label="AI Lattice ホーム"
+          title={collapsed ? "AI Lattice" : undefined}
+        >
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
             <Icon name="hub" className="text-white" size="sm" />
           </div>
-          <div className="flex flex-col">
+          <div className={cn("flex flex-col", collapsed && "sr-only")}>
             <span className="font-headline text-[15px] font-extrabold leading-none tracking-tight text-on-surface">
               AI Lattice
             </span>
@@ -221,19 +251,35 @@ function SidebarContent({
             <Icon name="close" size="md" />
           </button>
         )}
+        {!mobile && onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface"
+            aria-label={collapsed ? "サイドメニューを開く" : "サイドメニューを閉じる"}
+            title={collapsed ? "サイドメニューを開く" : "サイドメニューを閉じる"}
+          >
+            <Icon name={collapsed ? "chevron_right" : "chevron_left"} size="sm" />
+          </button>
+        )}
       </div>
 
       <Link
         href="/apps/new/ai"
         onClick={onNavigate}
-        className="mx-2 mb-4 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-primary-hover active:scale-[0.98]"
+        className={cn(
+          "group relative mx-2 mb-4 inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-white shadow-sm transition-all hover:bg-primary-hover active:scale-[0.98]",
+          collapsed ? "h-10 w-10 px-0 py-0" : "px-3 py-2"
+        )}
+        aria-label="アプリを作成"
+        title={collapsed ? "アプリを作成" : undefined}
         data-guide="sidebar-create-app"
       >
         <Icon name="add" size="sm" />
-        作成
+        {collapsed ? <RibbonTooltip label="作成" /> : <span>作成</span>}
       </Link>
 
-      {showAppSwitcher && (
+      {showAppSwitcher && !collapsed && (
         <div
           className="mx-2 mb-4 rounded-lg border border-outline-variant bg-surface p-3"
           data-guide="sidebar-app-switcher"
@@ -265,7 +311,10 @@ function SidebarContent({
         </div>
       )}
 
-      <nav className="flex-1 space-y-0.5" data-guide="sidebar-nav">
+      <nav
+        className={cn("flex-1 space-y-0.5", collapsed && "space-y-1")}
+        data-guide="sidebar-nav"
+      >
         {navItems.map((item) => {
           const isRuntimeRoot = /^\/run\/[^/]+$/.test(item.href);
           const isActive = isRuntimeRoot
@@ -277,8 +326,13 @@ function SidebarContent({
               key={item.href}
               href={item.href}
               onClick={onNavigate}
+              aria-label={item.label}
+              title={collapsed ? item.label : undefined}
               className={cn(
-                "group relative flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150",
+                "group relative flex min-w-0 items-center rounded-lg transition-colors duration-150",
+                collapsed
+                  ? "mx-auto h-10 w-10 justify-center px-0 py-0"
+                  : "gap-3 px-3 py-2",
                 isActive
                   ? "bg-sidebar-active font-semibold text-on-primary-container"
                   : "text-on-surface-variant hover:bg-sidebar-hover hover:text-on-surface"
@@ -292,13 +346,24 @@ function SidebarContent({
                 size="md"
                 className={isActive ? "text-primary" : ""}
               />
-              <span className="text-[13.5px] font-medium">{item.label}</span>
+              {collapsed ? (
+                <RibbonTooltip label={item.label} />
+              ) : (
+                <span className="min-w-0 truncate text-[13.5px] font-medium">
+                  {item.label}
+                </span>
+              )}
             </Link>
           );
         })}
       </nav>
 
-      <div className="mt-auto space-y-0.5 border-t border-outline-variant pt-3">
+      <div
+        className={cn(
+          "mt-auto space-y-0.5 border-t border-outline-variant pt-3",
+          collapsed && "space-y-1"
+        )}
+      >
         {bottomItems.map((item) =>
           item.type === "guide" ? (
             <button
@@ -309,21 +374,47 @@ function SidebarContent({
                 onNavigate?.();
               }}
               disabled={!hasCurrentTour}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={item.label}
+              title={collapsed ? item.label : undefined}
+              className={cn(
+                "group relative flex w-full min-w-0 items-center rounded-lg text-left text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50",
+                collapsed
+                  ? "mx-auto h-10 w-10 justify-center px-0 py-0"
+                  : "gap-3 px-3 py-2"
+              )}
               data-guide="sidebar-help"
             >
               <Icon name={item.icon} size="md" />
-              <span className="text-[13.5px] font-medium">{item.label}</span>
+              {collapsed ? (
+                <RibbonTooltip label={item.label} />
+              ) : (
+                <span className="min-w-0 truncate text-[13.5px] font-medium">
+                  {item.label}
+                </span>
+              )}
             </button>
           ) : (
             <Link
               key={item.label}
               href={item.href}
               onClick={onNavigate}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface"
+              aria-label={item.label}
+              title={collapsed ? item.label : undefined}
+              className={cn(
+                "group relative flex min-w-0 items-center rounded-lg text-on-surface-variant transition-colors hover:bg-sidebar-hover hover:text-on-surface",
+                collapsed
+                  ? "mx-auto h-10 w-10 justify-center px-0 py-0"
+                  : "gap-3 px-3 py-2"
+              )}
             >
               <Icon name={item.icon} size="md" />
-              <span className="text-[13.5px] font-medium">{item.label}</span>
+              {collapsed ? (
+                <RibbonTooltip label={item.label} />
+              ) : (
+                <span className="min-w-0 truncate text-[13.5px] font-medium">
+                  {item.label}
+                </span>
+              )}
             </Link>
           )
         )}
@@ -338,7 +429,12 @@ interface SidebarProps {
 
 export function Sidebar({ initialApps = [] }: SidebarProps) {
   const pathname = usePathname();
-  const { closeMobileNav, isMobileNavOpen } = useShellChrome();
+  const {
+    closeMobileNav,
+    isMobileNavOpen,
+    isSidebarCollapsed,
+    toggleSidebarCollapsed,
+  } = useShellChrome();
 
   useEffect(() => {
     if (!isMobileNavOpen) {
@@ -356,10 +452,18 @@ export function Sidebar({ initialApps = [] }: SidebarProps) {
   return (
     <>
       <aside
-        className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col bg-sidebar border-r border-outline-variant md:flex"
+        className={cn(
+          "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-outline-variant bg-sidebar transition-[width] duration-200 ease-out md:flex",
+          isSidebarCollapsed ? "w-[4.5rem]" : "w-64"
+        )}
         data-guide="app-sidebar"
       >
-        <SidebarContent pathname={pathname} initialApps={initialApps} />
+        <SidebarContent
+          pathname={pathname}
+          initialApps={initialApps}
+          collapsed={isSidebarCollapsed}
+          onToggleCollapsed={toggleSidebarCollapsed}
+        />
       </aside>
 
       {isMobileNavOpen && (

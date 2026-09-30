@@ -2,25 +2,10 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { Client } from "pg";
 import { isDemoAutoSeedEnabled } from "@/server/demo/seed-policy";
+import { getDatabaseSchema, getPostgresConnectionOptions } from "./connection.mjs";
+import { REQUIRED_DATABASE_TABLES } from "./tables.mjs";
 
-export const REQUIRED_DATABASE_TABLES = [
-  "_prisma_migrations",
-  "tenants",
-  "users",
-  "sessions",
-  "apps",
-  "app_tables",
-  "app_fields",
-  "app_records",
-  "record_comments",
-  "attachments",
-  "workflows",
-  "approvals",
-  "prompt_templates",
-  "prompt_template_versions",
-  "ai_execution_logs",
-  "audit_logs",
-] as const;
+export { REQUIRED_DATABASE_TABLES } from "./tables.mjs";
 
 const DEMO_TENANT_ID = "t-001";
 const DEMO_USER_ID = "u-001";
@@ -94,14 +79,15 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function listExistingTables(client: Client) {
+async function listExistingTables(client: Client, schema: string) {
   const result = await client.query<{ table_name: string }>(
     `
       select table_name
       from information_schema.tables
-      where table_schema = 'public'
+      where table_schema = $1
         and table_type = 'BASE TABLE'
-    `
+    `,
+    [schema]
   );
 
   return new Set(result.rows.map((row) => row.table_name));
@@ -250,11 +236,12 @@ export async function checkDatabaseSetup(): Promise<DatabaseSetupHealth> {
     };
   }
 
-  const client = new Client({ connectionString });
+  let client: Client | undefined;
 
   try {
+    client = new Client(getPostgresConnectionOptions(connectionString));
     await client.connect();
-    const existingTables = await listExistingTables(client);
+    const existingTables = await listExistingTables(client, getDatabaseSchema(connectionString));
     const missingTables = REQUIRED_DATABASE_TABLES.filter(
       (table) => !existingTables.has(table)
     );
@@ -304,6 +291,6 @@ export async function checkDatabaseSetup(): Promise<DatabaseSetupHealth> {
       },
     };
   } finally {
-    await client.end().catch(() => undefined);
+    await client?.end().catch(() => undefined);
   }
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
 import { Avatar } from "./Avatar";
+import { cn } from "@/lib/cn";
 import { getUnreadNotificationCount } from "@/lib/api/notifications";
 import { useAuthStore } from "@/stores/authStore";
 import { useGuideLauncher } from "@/components/guide/GuideProvider";
@@ -17,7 +18,7 @@ interface TopBarProps {
 
 export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
   const avatarName = useAuthStore((s) => s.user?.name ?? "Marcus Chen");
-  const { toggleMobileNav } = useShellChrome();
+  const { isSidebarCollapsed, toggleMobileNav } = useShellChrome();
   const { hasCurrentTour, currentTourLabel, startCurrentTour } = useGuideLauncher();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -49,7 +50,10 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
 
   return (
     <header
-      className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant bg-surface/90 px-3 backdrop-blur-md md:left-64 md:px-6"
+      className={cn(
+        "fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant bg-surface/90 px-3 backdrop-blur-md transition-[left] duration-200 ease-out md:left-64 md:px-6",
+        isSidebarCollapsed && "md:left-[4.5rem]"
+      )}
       data-guide="topbar"
     >
       <div className="flex min-w-0 items-center gap-2 md:gap-5">

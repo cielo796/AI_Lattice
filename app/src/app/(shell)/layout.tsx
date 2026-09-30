@@ -2,6 +2,7 @@ import { ShellChromeProvider } from "@/components/shared/ShellChrome";
 import { DatabaseSetupNotice } from "@/components/shared/DatabaseSetupNotice";
 import { GuideProvider } from "@/components/guide/GuideProvider";
 import { Sidebar } from "@/components/shared/Sidebar";
+import { ShellContent } from "@/components/shared/ShellContent";
 import { redirect } from "next/navigation";
 import { listAppsForUser } from "@/server/apps/service";
 import { getAuthenticatedUser } from "@/server/auth/service";
@@ -49,9 +50,9 @@ export default async function ShellLayout({
       <GuideProvider>
         <div className="min-h-screen bg-surface-container-low">
           <Sidebar initialApps={initialApps} />
-          <div className="min-h-screen md:ml-64" data-guide="page-content">
+          <ShellContent>
             {children}
-          </div>
+          </ShellContent>
         </div>
       </GuideProvider>
     </ShellChromeProvider>

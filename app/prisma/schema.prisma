@@ -115,6 +115,7 @@ model Tenant {
   appVersions            AppVersion[]
   auditLogs              AuditLog[]
   workflows              Workflow[]
+  workflowRuns           WorkflowRun[]
   approvals              Approval[]
   appApprovalSettings    AppApprovalSetting[]
   appApprovalApprovers   AppApprovalApprover[]
@@ -241,6 +242,7 @@ model User {
   recordComments                RecordComment[]         @relation("RecordCommentCreatedBy")
   uploadedAttachments           Attachment[]            @relation("AttachmentUploadedBy")
   createdWorkflows              Workflow[]              @relation("WorkflowCreatedBy")
+  workflowRuns                  WorkflowRun[]           @relation("WorkflowRunActor")
   requestedApprovals            Approval[]              @relation("ApprovalRequestedBy")
   assignedApprovals             Approval[]              @relation("ApprovalApprover")
   actedApprovals                Approval[]              @relation("ApprovalActedBy")
@@ -337,6 +339,7 @@ model App {
   fields          AppField[]
   records         AppRecord[]
   workflows       Workflow[]
+  workflowRuns    WorkflowRun[]
   approvals       Approval[]
   approvalSetting  AppApprovalSetting?
   views           AppView[]
@@ -491,6 +494,8 @@ model AppRecord {
   approvals   Approval[]
   notifications Notification[]
 
+  workflowRuns WorkflowRun[]
+
   @@unique([tableId, recordNo])
   @@index([tenantId])
   @@index([appId, tableId, updatedAt])
@@ -554,11 +559,44 @@ model Workflow {
   app       App        @relation(fields: [appId], references: [id], onDelete: Cascade)
   createdBy User       @relation("WorkflowCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   approvals Approval[]
+  runs      WorkflowRun[]
 
   @@index([tenantId])
   @@index([appId, status])
   @@index([createdById])
   @@map("workflows")
+}
+
+model WorkflowRun {
+  id             String   @id @default(cuid())
+  tenantId       String   @map("tenant_id")
+  appId          String   @map("app_id")
+  recordId       String   @map("record_id")
+  workflowId     String?  @map("workflow_id")
+  workflowName   String   @map("workflow_name")
+  actorId        String   @map("actor_id")
+  eventKey       String   @map("event_key")
+  status         String   @default("ready")
+  definitionJson Json     @map("definition_json")
+  contextJson    Json     @map("context_json")
+  stateJson      Json     @map("state_json")
+  error          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  finishedAt     DateTime? @map("finished_at")
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  app       App       @relation(fields: [appId], references: [id], onDelete: Cascade)
+  record    AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  workflow  Workflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  actor     User      @relation("WorkflowRunActor", fields: [actorId], references: [id], onDelete: Restrict)
+  approvals Approval[]
+
+  @@unique([workflowId, eventKey])
+  @@index([tenantId, appId, createdAt])
+  @@index([recordId, createdAt])
+  @@index([status, updatedAt])
+  @@map("workflow_runs")
 }
 
 model AppApprovalSetting {
@@ -625,6 +663,9 @@ model Approval {
   tableId       String         @map("table_id")
   recordId      String         @map("record_id")
   workflowId    String?        @map("workflow_id")
+  workflowRunId String?        @map("workflow_run_id")
+  workflowNodeId String?       @map("workflow_node_id")
+  quorumCount   Int?           @map("quorum_count")
   appApprovalSettingId String?  @map("app_approval_setting_id")
   approverId    String         @map("approver_id")
   requestedById String         @map("requested_by_id")
@@ -648,6 +689,7 @@ model Approval {
   table       AppTable  @relation(fields: [tableId], references: [id], onDelete: Cascade)
   record      AppRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
   workflow    Workflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  workflowRun WorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
   appApprovalSetting AppApprovalSetting? @relation(fields: [appApprovalSettingId], references: [id], onDelete: SetNull)
   approver    User      @relation("ApprovalApprover", fields: [approverId], references: [id], onDelete: Restrict)
   requestedBy User      @relation("ApprovalRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
@@ -658,6 +700,7 @@ model Approval {
   @@index([appId, status])
   @@index([recordId, status])
   @@index([workflowId])
+  @@unique([workflowRunId, workflowNodeId])
   @@index([appApprovalSettingId])
   @@index([approverId, status])
   @@index([requestedById])

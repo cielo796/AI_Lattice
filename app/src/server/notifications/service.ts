@@ -164,9 +164,9 @@ function cursorWhere(cursor: string | undefined) {
 async function isInAppNotificationEnabled(
   tenantId: string,
   userId: string,
-  type: Notification["type"]
+  type: Notification["type"],
+  prisma: Prisma.TransactionClient
 ) {
-  const prisma = getPrismaClient();
   const preferences = (
     prisma as typeof prisma & {
       userNotificationPreference?: typeof prisma.userNotificationPreference;
@@ -187,9 +187,9 @@ async function isInAppNotificationEnabled(
 
 export async function createNotification(
   user: Pick<User, "tenantId">,
-  input: CreateNotificationInput
+  input: CreateNotificationInput,
+  prisma: Prisma.TransactionClient = getPrismaClient()
 ) {
-  const prisma = getPrismaClient();
   const type = assertNotificationType(input.type);
   const recipient = await prisma.user.findFirst({
     where: {
@@ -206,7 +206,8 @@ export async function createNotification(
   const enabled = await isInAppNotificationEnabled(
     user.tenantId,
     recipient.id,
-    type
+    type,
+    prisma
   );
 
   if (!enabled) {
@@ -278,12 +279,13 @@ export async function createNotification(
 
 export async function createNotificationsForUsers(
   user: Pick<User, "tenantId">,
-  inputs: CreateNotificationInput[]
+  inputs: CreateNotificationInput[],
+  prisma: Prisma.TransactionClient = getPrismaClient()
 ) {
   const notifications: Notification[] = [];
 
   for (const input of inputs) {
-    const notification = await createNotification(user, input);
+    const notification = await createNotification(user, input, prisma);
     if (notification) {
       notifications.push(notification);
     }
@@ -581,3 +583,4 @@ export async function listWorkflowNotificationRecipients(
 
   return [fallbackUserId];
 }
+import type { Prisma } from "@prisma/client";

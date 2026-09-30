@@ -268,11 +268,7 @@ export async function ensureDefaultRolesForTenant(tenantId: string) {
           name: preset.name,
         },
       },
-      update: {
-        roleType: preset.roleType,
-        permissionsJson: toPermissionsJson(preset.permissions),
-        isSystem: preset.isSystem,
-      },
+      update: {},
       create: {
         id: crypto.randomUUID(),
         tenantId,
@@ -287,28 +283,11 @@ export async function ensureDefaultRolesForTenant(tenantId: string) {
 
 async function findUserRoleAssignments(user: Pick<User, "id" | "tenantId">) {
   const prisma = getPrismaClient();
-  const userRoleDelegate = (
-    prisma as unknown as {
-      userRole?: {
-        findMany: (args: unknown) => Promise<
-          Array<{
-            appId: string | null;
-            tableId: string | null;
-            role: { roleType: Role["roleType"]; permissionsJson: Prisma.JsonValue };
-          }>
-        >;
-      };
-    }
-  ).userRole;
-
-  if (!userRoleDelegate) {
-    return null;
-  }
-
-  return userRoleDelegate.findMany({
+  return prisma.userRole.findMany({
     where: {
       tenantId: user.tenantId,
       userId: user.id,
+      role: { tenantId: user.tenantId },
     },
     include: {
       role: { select: { roleType: true, permissionsJson: true } },
@@ -342,10 +321,6 @@ export async function hasPermission(
 ) {
   const assignments = await findUserRoleAssignments(user);
 
-  if (assignments === null) {
-    return true;
-  }
-
   if (assignments.length === 0) {
     return false;
   }
@@ -374,8 +349,8 @@ export async function requirePermission(
 
 export async function listRolesForAdmin(user: User) {
   await ensureDemoAuthData();
-  await ensureDefaultRolesForTenant(user.tenantId);
   await requirePermission(user, "admin:roles");
+  await ensureDefaultRolesForTenant(user.tenantId);
 
   const prisma = getPrismaClient();
   const roles = await prisma.role.findMany({
@@ -389,8 +364,8 @@ export async function listRolesForAdmin(user: User) {
 
 export async function createRoleForAdmin(user: User, input: CreateRoleInput) {
   await ensureDemoAuthData();
-  await ensureDefaultRolesForTenant(user.tenantId);
   await requirePermission(user, "admin:roles");
+  await ensureDefaultRolesForTenant(user.tenantId);
 
   const name = assertNonEmpty(input.name, "ロール名");
   const roleType = assertRoleType(input.roleType);
@@ -425,8 +400,8 @@ export async function updateRoleForAdmin(
   input: UpdateRoleInput
 ) {
   await ensureDemoAuthData();
-  await ensureDefaultRolesForTenant(user.tenantId);
   await requirePermission(user, "admin:roles");
+  await ensureDefaultRolesForTenant(user.tenantId);
 
   const prisma = getPrismaClient();
   const existing = await prisma.role.findFirst({
@@ -511,8 +486,8 @@ export async function deleteRoleForAdmin(user: User, roleId: string) {
 
 export async function listRoleAssignmentsForAdmin(user: User) {
   await ensureDemoAuthData();
-  await ensureDefaultRolesForTenant(user.tenantId);
   await requirePermission(user, "admin:roles");
+  await ensureDefaultRolesForTenant(user.tenantId);
 
   const prisma = getPrismaClient();
   const assignments = await prisma.userRole.findMany({
@@ -533,8 +508,8 @@ export async function listRoleAssignmentsForAdmin(user: User) {
 
 export async function assignRoleForAdmin(user: User, input: AssignRoleInput) {
   await ensureDemoAuthData();
-  await ensureDefaultRolesForTenant(user.tenantId);
   await requirePermission(user, "admin:roles");
+  await ensureDefaultRolesForTenant(user.tenantId);
 
   const targetUserId = assertNonEmpty(input.userId, "ユーザー");
   const roleId = assertNonEmpty(input.roleId, "ロール");

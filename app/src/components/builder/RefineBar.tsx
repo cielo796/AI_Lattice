@@ -3,6 +3,7 @@
 import { type FormEvent } from "react";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
+import { useShellChrome } from "@/components/shared/ShellChrome";
 import { cn } from "@/lib/cn";
 import type {
   AppRefinementChange,
@@ -38,13 +39,20 @@ export function RefineBar({
   onApplyPreview,
   onCancelPreview,
 }: RefineBarProps) {
+  const { isSidebarCollapsed } = useShellChrome();
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onSubmit();
   }
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-outline-variant bg-surface px-4 py-3 shadow-[0_-1px_2px_rgba(15,23,42,0.04),0_-8px_24px_rgba(15,23,42,0.06)] md:left-64 md:px-8">
+    <footer
+      className={cn(
+        "fixed bottom-0 left-0 right-0 z-40 border-t border-outline-variant bg-surface px-4 py-3 shadow-[0_-1px_2px_rgba(15,23,42,0.04),0_-8px_24px_rgba(15,23,42,0.06)] transition-[left] duration-200 ease-out md:left-64 md:px-8",
+        isSidebarCollapsed && "md:left-[4.5rem]"
+      )}
+    >
       <div className="mx-auto flex max-w-5xl flex-col gap-2">
         {preview && !error && (
           <div className="rounded-lg border border-primary/25 bg-primary-container/25 px-3 py-3 text-xs text-on-surface">

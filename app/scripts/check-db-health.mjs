@@ -2,27 +2,17 @@ import { config as loadEnv } from "dotenv";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { Client } from "pg";
+import { getDatabaseSchema, getPostgresConnectionOptions } from "../src/server/db/connection.mjs";
+import { REQUIRED_DATABASE_TABLES } from "../src/server/db/tables.mjs";
 
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ path: ".env", quiet: true });
 
-const requiredTables = [
-  "_prisma_migrations",
-  "tenants",
-  "users",
-  "sessions",
-  "apps",
-  "app_tables",
-  "app_fields",
-  "app_records",
-  "record_comments",
-  "attachments",
-  "workflows",
-  "approvals",
-  "audit_logs",
-];
-
-const demoAutoSeedEnabled = process.env.DEMO_AUTO_SEED !== "false";
+const requiredTables = REQUIRED_DATABASE_TABLES;
+const schemaOnly = process.argv.includes("--schema-only");
+const demoAutoSeedEnabled = process.env.DEMO_AUTO_SEED === undefined
+  ? process.env.NODE_ENV !== "production"
+  : process.env.DEMO_AUTO_SEED === "true";
 const connectionString = process.env.DATABASE_URL?.trim() ?? "";
 
 function fail(payload) {
@@ -46,7 +36,7 @@ if (!connectionString) {
   });
 }
 
-const client = new Client({ connectionString });
+let client;
 
 async function listExpectedMigrationNames() {
   const migrationsDirectory = path.join(process.cwd(), "prisma", "migrations");
@@ -63,14 +53,16 @@ async function listExpectedMigrationNames() {
 }
 
 try {
+  const schema = getDatabaseSchema(connectionString);
+  client = new Client(getPostgresConnectionOptions(connectionString));
   await client.connect();
 
   const tableResult = await client.query(`
     select table_name
     from information_schema.tables
-    where table_schema = 'public'
+    where table_schema = $1
       and table_type = 'BASE TABLE'
-  `);
+  `, [schema]);
   const tables = new Set(tableResult.rows.map((row) => row.table_name));
   const missingTables = requiredTables.filter((table) => !tables.has(table));
 
@@ -101,7 +93,7 @@ try {
   );
 
   const seedMissing = [];
-  if (demoAutoSeedEnabled && tables.has("tenants") && tables.has("users")) {
+  if (!schemaOnly && demoAutoSeedEnabled && tables.has("tenants") && tables.has("users")) {
     const [tenantResult, userResult] = await Promise.all([
       client.query("select exists(select 1 from tenants where id = $1)", [
         "t-001",
@@ -125,11 +117,13 @@ try {
   ) {
     fail({
       message: "Database setup is incomplete.",
+      schema,
       missingTables,
       failedMigrations,
       pendingMigrations,
       seed: {
         enabled: demoAutoSeedEnabled,
+        checked: !schemaOnly && demoAutoSeedEnabled,
         missing: seedMissing,
       },
       hint: "Run npm run db:migrate:deploy and verify demo seed state.",
@@ -141,10 +135,11 @@ try {
       {
         status: "ok",
         message: "Database setup is healthy.",
+        schema,
         checkedTables: requiredTables.length,
         seed: {
           enabled: demoAutoSeedEnabled,
-          checked: demoAutoSeedEnabled,
+          checked: !schemaOnly && demoAutoSeedEnabled,
         },
       },
       null,
@@ -157,5 +152,5 @@ try {
     error: describeError(error),
   });
 } finally {
-  await client.end().catch(() => undefined);
+  await client?.end().catch(() => undefined);
 }

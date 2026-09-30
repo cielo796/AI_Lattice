@@ -544,16 +544,18 @@ function conditionMatches(conditionJson: Prisma.JsonValue | null, record: { stat
   return actualText === expectedText;
 }
 
-async function resolveApproverUsers(
+export async function resolveApproverUsers(
   user: User,
-  setting: Awaited<ReturnType<typeof ensureSetting>>
+  setting: Pick<Awaited<ReturnType<typeof ensureSetting>>, "appId"> & { approvers: Prisma.AppApprovalApproverGetPayload<object>[] },
+  prisma: Prisma.TransactionClient = prismaWithAppApprovals()
 ) {
-  const prisma = prismaWithAppApprovals();
   const ordered = setting.approvers.filter((approver) => approver.active);
   const resolved = new Map<string, { userId: string; sortOrder: number; required: boolean }>();
 
   for (const approver of ordered) {
     if (approver.approverType === "user" && approver.userId) {
+      const activeUser = await prisma.user.findFirst({ where: { id: approver.userId, tenantId: user.tenantId, status: "active" }, select: { id: true } });
+      if (!activeUser) continue;
       resolved.set(approver.userId, {
         userId: approver.userId,
         sortOrder: approver.sortOrder,
@@ -871,6 +873,7 @@ export async function submitAppApprovalForRecord(
         title,
         description,
         approvalMode: setting.approvalMode,
+        quorumCount: setting.quorumCount,
         pendingStatus: setting.pendingStatus,
         approvedStatus: setting.approvedStatus,
         rejectedStatus: setting.rejectedStatus,
@@ -924,7 +927,7 @@ export async function submitAppApprovalForRecord(
 
   await createNotificationsForUsers(
     user,
-    assignees.map((assignee) => ({
+    (setting.approvalMode === "sequential" ? assignees.slice(0, 1) : assignees).map((assignee) => ({
       recipientId: assignee.userId,
       actorId: user.id,
       appId: app.id,

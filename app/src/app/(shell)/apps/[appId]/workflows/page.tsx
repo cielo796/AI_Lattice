@@ -11,6 +11,7 @@ import { AISidebar } from "@/components/ai/AISidebar";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
 import { WorkflowToolbar } from "@/components/workflow/WorkflowToolbar";
 import { AICommandBar } from "@/components/workflow/AICommandBar";
+import { WorkflowRunHistory } from "@/components/workflow/WorkflowRunHistory";
 import { cn } from "@/lib/cn";
 import {
   createWorkflow,
@@ -385,6 +386,7 @@ export default function WorkflowEditorPage() {
               </Button>
             </div>
           )}
+          {activeWorkflow && <WorkflowRunHistory key={activeWorkflow.id} appId={appId} workflowId={activeWorkflow.id} />}
         </aside>
 
         <section

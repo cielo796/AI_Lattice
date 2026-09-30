@@ -19,14 +19,14 @@ async function shouldUseSecureCookies() {
   const headerStore = await headers();
   const forwardedProto = headerStore.get("x-forwarded-proto");
   const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host") ?? "";
-  const isLocalHost =
-    host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  const hostname = host.toLowerCase().split(":")[0];
+  const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1";
 
-  if (forwardedProto) {
-    return forwardedProto === "https";
+  if (process.env.NODE_ENV === "production" && !isLocalHost) {
+    return true;
   }
 
-  return process.env.NODE_ENV === "production" && !isLocalHost;
+  return forwardedProto === "https";
 }
 
 export async function getSessionToken() {
@@ -78,19 +78,19 @@ export async function getCurrentSession() {
   const prisma = getPrismaClient();
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashSessionToken(token) },
-    include: { user: true },
+    include: { user: { include: { tenant: true } } },
   });
 
   if (!session) {
-    await clearSessionCookie();
     return null;
   }
 
-  if (session.expiresAt <= new Date()) {
-    await prisma.session.deleteMany({
-      where: { id: session.id },
-    });
-    await clearSessionCookie();
+  if (
+    session.expiresAt <= new Date() ||
+    session.user.status !== "active" ||
+    session.user.tenant.status !== "active" ||
+    session.tenantId !== session.user.tenantId
+  ) {
     return null;
   }
 
