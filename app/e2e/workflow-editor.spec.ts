@@ -79,6 +79,8 @@ test("editor creates, configures, connects, duplicates, moves, deletes and reloa
     await page.getByLabel("タイムアウト（ミリ秒）", { exact: true }).fill("1500");
     await addNode(page, "AIアクション");
     await page.getByLabel("AI処理", { exact: true }).selectOption("reply_draft");
+    await expect(page.getByLabel("AIモデル", { exact: true })).toHaveValue("");
+    await page.getByLabel("AIモデル", { exact: true }).selectOption("gpt-6.1-sol");
     await page.getByLabel("出力先", { exact: true }).selectOption("field");
     await page.getByLabel("出力先フィールド", { exact: true }).selectOption("title");
 
@@ -90,9 +92,11 @@ test("editor creates, configures, connects, duplicates, moves, deletes and reloa
     expect(saved.definitionJson.nodes).toHaveLength(8);
     expect(saved.triggerType).toBe("create");
     expect(saved.definitionJson.nodes.find((node) => node.data.nodeType === "api_call")?.data.config).toMatchObject({ method: "PATCH", timeoutMs: 1500 });
-    expect(saved.definitionJson.nodes.find((node) => node.data.nodeType === "ai_action")?.data.config).toMatchObject({ action: "reply_draft", output: "field", outputFieldCode: "title" });
+    expect(saved.definitionJson.nodes.find((node) => node.data.nodeType === "ai_action")?.data.config).toMatchObject({ action: "reply_draft", model: "gpt-6.1-sol", output: "field", outputFieldCode: "title" });
     await page.reload();
     await expect(page.getByLabel("ワークフロー名", { exact: true })).toHaveValue(`編集テスト ${suffix}`);
+    await selectNode(page, "AIアクション");
+    await expect(page.getByLabel("AIモデル", { exact: true })).toHaveValue("gpt-6.1-sol");
     for (const label of ["API呼び出し", "AIアクション", "承認"]) { await selectNode(page, label); await page.getByRole("button", { name: "ノードを削除", exact: true }).click(); }
 
     await page.getByRole("button", { name: "全体表示", exact: true }).click();

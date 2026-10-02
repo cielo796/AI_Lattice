@@ -6,6 +6,7 @@ export const REQUIRED_DATABASE_TABLES = [
   "roles",
   "user_roles",
   "tenant_openai_settings",
+  "tenant_ai_model_settings",
   "apps",
   "app_versions",
   "app_tables",

@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getOpenAIClient } from "@/server/openai/client";
+import { AppsServiceError } from "@/server/apps/service";
 import {
   generateJsonWithModelGateway,
   listAIExecutionLogsForUser,
@@ -43,6 +45,7 @@ describe("model gateway", () => {
         create: vi.fn().mockResolvedValue({ id: "log-001" }),
         findMany: vi.fn().mockResolvedValue([]),
       },
+      tenantAIModelSettings: { findUnique: vi.fn().mockResolvedValue(null) },
     });
   });
 
@@ -133,9 +136,57 @@ describe("model gateway", () => {
     const prisma = getPrismaClient();
     getPrismaClient.mockReturnValue({ ...prisma, promptTemplateVersion: { findFirst: vi.fn().mockResolvedValue({ id: "version", version: 1, modelName: "configured-model", instructions: "Configured instructions", responseSchemaJson: null, promptTemplate: { key: "explicit-template", name: "Template", operation: request().operation } }) } });
     const client = { responses: { create: vi.fn().mockResolvedValue({ output_text: "{}" }) } };
-    const result = await generateJsonWithModelGateway({ ...request(), promptTemplateKey: "explicit-template", requirePromptTemplate: true }, client);
+    const result = await generateJsonWithModelGateway({ ...request(), model: undefined, promptTemplateKey: "explicit-template", requirePromptTemplate: true }, client);
     expect(result.modelName).toBe("configured-model");
     expect(client.responses.create).toHaveBeenCalledWith(expect.objectContaining({ model: "configured-model", instructions: "Configured instructions" }));
+  });
+
+  it("inherits the latest low-cost default when no template or tenant selection exists", async () => {
+    const client = { responses: { create: vi.fn().mockResolvedValue({ output_text: "{}" }) } };
+    const result = await generateJsonWithModelGateway({ ...request(), model: undefined }, client);
+    expect(result.modelName).toBe("gpt-6-luna");
+    expect(getPrismaClient().tenantAIModelSettings.findUnique).toHaveBeenCalledWith({ where: { tenantId: user.tenantId } });
+    expect(client.responses.create).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-6-luna" }));
+  });
+
+  it.each(["gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"])("uses the tenant selection %s without changing the strict response schema", async (model) => {
+    getPrismaClient().tenantAIModelSettings.findUnique.mockResolvedValue({ defaultModel: model });
+    const client = { responses: { create: vi.fn().mockResolvedValue({ output_text: "{}" }) } };
+    const result = await generateJsonWithModelGateway({ ...request(), model: undefined }, client);
+    expect(result.modelName).toBe(model);
+    expect(client.responses.create).toHaveBeenCalledWith(expect.objectContaining({ model, text: { format: { type: "json_schema", name: request().responseFormatName, strict: true, schema: request().responseSchema } } }));
+    expect(getPrismaClient().aiExecutionLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ modelName: model, status: "success" }) });
+  });
+
+  it("keeps an explicit workflow model ahead of the template and tenant choices", async () => {
+    const prisma = getPrismaClient();
+    prisma.tenantAIModelSettings.findUnique.mockResolvedValue({ defaultModel: "gpt-6-astra" });
+    getPrismaClient.mockReturnValue({ ...prisma, promptTemplateVersion: { findFirst: vi.fn().mockResolvedValue({ id: "version", version: 1, modelName: "gpt-6-luna", instructions: "Template instructions", responseSchemaJson: null, promptTemplate: { key: "explicit-template", name: "Template", operation: request().operation } }) } });
+    const client = { responses: { create: vi.fn().mockResolvedValue({ output_text: "{}" }) } };
+    const result = await generateJsonWithModelGateway({ ...request(), model: "gpt-6.1-sol", promptTemplateKey: "explicit-template", requirePromptTemplate: true }, client);
+    expect(result.modelName).toBe("gpt-6.1-sol");
+    expect(client.responses.create).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-6.1-sol", instructions: "Template instructions" }));
+    expect(prisma.tenantAIModelSettings.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("does not silently use another model when a selected model is unavailable", async () => {
+    getPrismaClient().tenantAIModelSettings.findUnique.mockResolvedValue({ defaultModel: "gpt-6-astra" });
+    const client = { responses: { create: vi.fn().mockRejectedValue(Object.assign(new Error("Model access denied"), { status: 403 })) } };
+    await expect(generateJsonWithModelGateway({ ...request(), model: undefined }, client)).rejects.toMatchObject({ status: 502, message: expect.stringContaining("Model access denied") });
+    expect(client.responses.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ model: "gpt-6-astra" }));
+  });
+
+  it("does not issue a paid request if the model settings cannot be read", async () => {
+    getPrismaClient().tenantAIModelSettings.findUnique.mockRejectedValue(new Error("Settings database unavailable"));
+    const client = { responses: { create: vi.fn() } };
+    await expect(generateJsonWithModelGateway({ ...request(), model: undefined }, client)).rejects.toMatchObject({ status: 502 });
+    expect(client.responses.create).not.toHaveBeenCalled();
+  });
+
+  it("preserves the missing API key error before reading optional model settings", async () => {
+    vi.mocked(getOpenAIClient).mockRejectedValueOnce(new AppsServiceError("OPENAI_API_KEY is missing", 503));
+    await expect(generateJsonWithModelGateway({ ...request(), model: undefined })).rejects.toMatchObject({ status: 503 });
+    expect(getPrismaClient().tenantAIModelSettings.findUnique).not.toHaveBeenCalled();
   });
 
   it("lists execution logs for the current tenant", async () => {

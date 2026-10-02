@@ -1,7 +1,18 @@
 import { apiFetch } from "@/lib/api/client";
-import type { OpenAISettingsStatus } from "@/types/settings";
+import type { AIModelSettings, OpenAISettingsStatus } from "@/types/settings";
 
 const OPENAI_SETTINGS_PATH = "/api/admin/openai-settings";
+
+export async function getAIModelSettings() {
+  return apiFetch<AIModelSettings>("/api/admin/ai-model-settings");
+}
+
+export async function saveAIModelSettings(defaultModel: string) {
+  return apiFetch<AIModelSettings>("/api/admin/ai-model-settings", {
+    method: "PUT",
+    body: JSON.stringify({ defaultModel }),
+  });
+}
 
 export async function getOpenAISettings() {
   return apiFetch<OpenAISettingsStatus>(OPENAI_SETTINGS_PATH);

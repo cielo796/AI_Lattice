@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppsServiceError } from "@/server/apps/service";
+vi.mock("@/server/ai/model-settings", () => ({ getTenantAIModel: vi.fn().mockResolvedValue("gpt-6.1-sol") }));
 import {
   createAppFromBlueprint,
   generateBlueprintFromPrompt,
@@ -111,6 +112,7 @@ describe("apps blueprints", () => {
     );
 
     expect(blueprint).toEqual(validBlueprint);
+    expect(client.responses.create).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-6.1-sol" }));
     expect(client.responses.create).toHaveBeenCalledOnce();
   });
 

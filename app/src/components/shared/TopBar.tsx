@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { Avatar } from "./Avatar";
 import { cn } from "@/lib/cn";
@@ -21,6 +21,31 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
   const { isSidebarCollapsed, toggleMobileNav } = useShellChrome();
   const { hasCurrentTour, currentTourLabel, startCurrentTour } = useGuideLauncher();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const actionsId = useId();
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isActionsOpen) return;
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (event.target instanceof Node && !actionsRef.current?.contains(event.target)) {
+        setIsActionsOpen(false);
+      }
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsActionsOpen(false);
+        actionsButtonRef.current?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isActionsOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,10 +111,35 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-1 md:gap-2">
+      <div className="flex shrink-0 items-center gap-1 md:gap-2">
         {actions && (
-          <div className="hidden items-center gap-2 lg:flex" data-guide="topbar-actions">
-            {actions}
+          <div className="relative" ref={actionsRef}>
+            <button
+              ref={actionsButtonRef}
+              type="button"
+              onClick={() => setIsActionsOpen((current) => !current)}
+              className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high lg:hidden"
+              aria-label="操作メニュー"
+              aria-expanded={isActionsOpen}
+              aria-controls={actionsId}
+            >
+              <Icon name="more_vert" />
+            </button>
+            <div
+              id={actionsId}
+              className={cn(
+                "absolute right-0 top-11 hidden w-max max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-xl border border-outline-variant bg-surface p-3 shadow-lg lg:static lg:flex lg:max-w-none lg:flex-nowrap lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none",
+                isActionsOpen && "flex"
+              )}
+              data-guide="topbar-actions"
+              onClick={(event) => {
+                if (event.target instanceof Element && event.target.closest("button:not(:disabled), a")) {
+                  setIsActionsOpen(false);
+                }
+              }}
+            >
+              {actions}
+            </div>
           </div>
         )}
         {hasCurrentTour && (

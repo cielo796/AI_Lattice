@@ -1,3 +1,4 @@
+import { DEFAULT_AI_MODEL } from "@/lib/ai-models";
 import {
   generateJsonWithModelGateway,
   type ModelGatewayClientLike,
@@ -12,7 +13,7 @@ import type { AppField } from "@/types/app";
 import type { AppRecord, RecordComment } from "@/types/record";
 import type { User } from "@/types/user";
 
-const OPENAI_MODEL = "gpt-5-mini";
+const OPENAI_MODEL = DEFAULT_AI_MODEL;
 const MAX_CONTEXT_COMMENTS = 8;
 const MAX_FIELD_VALUE_LENGTH = 600;
 
@@ -378,7 +379,7 @@ export async function executeRuntimeAIAction(
     {
       user,
       operation: definition.operation,
-      model: options.model ?? OPENAI_MODEL,
+      model: options.model,
       instructions: definition.instructions,
       input,
       responseFormatName: definition.responseFormatName,

@@ -25,8 +25,7 @@ async function getAppOrThrow(user: User, appId: string) {
   return app;
 }
 
-async function buildAppMetadataSnapshot(user: User, appId: string) {
-  const prisma = getPrismaClient();
+async function buildAppMetadataSnapshot(prisma: Prisma.TransactionClient, user: User, appId: string) {
   const [tables, fields, views, forms, workflows] = await Promise.all([
     prisma.appTable.findMany({
       where: { tenantId: user.tenantId, appId },
@@ -140,23 +139,25 @@ export async function publishAppForUser(user: User, appId: string) {
   const app = await getAppOrThrow(user, appId);
   await requirePermission(user, "app:publish", { appId: app.id });
   const prisma = getPrismaClient();
-  const metadata = await buildAppMetadataSnapshot(user, app.id);
+  const version = await prisma.$transaction(async (transaction) => {
+    const locked = await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM apps WHERE id = ${app.id} AND tenant_id = ${user.tenantId} FOR UPDATE
+    `;
+    if (!locked.length) throw new AppsServiceError("アプリが見つかりません", 404);
 
-  if (metadata.tables.length === 0) {
-    throw new AppsServiceError(
-      "テーブルがないアプリは公開できません。先にテーブルを作成してください。",
-      400
-    );
-  }
-
-  const latest = await prisma.appVersion.aggregate({
-    where: { appId: app.id },
-    _max: { versionNo: true },
-  });
-  const nextVersionNo = (latest._max.versionNo ?? 0) + 1;
-
-  const [version] = await prisma.$transaction([
-    prisma.appVersion.create({
+    const metadata = await buildAppMetadataSnapshot(transaction, user, app.id);
+    if (metadata.tables.length === 0) {
+      throw new AppsServiceError(
+        "テーブルがないアプリは公開できません。先にテーブルを作成してください。",
+        400
+      );
+    }
+    const latest = await transaction.appVersion.aggregate({
+      where: { tenantId: user.tenantId, appId: app.id },
+      _max: { versionNo: true },
+    });
+    const nextVersionNo = (latest._max.versionNo ?? 0) + 1;
+    const createdVersion = await transaction.appVersion.create({
       data: {
         id: crypto.randomUUID(),
         tenantId: user.tenantId,
@@ -170,26 +171,26 @@ export async function publishAppForUser(user: User, appId: string) {
       include: {
         publishedBy: { select: { name: true, email: true } },
       },
-    }),
-    prisma.app.update({
+    });
+    await transaction.app.update({
       where: { id: app.id },
       data: { status: "published" },
-    }),
-  ]);
-
-  await recordAuditLog(user, {
-    actionType: "APP_PUBLISH",
-    resourceType: "app",
-    resourceId: app.id,
-    resourceName: app.name,
-    detailJson: {
-      versionNo: nextVersionNo,
-      tableCount: metadata.tables.length,
-      viewCount: metadata.views.length,
-      formCount: metadata.forms.length,
-      workflowCount: metadata.workflows.length,
-    },
-  });
+    });
+    await recordAuditLog(user, {
+      actionType: "APP_PUBLISH",
+      resourceType: "app",
+      resourceId: app.id,
+      resourceName: app.name,
+      detailJson: {
+        versionNo: nextVersionNo,
+        tableCount: metadata.tables.length,
+        viewCount: metadata.views.length,
+        formCount: metadata.forms.length,
+        workflowCount: metadata.workflows.length,
+      },
+    }, transaction);
+    return createdVersion;
+  }, { maxWait: 10000, timeout: 15000 });
 
   return toAppVersionSummary(version);
 }

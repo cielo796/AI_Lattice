@@ -3,6 +3,8 @@ import { resolveActivePromptTemplateVersion } from "@/server/admin/prompt-templa
 import { AppsServiceError } from "@/server/apps/service";
 import { getPrismaClient } from "@/server/db/prisma";
 import { getOpenAIClient } from "@/server/openai/client";
+import { DEFAULT_AI_MODEL } from "@/lib/ai-models";
+import { getTenantAIModel } from "@/server/ai/model-settings";
 import type { AIExecutionLog } from "@/types/ai";
 import type { User } from "@/types/user";
 
@@ -47,7 +49,7 @@ export type ModelGatewayClientLike = {
 export interface ModelGatewayJsonRequest {
   user: GatewayUser;
   operation: string;
-  model: string;
+  model?: string;
   instructions: string;
   input: string;
   responseFormatName: string;
@@ -69,6 +71,8 @@ export interface ModelGatewayJsonResponse {
     totalTokens: number;
   };
 }
+
+type ResolvedModelGatewayJsonRequest = ModelGatewayJsonRequest & { model: string };
 
 export interface ListAIExecutionLogsOptions {
   limit?: number;
@@ -166,7 +170,7 @@ function toJsonObject(value: Prisma.JsonValue | null) {
   return value as Record<string, unknown>;
 }
 
-function buildRequestParams(request: ModelGatewayJsonRequest) {
+function buildRequestParams(request: ResolvedModelGatewayJsonRequest) {
   return {
     model: request.model,
     instructions: request.instructions,
@@ -248,7 +252,7 @@ function toAIExecutionLog(log: {
 
 async function recordAIExecutionLog(input: {
   user: GatewayUser;
-  request: ModelGatewayJsonRequest;
+  request: ResolvedModelGatewayJsonRequest;
   status: AIExecutionStatus;
   outputText?: string;
   errorMessage?: string;
@@ -325,7 +329,7 @@ async function resolvePromptTemplateRequest(
 
   return {
     ...request,
-    model: activeTemplate.modelName,
+    model: request.model ?? activeTemplate.modelName,
     instructions: activeTemplate.instructions,
     responseSchema: activeTemplate.responseSchemaJson ?? request.responseSchema,
     promptTemplateKey: activeTemplate.key,
@@ -346,11 +350,16 @@ export async function generateJsonWithModelGateway(
   client?: ModelGatewayClientLike
 ): Promise<ModelGatewayJsonResponse> {
   const startedAt = Date.now();
-  let resolvedRequest = request;
+  let resolvedRequest: ResolvedModelGatewayJsonRequest = { ...request, model: request.model ?? DEFAULT_AI_MODEL };
 
   try {
-    resolvedRequest = await resolvePromptTemplateRequest(request);
+    const templatedRequest = await resolvePromptTemplateRequest(request);
+    resolvedRequest = { ...templatedRequest, model: templatedRequest.model ?? DEFAULT_AI_MODEL };
     const openAIClient = client ?? (await getOpenAIClient(resolvedRequest.user.tenantId));
+    resolvedRequest = {
+      ...templatedRequest,
+      model: templatedRequest.model ?? await getTenantAIModel(request.user.tenantId),
+    };
     const response = await openAIClient.responses.create(
       buildRequestParams(resolvedRequest)
     );

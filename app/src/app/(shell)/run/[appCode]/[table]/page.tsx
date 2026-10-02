@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { mergeRecordComments } from "@/lib/runtime/comments";
 import {
   useParams,
   usePathname,
@@ -166,6 +167,8 @@ export default function RuntimeViewPage() {
 
   const [records, setRecords] = useState<AppRecord[]>([]);
   const [comments, setComments] = useState<RecordComment[]>([]);
+  const commentsRevision = useRef(0);
+  const activityRecordId = useRef<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -518,6 +521,7 @@ export default function RuntimeViewPage() {
   }, [appCode, refreshKey, selectedId, tableCode]);
 
   useEffect(() => {
+    activityRecordId.current = selectedId;
     if (!appCode || !tableCode || !selectedId) {
       setComments([]);
       setAttachments([]);
@@ -526,6 +530,8 @@ export default function RuntimeViewPage() {
     }
 
     const currentRecordId = selectedId;
+    const requestedCommentsRevision = commentsRevision.current;
+    setComments((current) => current.filter((comment) => comment.recordId === currentRecordId));
     let cancelled = false;
 
     async function loadRecordActivity() {
@@ -541,7 +547,11 @@ export default function RuntimeViewPage() {
           return;
         }
 
-        setComments(nextComments);
+        setComments((current) => mergeRecordComments(
+          nextComments,
+          commentsRevision.current === requestedCommentsRevision ? [] : current,
+          currentRecordId
+        ));
         setAttachments(nextAttachments);
         setApprovals(nextApprovals);
         setError(null);
@@ -550,7 +560,7 @@ export default function RuntimeViewPage() {
           return;
         }
 
-        setComments([]);
+        if (commentsRevision.current === requestedCommentsRevision) setComments([]);
         setAttachments([]);
         setApprovals([]);
         setError(
@@ -569,6 +579,7 @@ export default function RuntimeViewPage() {
 
     return () => {
       cancelled = true;
+      activityRecordId.current = null;
     };
   }, [appCode, refreshKey, selectedId, tableCode]);
 
@@ -579,10 +590,14 @@ export default function RuntimeViewPage() {
 
     try {
       setIsSubmittingComment(true);
-      const comment = await createComment(appCode, tableCode, selectedId, {
+      const currentRecordId = selectedId;
+      const comment = await createComment(appCode, tableCode, currentRecordId, {
         commentText,
       });
-      setComments((current) => [...current, comment]);
+      if (activityRecordId.current === currentRecordId) {
+        commentsRevision.current += 1;
+        setComments((current) => mergeRecordComments([comment], current, currentRecordId));
+      }
       setError(null);
       pushToast({ title: "コメントを追加しました", variant: "success" });
     } catch (nextError) {

@@ -199,3 +199,45 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
     }
   }
 });
+
+for (const activityResult of ["stale", "failed"] as const) {
+test(`a delayed ${activityResult} activity read cannot remove a successfully posted comment`, async ({ page }) => {
+  await login(page);
+  const { app, table } = await createRuntimeApp(page, `comment-race-${Date.now()}`);
+  let releaseAttachments = () => {};
+  let attachmentsStarted = () => {};
+  const attachmentsReady = new Promise<void>((resolve) => { attachmentsStarted = resolve; });
+  const attachmentsReleased = new Promise<void>((resolve) => { releaseAttachments = resolve; });
+  try {
+    const record = await expectJson<AppRecord>(await page.request.post(`/api/run/${app.code}/${table.code}`, {
+      data: { data: { title: "Comment race record", status: "Open" } },
+    }));
+    await page.route(`**/api/run/${app.code}/${table.code}/${record.id}/attachments`, async (route) => {
+      const response = await route.fetch();
+      attachmentsStarted();
+      await attachmentsReleased;
+      if (activityResult === "failed") {
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Activity test failure" }) });
+      } else {
+        await route.fulfill({ response });
+      }
+    });
+    const commentsRead = page.waitForResponse((response) => response.url().endsWith(`/${record.id}/comments`) && response.request().method() === "GET");
+    await page.goto(`/run/${app.code}/${table.code}?recordId=${record.id}`);
+    await Promise.all([attachmentsReady, commentsRead]);
+    const commentText = `Preserved comment ${Date.now()}`;
+    await page.getByPlaceholder("コメントを追加...").fill(commentText);
+    await page.getByRole("button", { name: "送信", exact: true }).click();
+    await expect(page.getByText("コメントを追加しました")).toBeVisible();
+    await expect(page.getByText(commentText, { exact: true })).toBeVisible();
+    releaseAttachments();
+    await expect(page.getByText("添付ファイルを読み込んでいます...")).toHaveCount(0);
+    await expect(page.getByText(commentText, { exact: true })).toBeVisible();
+    const stored = await expectJson<Array<{ commentText: string }>>(await page.request.get(`/api/run/${app.code}/${table.code}/${record.id}/comments`));
+    expect(stored.filter((comment) => comment.commentText === commentText)).toHaveLength(1);
+  } finally {
+    releaseAttachments();
+    await page.request.delete(`/api/apps/${app.id}`).catch(() => undefined);
+  }
+});
+}

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/server/ai/model-settings", () => ({ getTenantAIModel: vi.fn().mockResolvedValue("gpt-6.1-sol") }));
 import {
   applyAppRefinementPreview,
   generateAppRefinementPreview,
@@ -217,6 +218,7 @@ describe("app AI refinements", () => {
       client
     );
 
+    expect(client.responses.create).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-6.1-sol" }));
     expect(serviceMocks.createFieldForTable).toHaveBeenCalledWith(
       user,
       "app-001",

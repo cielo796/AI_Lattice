@@ -8,6 +8,8 @@
 - ローカルDBをDockerで起動する場合はDocker Engine / Docker Desktop
 - AI機能を利用する場合は管理画面から設定するOpenAI APIキー
 
+「管理 → OpenAI 設定」でAIモデルも選択できます。初期値は `gpt-6-luna`。`gpt-6.1-sol`・`gpt-6-astra`・互換用 `gpt-5-mini` を選択でき、ワークフローとPrompt Templateには個別指定も可能です。詳細は[AI機能の使い方](../docs/system-manual.md#13-ai-機能)を参照してください。導入時は `20261002000000_tenant_ai_model_settings` migrationとPrisma Client生成が必要です。
+
 以下のコマンドは `app/` で実行します。
 
 ## 初期導入

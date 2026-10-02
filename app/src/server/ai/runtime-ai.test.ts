@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppsServiceError } from "@/server/apps/service";
+vi.mock("@/server/ai/model-settings", () => ({ getTenantAIModel: vi.fn().mockResolvedValue("gpt-6.1-sol") }));
 import {
   buildRecordContext,
   executeRuntimeAIAction,
@@ -146,6 +147,8 @@ describe("executeRuntimeAIAction", () => {
     expect(result.usage.totalTokens).toBe(150);
     expect(create).toHaveBeenCalledTimes(1);
     const params = create.mock.calls[0][0];
+    expect(params.model).toBe("gpt-6.1-sol");
+    expect(result.modelName).toBe("gpt-6.1-sol");
     expect(params.input).toContain("サポートデスク");
     expect(params.input).toContain("件名 (subject): ログインできない");
   });

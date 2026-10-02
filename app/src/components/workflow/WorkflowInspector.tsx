@@ -2,6 +2,7 @@
 
 import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from "react";
 import { Button } from "@/components/shared/Button";
+import { AIModelSelect } from "@/components/shared/AIModelSelect";
 import { duplicateEditorNode, removeEditorNode, workflowBranchOptions, workflowNodeLabels, workflowTriggerLabels } from "@/lib/workflow-editor";
 import type { Workflow, WorkflowDefinition, WorkflowEditorContext } from "@/types/workflow";
 
@@ -125,7 +126,7 @@ export function WorkflowInspector({ definition, context, selectedNodeId, selecte
       </>}
       {node.data.nodeType === "ai_action" && <>
         {selectConfig("AI処理", "action", [{ value: "summarize", label: "要約" }, { value: "next_actions", label: "次アクション" }, { value: "reply_draft", label: "返信案" }], "summarize")}
-        {textConfig("モデル名（任意）", "model", false, "管理設定 / 既定モデルを使用")}
+        <WorkflowField label="AIモデル"><AIModelSelect value={typeof config.model === "string" ? config.model : ""} onChange={(value) => patchConfig({ model: value || undefined })} allowDefault className={workflowInputClass} /></WorkflowField>
         {selectConfig("Prompt Template", "promptTemplateKey", [{ value: "", label: "アクションの既定テンプレート" }, ...(context?.promptTemplates.filter((template) => template.operation === `record.${config.action ?? "summarize"}`).map((template) => ({ value: template.key, label: template.name })) ?? [])])}
         {selectConfig("出力先", "output", [{ value: "comment", label: "システムコメント" }, { value: "field", label: "レコードのフィールド" }], "comment")}
         {config.output === "field" && selectConfig("出力先フィールド", "outputFieldCode", [{ value: "", label: "フィールドを選択" }, ...fieldOptions])}
