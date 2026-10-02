@@ -4,7 +4,7 @@ import { AppsServiceError } from "@/server/apps/service";
 import { recordAuditLog } from "@/server/audit/service";
 import { getPrismaClient } from "@/server/db/prisma";
 import { ensureDemoRecordData } from "@/server/records/bootstrap";
-import { runApprovalWorkflowsForRecord } from "@/server/workflows/service";
+import { dispatchWorkflowRunIds, enqueueWorkflowsForRecord } from "@/server/workflows/service";
 import { getRecordTitle } from "@/lib/runtime-records";
 import type {
   AppField,
@@ -997,7 +997,7 @@ export async function getRuntimeTableMeta(
 }
 
 async function getNextRecordNoForTable(
-  prisma: ReturnType<typeof getPrismaClient>,
+  prisma: Prisma.TransactionClient,
   tableId: string
 ) {
   const result = await prisma.appRecord.aggregate({
@@ -1033,24 +1033,37 @@ export async function createRecordForTable(
   const prisma = getPrismaClient();
   const status = input.status?.trim() || "active";
   let record: Awaited<ReturnType<typeof prisma.appRecord.create>> | null = null;
+  let runIds: string[] = [];
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const recordNo = await getNextRecordNoForTable(prisma, table.id);
-
     try {
-      record = await prisma.appRecord.create({
-        data: {
-          id: crypto.randomUUID(),
-          tenantId: user.tenantId,
-          appId: app.id,
-          tableId: table.id,
-          recordNo,
-          status,
-          dataJson: toJsonObject(data),
-          createdById: user.id,
-          updatedById: user.id,
-        },
+      const saved = await prisma.$transaction(async (transaction) => {
+        const recordNo = await getNextRecordNoForTable(transaction, table.id);
+        const created = await transaction.appRecord.create({
+          data: {
+            id: crypto.randomUUID(),
+            tenantId: user.tenantId,
+            appId: app.id,
+            tableId: table.id,
+            recordNo,
+            status,
+            dataJson: toJsonObject(data),
+            createdById: user.id,
+            updatedById: user.id,
+          },
+        });
+        await recordAuditLog(user, {
+          actionType: "RECORD_CREATE", resourceType: "record", resourceId: created.id, resourceName: table.name,
+          detailJson: { appId: app.id, appCode: app.code, tableId: table.id, tableCode: table.code, status: created.status, data },
+        }, transaction);
+        const queued = await enqueueWorkflowsForRecord(user, {
+          appId: app.id, appCode: app.code, tableId: table.id, tableCode: table.code, tableName: table.name,
+          recordId: created.id, recordTitle: getRecordTitle(toAppRecord(created)), triggerTypes: ["create"], eventKey: `record:create:${created.id}`,
+        }, transaction);
+        return { record: created, runIds: queued };
       });
+      record = saved.record;
+      runIds = saved.runIds;
       break;
     } catch (error) {
       if (!isPrismaUniqueError(error) || attempt === 2) {
@@ -1063,37 +1076,22 @@ export async function createRecordForTable(
     throw new RecordsServiceError("Could not allocate a record number", 409);
   }
 
-  await recordAuditLog(user, {
-    actionType: "RECORD_CREATE",
-    resourceType: "record",
-    resourceId: record.id,
-    resourceName: table.name,
-    detailJson: {
-      appId: app.id,
-      appCode: app.code,
-      tableId: table.id,
-      tableCode: table.code,
-      status: record.status,
-      data,
-    },
-  });
+  return finishRecordWorkflowDispatch(user, record, runIds);
+}
 
-  const appRecord = toAppRecord(record);
-
-  await runApprovalWorkflowsForRecord(user, {
-    appId: app.id,
-    appCode: app.code,
-    tableId: table.id,
-    tableCode: table.code,
-    tableName: table.name,
-    recordId: record.id,
-    recordTitle: getRecordTitle(appRecord),
-    triggerTypes: ["create"],
-    eventKey: `record:create:${record.id}`,
-  });
-
-  const governedRecord = await prisma.appRecord.findUnique({ where: { id: record.id } });
-  return governedRecord ? toAppRecord(governedRecord) : appRecord;
+async function finishRecordWorkflowDispatch(user: User, record: Parameters<typeof toAppRecord>[0], runIds: string[]) {
+  if (process.env.WORKFLOW_INLINE_DISPATCH === "false") {
+    return { ...toAppRecord(record), workflowRunIds: runIds, workflowDispatchPending: runIds.length > 0 };
+  }
+  try {
+    await dispatchWorkflowRunIds(user, runIds);
+    const prisma = getPrismaClient();
+    const governed = await prisma.appRecord.findUnique({ where: { id: record.id } });
+    const pending = runIds.length ? await prisma.workflowRun.count({ where: { id: { in: runIds }, tenantId: user.tenantId, status: { in: ["ready", "running"] } } }) : 0;
+    return { ...toAppRecord(governed ?? record), workflowRunIds: runIds, workflowDispatchPending: pending > 0 };
+  } catch {
+    return { ...toAppRecord(record), workflowRunIds: runIds, workflowDispatchPending: true };
+  }
 }
 
 export async function getRecordForTable(
@@ -1261,75 +1259,35 @@ export async function updateRecordForTable(
     tableId: table.id,
   });
   const prisma = getPrismaClient();
-  const nextDataObject =
-    input.data !== undefined
-      ? assertRecordData(input.data)
-      : toDataObject(record.dataJson);
-  const nextData =
-    toJsonObject(
-      await validateRecordDataForTable(
-        user,
-        app.id,
-        table.id,
-        nextDataObject,
-        record.id
-      )
-    );
-  const nextStatus =
-    input.status !== undefined ? assertNonEmpty(input.status, "Status") : record.status;
-
-  const updatedRecord = await prisma.appRecord.update({
-    where: { id: record.id },
-    data: {
-      status: nextStatus,
-      dataJson: nextData,
-      updatedById: user.id,
-      deletedAt: null,
-    },
-  });
-
-  await recordAuditLog(user, {
-    actionType: "RECORD_UPDATE",
-    resourceType: "record",
-    resourceId: updatedRecord.id,
-    resourceName: table.name,
-    detailJson: {
-      appId: app.id,
-      appCode: app.code,
-      tableId: table.id,
-      tableCode: table.code,
-      before: {
-        status: record.status,
-        data: toDataObject(record.dataJson),
+  const requestedData = input.data !== undefined ? assertRecordData(input.data) : undefined;
+  const requestedStatus = input.status !== undefined ? assertNonEmpty(input.status, "Status") : undefined;
+  const saved = await prisma.$transaction(async (transaction) => {
+    const locked = await transaction.$queryRaw<Array<{ id: string }>>`SELECT id FROM app_records WHERE id = ${record.id} AND tenant_id = ${user.tenantId} AND app_id = ${app.id} AND table_id = ${table.id} AND deleted_at IS NULL FOR UPDATE`;
+    if (!locked.length) throw new RecordsServiceError("Record not found", 404);
+    const current = await transaction.appRecord.findUniqueOrThrow({ where: { id: record.id } });
+    const nextData = toJsonObject(await validateRecordDataForTable(user, app.id, table.id, requestedData ?? toDataObject(current.dataJson), record.id));
+    const updated = await transaction.appRecord.update({
+      where: { id: record.id },
+      data: { status: requestedStatus ?? current.status, dataJson: nextData, updatedById: user.id, deletedAt: null },
+    });
+    await recordAuditLog(user, {
+      actionType: "RECORD_UPDATE", resourceType: "record", resourceId: updated.id, resourceName: table.name,
+      detailJson: {
+        appId: app.id, appCode: app.code, tableId: table.id, tableCode: table.code,
+        before: { status: current.status, data: toDataObject(current.dataJson) },
+        after: { status: updated.status, data: toDataObject(updated.dataJson) },
       },
-      after: {
-        status: updatedRecord.status,
-        data: toDataObject(updatedRecord.dataJson),
-      },
-    },
+    }, transaction);
+    const triggerTypes: Array<"update" | "status_change"> = ["update"];
+    if (current.status !== updated.status) triggerTypes.push("status_change");
+    const runIds = await enqueueWorkflowsForRecord(user, {
+      appId: app.id, appCode: app.code, tableId: table.id, tableCode: table.code, tableName: table.name,
+      recordId: updated.id, recordTitle: getRecordTitle(toAppRecord(updated)), triggerTypes,
+      eventKey: `record:update:${updated.id}:${crypto.randomUUID()}`,
+    }, transaction);
+    return { record: updated, runIds };
   });
-
-  const appRecord = toAppRecord(updatedRecord);
-  const triggerTypes: Array<"update" | "status_change"> = ["update"];
-
-  if (record.status !== updatedRecord.status) {
-    triggerTypes.push("status_change");
-  }
-
-  await runApprovalWorkflowsForRecord(user, {
-    appId: app.id,
-    appCode: app.code,
-    tableId: table.id,
-    tableCode: table.code,
-    tableName: table.name,
-    recordId: updatedRecord.id,
-    recordTitle: getRecordTitle(appRecord),
-    triggerTypes,
-    eventKey: `record:update:${updatedRecord.id}:${updatedRecord.updatedAt.toISOString()}`,
-  });
-
-  const governedRecord = await prisma.appRecord.findUnique({ where: { id: updatedRecord.id } });
-  return governedRecord ? toAppRecord(governedRecord) : appRecord;
+  return finishRecordWorkflowDispatch(user, saved.record, saved.runIds);
 }
 
 export async function deleteRecordForTable(

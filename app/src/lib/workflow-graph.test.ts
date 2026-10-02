@@ -45,6 +45,7 @@ describe("workflow graph", () => {
     (definition: WorkflowDefinition) => { definition.nodes[0].data = { label: "Numeric status", nodeType: "status_update", config: { status: 1 } }; },
     (definition: WorkflowDefinition) => { definition.nodes[3].data.config = { value: { invalid: true } }; },
     (definition: WorkflowDefinition) => { definition.nodes[3].data.config = { yesLabel: "same", noLabel: "same" }; },
+    (definition: WorkflowDefinition) => { definition.nodes[3].data.config = { yesLabel: "no", noLabel: "yes" }; },
     (definition: WorkflowDefinition) => { definition.nodes[0].data.config = { recipientIds: "not-an-array" }; },
     (definition: WorkflowDefinition) => { definition.nodes[1].data.config = { policy: "invalid" }; },
     (definition: WorkflowDefinition) => { definition.nodes[0].data = { label: "Bad API", nodeType: "api_call", config: { url: "file:///etc/passwd" } }; },

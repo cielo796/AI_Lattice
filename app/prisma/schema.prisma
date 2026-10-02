@@ -116,6 +116,7 @@ model Tenant {
   auditLogs              AuditLog[]
   workflows              Workflow[]
   workflowRuns           WorkflowRun[]
+  workflowSchedules      WorkflowScheduleState[]
   approvals              Approval[]
   appApprovalSettings    AppApprovalSetting[]
   appApprovalApprovers   AppApprovalApprover[]
@@ -130,6 +131,7 @@ model Tenant {
   notifications          Notification[]
   notificationPreferences UserNotificationPreference[]
   openAISettings         TenantOpenAISettings?
+  aiModelSettings        TenantAIModelSettings?
 
   @@map("tenants")
 }
@@ -145,6 +147,18 @@ model TenantOpenAISettings {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("tenant_openai_settings")
+}
+
+model TenantAIModelSettings {
+  id           String   @id @default(cuid())
+  tenantId     String   @unique @map("tenant_id")
+  defaultModel String   @map("default_model")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_ai_model_settings")
 }
 
 model PromptTemplate {
@@ -499,6 +513,7 @@ model AppRecord {
   @@unique([tableId, recordNo])
   @@index([tenantId])
   @@index([appId, tableId, updatedAt])
+  @@index([tenantId, appId, id])
   @@index([tableId, deletedAt])
   @@index([createdById])
   @@index([updatedById])
@@ -560,11 +575,34 @@ model Workflow {
   createdBy User       @relation("WorkflowCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   approvals Approval[]
   runs      WorkflowRun[]
+  schedule  WorkflowScheduleState?
 
   @@index([tenantId])
   @@index([appId, status])
   @@index([createdById])
   @@map("workflows")
+}
+
+model WorkflowScheduleState {
+  workflowId        String    @id @map("workflow_id")
+  tenantId          String    @map("tenant_id")
+  definitionHash    String    @map("definition_hash")
+  workflowUpdatedAt DateTime  @map("workflow_updated_at")
+  cycleId           String?   @map("cycle_id")
+  cycleStartedAt    DateTime? @db.Timestamptz(3) @map("cycle_started_at")
+  cursorRecordId    String?   @map("cursor_record_id")
+  nextDueAt         DateTime  @default(now()) @db.Timestamptz(3) @map("next_due_at")
+  lastBatchAt       DateTime? @db.Timestamptz(3) @map("last_batch_at")
+  lastError         String?   @map("last_error")
+  revision          Int       @default(0)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([nextDueAt, lastBatchAt])
+  @@index([tenantId])
+  @@map("workflow_schedule_states")
 }
 
 model WorkflowRun {
@@ -581,6 +619,8 @@ model WorkflowRun {
   contextJson    Json     @map("context_json")
   stateJson      Json     @map("state_json")
   error          String?
+  leaseToken     String?  @map("lease_token")
+  leaseExpiresAt DateTime? @db.Timestamptz(3) @map("lease_expires_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   finishedAt     DateTime? @map("finished_at")
@@ -596,6 +636,7 @@ model WorkflowRun {
   @@index([tenantId, appId, createdAt])
   @@index([recordId, createdAt])
   @@index([status, updatedAt])
+  @@index([status, leaseExpiresAt])
   @@map("workflow_runs")
 }
 

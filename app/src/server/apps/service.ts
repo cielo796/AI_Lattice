@@ -1936,6 +1936,34 @@ export async function updateFieldForTable(
 
   const prisma = getPrismaClient();
   const field = await prisma.$transaction(async (tx) => {
+    if (existingField.code !== nextCode) {
+      const lockedFields = await tx.$queryRaw<Array<{ code: string }>>`
+        SELECT code FROM app_fields
+        WHERE id = ${existingField.id} AND tenant_id = ${user.tenantId}
+          AND app_id = ${appId} AND table_id = ${tableId} FOR UPDATE
+      `;
+      if (!lockedFields.length) throw new AppsServiceError("フィールドが見つかりません", 404);
+      if (lockedFields[0].code !== existingField.code) {
+        throw new AppsServiceError("フィールドが変更されています。再読み込みしてください", 409);
+      }
+      const records = await tx.$queryRaw<Array<{ hasConflict: boolean }>>`
+        SELECT data_json ? ${nextCode}::text AS "hasConflict" FROM app_records
+        WHERE tenant_id = ${user.tenantId} AND app_id = ${appId} AND table_id = ${tableId}
+          AND (data_json ? ${existingField.code}::text OR data_json ? ${nextCode}::text)
+        ORDER BY id FOR UPDATE
+      `;
+      if (records.some((record) => record.hasConflict)) {
+        throw new AppsServiceError("変更先のコードに保存済みデータがあります。別のコードを指定してください", 409);
+      }
+      await tx.$executeRaw`
+        UPDATE app_records
+        SET data_json = (data_json - ${existingField.code}::text)
+              || jsonb_build_object(${nextCode}::text, data_json -> ${existingField.code}::text),
+            updated_by_id = ${user.id}, updated_at = timezone('UTC', now())
+        WHERE tenant_id = ${user.tenantId} AND app_id = ${appId} AND table_id = ${tableId}
+          AND data_json ? ${existingField.code}::text
+      `;
+    }
     const updatedField = await tx.appField.update({
       where: { id: existingField.id },
       data: {

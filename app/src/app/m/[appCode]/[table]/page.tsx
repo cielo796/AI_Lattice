@@ -928,7 +928,7 @@ export default function MobileRuntimePage() {
       setAttachments([]);
       setActiveOverlay("detail");
       setError(null);
-      pushToast({ title: "レコードを作成しました", variant: "success" });
+      pushToast({ title: "レコードを作成しました", description: record.workflowDispatchPending ? "ワークフローは実行待ちです。保存は完了しています。" : undefined, variant: "success" });
     } catch (nextError) {
       const error =
         nextError instanceof Error

@@ -8,6 +8,8 @@
 - ローカルDBをDockerで起動する場合はDocker Engine / Docker Desktop
 - AI機能を利用する場合は管理画面から設定するOpenAI APIキー
 
+「管理 → OpenAI 設定」でAIモデルも選択できます。初期値は `gpt-6-luna`。`gpt-6.1-sol`・`gpt-6-astra`・互換用 `gpt-5-mini` を選択でき、ワークフローとPrompt Templateには個別指定も可能です。詳細は[AI機能の使い方](../docs/system-manual.md#13-ai-機能)を参照してください。導入時は `20261002000000_tenant_ai_model_settings` migrationとPrisma Client生成が必要です。
+
 以下のコマンドは `app/` で実行します。
 
 ## 初期導入
@@ -110,10 +112,12 @@ Remove-Item Env:TEST_WORKFLOW_DATABASE_URL
 - 承認ノードは有効なアプリ承認設定を優先します。`config.policy="app"` は設定を必須とし、`"override"` はノード設定を明示的に使用します。設定のない旧定義は従来の承認者・ステータスで実行できます。
 - `any` / `all` / `sequential` / `quorum` の判断をDBロックで直列化します。指定されていないユーザーは他人の承認を代行できません。quorumは申請時点の必要人数を保持します。
 - エディタ左側の「実行履歴」に最新100件の実行、通過・未通過・失敗ノードを表示します。「再開を確認」は保存済み判断からのみ再開し、未判断の承認を飛ばしません。
+- レコード・監査・実行待ちを同一トランザクションで保存します。token付き実行権、保護されたworker endpoint、期限切れ回復、外部結果不明の隔離と管理者の復旧判断に対応します。[永続実行と運用手順](../docs/workflow-operations.md) を参照してください。定期実行は外部schedulerの設定が必要です。
 - ノードの失敗は既定で停止します。`failurePolicy="continue"` を指定した副作用ノードのみ、失敗を記録して後続へ進めます。
 - API送信は、管理者が `WORKFLOW_API_ALLOWED_ORIGINS` に指定したオリジンだけを許可します。例: `https://api.example.com,https://hooks.example.com`。未設定なら送信不可、リダイレクトには追従しません。信頼できる接続先のみ登録してください。
 - 外部APIには実行・ノードごとの `Idempotency-Key` を付けます。ただし受信側の対応が必要で、外部副作用の厳密な一度限りの保証はありません。プロセス停止で `running` に残った実行は自動再送せず、管理者が接続先と履歴を確認します。
-- グラフ編集UI、Webhook受信、Prompt to Workflowには未完成部分があります。AIコマンド欄は誤操作を避けるため準備中として無効化しています。
+- グラフ編集では全7種のノードを追加・移動・複製・削除・接続でき、ノード設定、接続ラベル、名前・トリガー・状態を編集できます。空/アプリ承認テンプレートから作成し、有効化前にconfig・参照先を検証します。[ワークフロー編集ガイド](../docs/workflow-editor.md)を参照してください。
+- 編集と保存したグラフの実行は `npm run e2e -- workflow-editor.spec.ts` で検証します。Webhook受信、Prompt to Workflowなどには未完成部分があります。AIコマンド欄は誤操作を避けるため準備中として無効化しています。
 
 ## 定期ワークフロー
 

@@ -1,630 +1,183 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import type { Edge, Node } from "reactflow";
 import { TopBar } from "@/components/shared/TopBar";
 import { Button } from "@/components/shared/Button";
-import { Icon } from "@/components/shared/Icon";
 import { Badge } from "@/components/shared/Badge";
-import { AISidebar } from "@/components/ai/AISidebar";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
-import { WorkflowToolbar } from "@/components/workflow/WorkflowToolbar";
-import { AICommandBar } from "@/components/workflow/AICommandBar";
+import { WorkflowInspector, WorkflowField, workflowInputClass } from "@/components/workflow/WorkflowInspector";
 import { WorkflowRunHistory } from "@/components/workflow/WorkflowRunHistory";
+import { WorkflowScheduleStatus } from "@/components/workflow/WorkflowScheduleStatus";
+import { AICommandBar } from "@/components/workflow/AICommandBar";
+import { createWorkflow, deleteWorkflow, getWorkflowEditorContext, listWorkflows, updateWorkflow } from "@/lib/api/workflows";
+import { getCurrentPermissions } from "@/lib/api/rbac";
+import { connectEditorNodes, createWorkflowTemplate, workflowBranchOptions, workflowTriggerLabels } from "@/lib/workflow-editor";
+import { validateWorkflowGraph } from "@/lib/workflow-graph";
+import { validateWorkflowReferences } from "@/lib/workflow-config";
 import { cn } from "@/lib/cn";
-import {
-  createWorkflow,
-  deleteWorkflow,
-  listWorkflows,
-  updateWorkflow,
-} from "@/lib/api/workflows";
-import type {
-  Workflow,
-  WorkflowDefinition,
-  WorkflowNodeData,
-} from "@/types/workflow";
+import type { Workflow, WorkflowEditorContext } from "@/types/workflow";
 
-const triggerLabels: Record<Workflow["triggerType"], string> = {
-  create: "作成",
-  update: "更新",
-  schedule: "スケジュール",
-  webhook: "Webhook",
-  status_change: "ステータス変更",
-};
-
-const notificationRoleOptions = [
-  { value: "", label: "実行ユーザー" },
-  { value: "tenant_admin", label: "Tenant Admin" },
-  { value: "app_admin", label: "App Admin" },
-  { value: "approver", label: "Approver" },
-  { value: "user", label: "User" },
-  { value: "viewer", label: "Viewer" },
-];
-
-function getAppIdFromParams(params: ReturnType<typeof useParams>) {
-  const value = params?.appId;
-  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
-}
-
-function getApprovalNodeCount(definition: WorkflowDefinition | null) {
-  return (
-    definition?.nodes.filter((node) => node.data.nodeType === "approval").length ?? 0
-  );
-}
-
-function getNotificationNodes(definition: WorkflowDefinition | null) {
-  return (
-    definition?.nodes.filter((node) => node.data.nodeType === "notification") ?? []
-  );
-}
-
-function getConfigString(config: Record<string, unknown> | undefined, key: string) {
-  const value = config?.[key];
-  return typeof value === "string" ? value : "";
-}
-
-function getConfigStringArray(
-  config: Record<string, unknown> | undefined,
-  key: string
-) {
-  const value = config?.[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
-function toReactFlowNodes(definition: WorkflowDefinition | null) {
-  return (definition?.nodes ?? []) as Node<WorkflowNodeData>[];
-}
-
-function toReactFlowEdges(definition: WorkflowDefinition | null) {
-  return (definition?.edges ?? []) as Edge[];
-}
-
-function toWorkflowDefinition(definition: {
-  nodes: Node<WorkflowNodeData>[];
-  edges: Edge[];
-}): WorkflowDefinition {
-  return {
-    nodes: definition.nodes as WorkflowDefinition["nodes"],
-    edges: definition.edges.map((edge) => ({
-      ...edge,
-      label: typeof edge.label === "string" ? edge.label : undefined,
-    })) as WorkflowDefinition["edges"],
-  };
-}
-
-function areWorkflowDefinitionsEqual(
-  left: WorkflowDefinition | null,
-  right: WorkflowDefinition
-) {
-  return left ? JSON.stringify(left) === JSON.stringify(right) : false;
-}
+type WorkflowDraft = Pick<Workflow, "id" | "name" | "triggerType" | "status" | "definitionJson">;
 
 export default function WorkflowEditorPage() {
   const params = useParams();
-  const appId = getAppIdFromParams(params);
+  const appId = Array.isArray(params.appId) ? params.appId[0] : params.appId as string;
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [activeWorkflowId, setActiveWorkflowId] = useState("");
-  const [draftDefinition, setDraftDefinition] = useState<WorkflowDefinition | null>(
-    null
-  );
+  const [draft, setDraft] = useState<WorkflowDraft | null>(null);
+  const [context, setContext] = useState<WorkflowEditorContext | null>(null);
+  const [canManage, setCanManage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [template, setTemplate] = useState<"blank" | "approval">("blank");
+  const [selection, setSelection] = useState<{ nodeId?: string; edgeId?: string }>({});
+  const [connectSource, setConnectSource] = useState("");
+  const [connectTarget, setConnectTarget] = useState("");
+  const [connectBranch, setConnectBranch] = useState("");
+  const activeWorkflow = workflows.find((workflow) => workflow.id === activeWorkflowId);
+  const readOnly = !canManage || isSaving;
+  const dirty = Boolean(draft && activeWorkflow && JSON.stringify(draft) !== JSON.stringify({ id: activeWorkflow.id, name: activeWorkflow.name, triggerType: activeWorkflow.triggerType, status: activeWorkflow.status, definitionJson: activeWorkflow.definitionJson }));
+  const validationErrors = useMemo(() => draft ? [
+    ...(!draft.name.trim() ? ["ワークフロー名を入力してください。"] : []),
+    ...validateWorkflowGraph(draft.definitionJson, { active: true, triggerType: draft.triggerType }),
+    ...(context ? validateWorkflowReferences(draft.definitionJson, context) : []),
+  ] : [], [draft, context]);
 
-  const activeWorkflow = useMemo(
-    () => workflows.find((workflow) => workflow.id === activeWorkflowId) ?? null,
-    [activeWorkflowId, workflows]
-  );
-  const approvalNodeCount = getApprovalNodeCount(draftDefinition);
-  const notificationNodes = getNotificationNodes(draftDefinition);
-
-  const loadWorkflowList = useCallback(async () => {
-    if (!appId) {
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const nextWorkflows = await listWorkflows(appId);
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    setCanManage(false);
+    Promise.all([listWorkflows(appId), getWorkflowEditorContext(appId), getCurrentPermissions({ appId })]).then(([nextWorkflows, nextContext, permissions]) => {
+      if (cancelled) return;
       setWorkflows(nextWorkflows);
-      setActiveWorkflowId((current) => current || nextWorkflows[0]?.id || "");
+      setActiveWorkflowId(nextWorkflows[0]?.id ?? "");
+      setContext(nextContext);
+      setCanManage(permissions["workflow:manage"] === true);
       setError(null);
-    } catch (nextError) {
-      setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "ワークフローの読み込みに失敗しました。"
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    }).catch((nextError: unknown) => { if (!cancelled) setError(nextError instanceof Error ? nextError.message : "読み込みに失敗しました。"); }).finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
   }, [appId]);
 
   useEffect(() => {
-    void loadWorkflowList();
-  }, [loadWorkflowList]);
-
-  useEffect(() => {
-    setDraftDefinition(activeWorkflow?.definitionJson ?? null);
+    setDraft(activeWorkflow ? { id: activeWorkflow.id, name: activeWorkflow.name, triggerType: activeWorkflow.triggerType, status: activeWorkflow.status, definitionJson: activeWorkflow.definitionJson } : null);
+    setSelection({});
+    setConnectSource("");
+    setConnectTarget("");
+    setConnectBranch("");
   }, [activeWorkflow]);
 
-  const handleCanvasChange = useCallback(
-    (definition: { nodes: Node<WorkflowNodeData>[]; edges: Edge[] }) => {
-      const nextDefinition = toWorkflowDefinition(definition);
+  useEffect(() => {
+    if (!dirty) return;
+    const preventUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", preventUnload);
+    return () => window.removeEventListener("beforeunload", preventUnload);
+  }, [dirty]);
 
-      setDraftDefinition((current) =>
-        areWorkflowDefinitionsEqual(current, nextDefinition)
-          ? current
-          : nextDefinition
-      );
-    },
-    []
-  );
-
-  async function handleSave(status = activeWorkflow?.status ?? "draft") {
-    if (!appId || !activeWorkflow || !draftDefinition) {
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      const updated = await updateWorkflow(appId, activeWorkflow.id, {
-        name: activeWorkflow.name,
-        triggerType: activeWorkflow.triggerType,
-        status,
-        definitionJson: draftDefinition,
-      });
-
-      setWorkflows((current) =>
-        current.map((workflow) => (workflow.id === updated.id ? updated : workflow))
-      );
-      setNotice(status === "active" ? "ワークフローを有効化しました。" : "ワークフローを保存しました。");
-      setError(null);
-    } catch (nextError) {
-      setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "ワークフローの保存に失敗しました。"
-      );
-    } finally {
-      setIsSaving(false);
-    }
+  function confirmDiscard() {
+    return !dirty || window.confirm("未保存の変更を破棄しますか？");
   }
 
-  async function handleCreateWorkflow() {
-    if (!appId || !draftDefinition) {
-      return;
-    }
+  function changeTriggerType(triggerType: Workflow["triggerType"]) {
+    setDraft((current) => current ? { ...current, triggerType, definitionJson: { ...current.definitionJson, nodes: current.definitionJson.nodes.map((node) => node.data.nodeType === "trigger" ? { ...node, data: { ...node.data, config: { ...node.data.config, triggerType } } } : node) } } : null);
+  }
 
+  async function saveWorkflow(status = draft?.status ?? "draft") {
+    if (!draft || readOnly) return;
+    const errors = status === "active" ? validationErrors : [...(!draft.name.trim() ? ["ワークフロー名を入力してください。"] : []), ...validateWorkflowGraph(draft.definitionJson)];
+    if (errors.length) { setError(errors.join("\n")); return; }
     try {
       setIsSaving(true);
-      const created = await createWorkflow(appId, {
-        name: `承認フロー ${workflows.length + 1}`,
-        triggerType: "update",
-        status: "draft",
-        definitionJson: draftDefinition,
-      });
+      const updated = await updateWorkflow(appId, draft.id, { name: draft.name, triggerType: draft.triggerType, status, definitionJson: draft.definitionJson });
+      setWorkflows((current) => current.map((workflow) => workflow.id === updated.id ? updated : workflow));
+      setNotice(status === "active" ? "ワークフローを有効な状態で保存しました。" : "ワークフローを下書き保存しました。");
+      setError(null);
+    } catch (nextError) { setError(nextError instanceof Error ? nextError.message : "保存に失敗しました。"); }
+    finally { setIsSaving(false); }
+  }
 
+  async function createNewWorkflow() {
+    if (readOnly || !confirmDiscard()) return;
+    try {
+      setIsSaving(true);
+      const created = await createWorkflow(appId, { name: `${template === "approval" ? "承認フロー" : "新しいワークフロー"} ${workflows.length + 1}`, triggerType: "update", status: "draft", definitionJson: createWorkflowTemplate(template) });
       setWorkflows((current) => [created, ...current]);
       setActiveWorkflowId(created.id);
       setNotice("ワークフローを作成しました。");
       setError(null);
-    } catch (nextError) {
-      setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "ワークフローの作成に失敗しました。"
-      );
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (nextError) { setError(nextError instanceof Error ? nextError.message : "作成に失敗しました。"); }
+    finally { setIsSaving(false); }
   }
 
-  async function handleDeleteWorkflow() {
-    if (!appId || !activeWorkflow) {
-      return;
-    }
-
-    if (!window.confirm(`「${activeWorkflow.name}」を削除しますか？`)) {
-      return;
-    }
-
+  async function deleteCurrentWorkflow() {
+    if (!activeWorkflow || readOnly || !window.confirm(`「${activeWorkflow.name}」を削除しますか？${dirty ? "未保存の変更も破棄されます。" : ""}`)) return;
     try {
       setIsSaving(true);
       await deleteWorkflow(appId, activeWorkflow.id);
-      const nextWorkflows = workflows.filter(
-        (workflow) => workflow.id !== activeWorkflow.id
-      );
-      setWorkflows(nextWorkflows);
-      setActiveWorkflowId(nextWorkflows[0]?.id ?? "");
+      const remaining = workflows.filter((workflow) => workflow.id !== activeWorkflow.id);
+      setWorkflows(remaining);
+      setActiveWorkflowId(remaining[0]?.id ?? "");
       setNotice("ワークフローを削除しました。");
       setError(null);
-    } catch (nextError) {
-      setError(
-        nextError instanceof Error
-          ? nextError.message
-          : "ワークフローの削除に失敗しました。"
-      );
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (nextError) { setError(nextError instanceof Error ? nextError.message : "削除に失敗しました。"); }
+    finally { setIsSaving(false); }
   }
 
-  function updateNotificationNodeConfig(
-    nodeId: string,
-    patch: Record<string, unknown>
-  ) {
-    setDraftDefinition((current) => {
-      if (!current) {
-        return current;
-      }
-
-      return {
-        ...current,
-        nodes: current.nodes.map((node) =>
-          node.id === nodeId
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  config: {
-                    ...(node.data.config ?? {}),
-                    ...patch,
-                  },
-                },
-              }
-            : node
-        ),
-      };
-    });
-  }
-
-  return (
-    <>
-      <TopBar
-        breadcrumbs={[
-          { label: "ダッシュボード" },
-          { label: "ワークフロー自動化エディタ" },
-        ]}
-        actions={
-          <div className="flex items-center gap-2" data-guide="workflow-save-actions">
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={() => void handleSave("draft")}
-              disabled={!activeWorkflow || isSaving}
-            >
-              <Icon name="save" size="sm" />
-              保存
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => void handleSave("active")}
-              disabled={!activeWorkflow || isSaving}
-            >
-              <Icon name="rocket_launch" size="sm" />
-              有効化
-            </Button>
-          </div>
-        }
-      />
-
-      <main className="flex min-h-[calc(100vh-3.5rem)] flex-col pt-14 2xl:h-[calc(100vh-3.5rem)] 2xl:flex-row">
-        <aside
-          className="w-full border-b border-outline-variant bg-sidebar p-4 2xl:w-80 2xl:border-b-0 2xl:border-r"
-          data-guide="workflow-list"
-        >
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h1 className="font-headline text-sm font-bold tracking-tight text-on-surface">ワークフロー</h1>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => void handleCreateWorkflow()}
-              disabled={isSaving || !draftDefinition}
-              data-guide="workflow-create"
-            >
-              <Icon name="add" size="sm" />
-              新規
-            </Button>
-          </div>
-
-          {isLoading ? (
-            <div className="rounded-lg border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant">
-              読み込み中...
-            </div>
-          ) : workflows.length === 0 ? (
-            <div className="rounded-lg border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant">
-              ワークフローはまだありません。
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {workflows.map((workflow) => (
-                <button
-                  key={workflow.id}
-                  type="button"
-                  data-draggable
-                  onClick={() => setActiveWorkflowId(workflow.id)}
-                  className={cn(
-                    "group w-full rounded-lg border p-3 text-left transition-all",
-                    activeWorkflowId === workflow.id
-                      ? "border-primary-container bg-primary-container/40"
-                      : "border-outline-variant bg-surface hover:border-outline hover:shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                  )}
-                >
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="truncate text-[13.5px] font-semibold text-on-surface">
-                      {workflow.name}
-                    </span>
-                    <Badge variant={workflow.status === "active" ? "success" : "warning"}>
-                      {workflow.status === "active" ? "有効" : "下書き"}
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-on-surface-variant">
-                    {triggerLabels[workflow.triggerType]} / 承認待ち{" "}
-                    {workflow.pendingApprovalCount ?? 0}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {activeWorkflow && workflows.length > 1 && (
-            <div className="mt-4">
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => void handleDeleteWorkflow()}
-                disabled={isSaving}
-              >
-                <Icon name="delete" size="sm" />
-                削除
-              </Button>
-            </div>
-          )}
-          {activeWorkflow && <WorkflowRunHistory key={activeWorkflow.id} appId={appId} workflowId={activeWorkflow.id} />}
-        </aside>
-
-        <section
-          className="relative h-[60vh] md:h-[70vh] 2xl:h-auto 2xl:flex-1"
-          data-guide="workflow-canvas"
-        >
-          <WorkflowToolbar />
-          {draftDefinition ? (
-            <WorkflowCanvas
-              nodes={toReactFlowNodes(draftDefinition)}
-              edges={toReactFlowEdges(draftDefinition)}
-              onChange={handleCanvasChange}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center bg-surface-container-low text-sm text-on-surface-variant">
-              ワークフローを選択してください。
-            </div>
-          )}
-          <div data-guide="workflow-ai-command">
-            <AICommandBar />
-          </div>
-        </section>
-
-        <AISidebar
-          className="border-t border-outline-variant 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0"
-          data-guide="workflow-details"
-        >
-          {error && (
-            <div className="rounded-lg border border-error-container bg-error-container/40 p-3 text-xs font-medium text-on-error-container">
-              {error}
-            </div>
-          )}
-          {notice && (
-            <div className="rounded-lg border border-success-container bg-success-container/40 p-3 text-xs font-medium text-on-success-container">
-              {notice}
-            </div>
-          )}
-
-          {activeWorkflow && (
-            <>
-              <div className="rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
-                    DB Workflow
-                  </div>
-                  <Badge variant={activeWorkflow.status === "active" ? "success" : "warning"}>
-                    {activeWorkflow.status}
-                  </Badge>
-                </div>
-                <div className="space-y-2.5 text-[13px] text-on-surface-variant">
-                  <div className="flex justify-between gap-3">
-                    <span>トリガー</span>
-                    <span className="font-semibold text-on-surface">
-                      {triggerLabels[activeWorkflow.triggerType]}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span>承認ノード</span>
-                    <span className="font-semibold text-on-surface">{approvalNodeCount}</span>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span>通知ノード</span>
-                    <span className="font-semibold text-on-surface">
-                      {notificationNodes.length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span>承認待ち</span>
-                    <span className="font-semibold text-on-surface">
-                      {activeWorkflow.pendingApprovalCount ?? 0}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-tertiary-container bg-tertiary-container/40 p-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-tertiary text-white">
-                    <Icon name="approval" size="sm" />
-                  </span>
-                  <span className="text-[12.5px] font-semibold text-on-tertiary-container">
-                    承認実行
-                  </span>
-                </div>
-                <p className="text-[12.5px] leading-relaxed text-on-surface-variant">
-                  active workflow に承認ノードがある場合、レコード作成または更新後に
-                  pending approval が保存されます。
-                </p>
-              </div>
-
-              {notificationNodes.length > 0 && (
-                <div className="space-y-3">
-                  <div>
-                    <h2 className="text-[12.5px] font-bold text-on-surface">
-                      通知ノード設定
-                    </h2>
-                    <p className="mt-1 text-[11.5px] leading-relaxed text-on-surface-variant">
-                      通知先、タイトル、本文、重複キー、失敗時の扱いを設定します。
-                    </p>
-                  </div>
-                  {notificationNodes.map((node) => {
-                    const config = node.data.config;
-                    const recipientIds = getConfigStringArray(
-                      config,
-                      "recipientIds"
-                    ).join(", ");
-
-                    return (
-                      <section
-                        key={node.id}
-                        className="space-y-3 rounded-xl border border-outline-variant bg-surface p-4"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-[12.5px] font-semibold text-on-surface">
-                              {node.data.label}
-                            </div>
-                            <div className="text-[10.5px] text-on-surface-muted">
-                              {node.id}
-                            </div>
-                          </div>
-                          <Badge variant="info">in-app</Badge>
-                        </div>
-
-                        <label className="block space-y-1.5">
-                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
-                            ロール通知先
-                          </span>
-                          <select
-                            value={getConfigString(config, "roleType")}
-                            onChange={(event) =>
-                              updateNotificationNodeConfig(node.id, {
-                                roleType: event.target.value || undefined,
-                              })
-                            }
-                            className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                          >
-                            {notificationRoleOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="block space-y-1.5">
-                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
-                            ユーザーID指定
-                          </span>
-                          <input
-                            value={recipientIds}
-                            onChange={(event) =>
-                              updateNotificationNodeConfig(node.id, {
-                                recipientIds: event.target.value
-                                  .split(",")
-                                  .map((value) => value.trim())
-                                  .filter(Boolean),
-                              })
-                            }
-                            placeholder="user_1, user_2"
-                            className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                          />
-                        </label>
-
-                        <label className="block space-y-1.5">
-                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
-                            タイトル
-                          </span>
-                          <input
-                            value={getConfigString(config, "title")}
-                            onChange={(event) =>
-                              updateNotificationNodeConfig(node.id, {
-                                title: event.target.value,
-                              })
-                            }
-                            placeholder="{{recordTitle}} の通知"
-                            className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                          />
-                        </label>
-
-                        <label className="block space-y-1.5">
-                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
-                            本文
-                          </span>
-                          <textarea
-                            value={getConfigString(config, "body")}
-                            onChange={(event) =>
-                              updateNotificationNodeConfig(node.id, {
-                                body: event.target.value,
-                              })
-                            }
-                            rows={3}
-                            placeholder="{{tableName}} の {{recordTitle}} が更新されました。"
-                            className="w-full resize-none rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                          />
-                        </label>
-
-                        <label className="block space-y-1.5">
-                          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-on-surface-muted">
-                            重複キー
-                          </span>
-                          <input
-                            value={getConfigString(config, "dedupeKey")}
-                            onChange={(event) =>
-                              updateNotificationNodeConfig(node.id, {
-                                dedupeKey: event.target.value,
-                              })
-                            }
-                            placeholder="未指定なら workflow/node/record 単位"
-                            className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-xs text-on-surface placeholder:text-on-surface-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                          />
-                        </label>
-
-                        <label className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-xs font-semibold text-on-surface">
-                          <span>通知失敗時に workflow を失敗扱いにする</span>
-                          <input
-                            type="checkbox"
-                            checked={config?.required === true}
-                            onChange={(event) =>
-                              updateNotificationNodeConfig(node.id, {
-                                required: event.target.checked,
-                                failurePolicy: event.target.checked
-                                  ? "fail"
-                                  : "continue",
-                              })
-                            }
-                            className="h-4 w-4 accent-primary"
-                          />
-                        </label>
-                      </section>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          )}
-        </AISidebar>
-      </main>
-    </>
-  );
+  return <>
+    <TopBar breadcrumbs={[{ label: "ダッシュボード" }, { label: "ワークフロー自動化エディタ" }]} actions={<div className="flex items-center gap-2" data-guide="workflow-save-actions">
+      {dirty && <Badge variant="warning">未保存</Badge>}
+      <Button variant="secondary" onClick={() => void saveWorkflow()} disabled={!draft || readOnly}>保存</Button>
+      <Button onClick={() => void saveWorkflow("active")} disabled={!draft || readOnly || !context}>有効化</Button>
+    </div>} />
+    <main className="flex min-h-[calc(100vh-3.5rem)] flex-col pt-14 xl:flex-row">
+      <aside className="w-full shrink-0 border-b border-outline-variant bg-sidebar p-4 xl:w-64 xl:border-r" data-guide="workflow-list">
+        <h1 className="mb-3 text-sm font-bold text-on-surface">ワークフロー</h1>
+        <div className="mb-4 space-y-2">
+          <WorkflowField label="新規テンプレート"><select value={template} disabled={readOnly} onChange={(event) => setTemplate(event.target.value as "blank" | "approval")} className={workflowInputClass}><option value="blank">空テンプレート</option><option value="approval">アプリ承認テンプレート</option></select></WorkflowField>
+          <Button variant="secondary" size="sm" onClick={() => void createNewWorkflow()} disabled={readOnly || isLoading} data-guide="workflow-create">新規ワークフロー</Button>
+        </div>
+        {isLoading ? <p className="text-xs text-on-surface-variant">読み込み中...</p> : !workflows.length ? <p className="text-xs text-on-surface-variant">ワークフローはまだありません。</p> : <div className="space-y-2">{workflows.map((workflow) => <button key={workflow.id} type="button" disabled={isSaving} onClick={() => { if (workflow.id !== activeWorkflowId && confirmDiscard()) { setActiveWorkflowId(workflow.id); setNotice(null); setError(null); } }} className={cn("w-full rounded-lg border p-3 text-left", activeWorkflowId === workflow.id ? "border-primary bg-primary-container/30" : "border-outline-variant bg-surface")}>
+          <span className="block truncate text-sm font-semibold text-on-surface">{workflow.name}</span>
+          <span className="mt-1 block text-xs text-on-surface-variant">{workflowTriggerLabels[workflow.triggerType]} / {workflow.status === "active" ? "有効" : "下書き"}</span>
+        </button>)}</div>}
+        {activeWorkflow && <><Button variant="danger" size="sm" className="mt-4" disabled={readOnly} onClick={() => void deleteCurrentWorkflow()}>ワークフローを削除</Button><WorkflowRunHistory key={activeWorkflow.id} appId={appId} workflowId={activeWorkflow.id} canManage={canManage} /></>}
+      </aside>
+      <section className="relative h-[65vh] min-h-80 min-w-0 flex-none xl:sticky xl:top-14 xl:h-[calc(100vh-3.5rem)] xl:flex-1" data-guide="workflow-canvas">
+        {draft ? <WorkflowCanvas key={draft.id} definition={draft.definitionJson} selectedNodeId={selection.nodeId ?? ""} selectedEdgeId={selection.edgeId ?? ""} onSelect={setSelection} onChange={(definitionJson) => setDraft((current) => current ? { ...current, definitionJson } : null)} readOnly={readOnly} onError={setError} /> : <div className="flex h-full items-center justify-center text-sm text-on-surface-variant">ワークフローを選択または作成してください。</div>}
+        <div data-guide="workflow-ai-command"><AICommandBar /></div>
+      </section>
+      <aside className="w-full shrink-0 space-y-4 border-t border-outline-variant bg-surface p-4 xl:w-80 xl:border-l xl:border-t-0" data-guide="workflow-details">
+        {error && <div role="alert" className="whitespace-pre-line rounded border border-error-container bg-error-container/40 p-3 text-xs text-on-error-container">{error}</div>}
+        {notice && <div role="status" className="rounded bg-success-container/40 p-3 text-xs text-on-success-container">{notice}</div>}
+        {!canManage && !isLoading && <p className="text-xs text-on-surface-variant">閲覧専用です。編集にはワークフロー管理権限が必要です。</p>}
+        {draft && <>
+          <fieldset disabled={readOnly} className="space-y-3 rounded-xl border border-outline-variant p-4" aria-label="ワークフロー設定">
+            <WorkflowField label="ワークフロー名"><input className={workflowInputClass} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></WorkflowField>
+            <WorkflowField label="トリガー種別"><select className={workflowInputClass} value={draft.triggerType} onChange={(event) => changeTriggerType(event.target.value as Workflow["triggerType"])}>{Object.entries(workflowTriggerLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></WorkflowField>
+            <WorkflowField label="保存する状態"><select className={workflowInputClass} value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as Workflow["status"] })}><option value="draft">下書き</option><option value="active">有効</option></select></WorkflowField>
+          </fieldset>
+          <section aria-label="有効化前の検証" className="rounded-xl border border-outline-variant p-3">
+            <h2 className="text-xs font-bold text-on-surface">有効化前の検証</h2>
+            {validationErrors.length ? <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-error">{validationErrors.map((message) => <li key={message}>{message}</li>)}</ul> : <p className="mt-2 text-xs text-on-success-container">定義と参照先の検証に問題はありません。</p>}
+          </section>
+          <WorkflowInspector definition={draft.definitionJson} context={context} selectedNodeId={selection.nodeId ?? ""} selectedEdgeId={selection.edgeId ?? ""} triggerType={draft.triggerType} onTriggerTypeChange={changeTriggerType} onChange={(definitionJson) => setDraft({ ...draft, definitionJson })} onSelect={setSelection} readOnly={readOnly} />
+          {activeWorkflow?.triggerType === "schedule" && <WorkflowScheduleStatus key={`${activeWorkflow.id}:${activeWorkflow.updatedAt}`} appId={appId} workflowId={activeWorkflow.id} />}
+          <section className="space-y-2 rounded-xl border border-outline-variant p-3" aria-label="グラフ一覧">
+            <h2 className="text-xs font-bold text-on-surface">ノードと接続</h2>
+            {draft.definitionJson.nodes.map((node) => <button key={node.id} type="button" onClick={() => setSelection({ nodeId: node.id })} className={cn("block w-full rounded p-2 text-left text-xs", selection.nodeId === node.id ? "bg-primary-container" : "bg-surface-container-low")}>ノード: {node.data.label}</button>)}
+            {draft.definitionJson.edges.map((edge) => <button key={edge.id} type="button" onClick={() => setSelection({ edgeId: edge.id })} className={cn("block w-full rounded p-2 text-left text-xs", selection.edgeId === edge.id ? "bg-primary-container" : "bg-surface-container-low")}>接続: {draft.definitionJson.nodes.find((node) => node.id === edge.source)?.data.label} → {draft.definitionJson.nodes.find((node) => node.id === edge.target)?.data.label} {edge.label ? `(${edge.label})` : ""}</button>)}
+          </section>
+          <fieldset disabled={readOnly} className="space-y-3 rounded-xl border border-outline-variant p-3" aria-label="接続を追加">
+            <h2 className="text-xs font-bold text-on-surface">接続を追加</h2>
+            <WorkflowField label="接続元"><select className={workflowInputClass} value={connectSource} onChange={(event) => { setConnectSource(event.target.value); setConnectBranch(workflowBranchOptions(draft.definitionJson.nodes.find((node) => node.id === event.target.value))[0].value); }}><option value="">選択してください</option>{draft.definitionJson.nodes.map((node) => <option key={node.id} value={node.id}>{node.data.label}</option>)}</select></WorkflowField>
+            <WorkflowField label="接続先"><select className={workflowInputClass} value={connectTarget} onChange={(event) => setConnectTarget(event.target.value)}><option value="">選択してください</option>{draft.definitionJson.nodes.filter((node) => node.data.nodeType !== "trigger" && node.id !== connectSource).map((node) => <option key={node.id} value={node.id}>{node.data.label}</option>)}</select></WorkflowField>
+            <WorkflowField label="接続する分岐"><select className={workflowInputClass} value={connectBranch} onChange={(event) => setConnectBranch(event.target.value)}>{workflowBranchOptions(draft.definitionJson.nodes.find((node) => node.id === connectSource)).map((branch) => <option key={branch.value} value={branch.value}>{branch.label}</option>)}</select></WorkflowField>
+            <Button variant="secondary" size="sm" disabled={!connectSource || !connectTarget} onClick={() => { const result = connectEditorNodes(draft.definitionJson, connectSource, connectTarget, connectBranch); setError(result.error); if (!result.error) { setDraft({ ...draft, definitionJson: result.definition }); setSelection({ edgeId: result.definition.edges.at(-1)?.id }); } }}>接続を作成</Button>
+          </fieldset>
+        </>}
+      </aside>
+    </main>
+  </>;
 }

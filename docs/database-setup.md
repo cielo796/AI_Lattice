@@ -7,7 +7,7 @@
 | 対象 | 用途 |
 | --- | --- |
 | `public` | 既存の介護アプリ用26テーブル。変更していません。 |
-| `ai_lattice` | AI Lattice専用の27業務テーブルとPrisma migration履歴。 |
+| `ai_lattice` | AI Lattice専用の28業務テーブルとPrisma migration履歴（全29テーブル）。 |
 | `auth` / `storage` など | Supabaseが管理する内部スキーマ。 |
 
 既存の `public.audit_logs` とAI Latticeの監査テーブルは構成が違うため、スキーマを分離しています。AI Latticeは独自のユーザー・セッション・ロールを管理し、Supabase Authのユーザーとは別です。
@@ -17,7 +17,7 @@
 - アプリ接続は `ai_lattice_app` ロール、Session pooler `aws-1-ap-northeast-1.pooler.supabase.com:5432` を使用します。
 - ロールは `ai_lattice` の所有者です。アプリの読み書きと同スキーマのmigrationを実行できます。superuser・DB作成・ロール作成・`BYPASSRLS` は付与していません。
 - 既存の `public` テーブルへの読み書き権限と `auth` スキーマの利用権限がないことを確認しました。
-- 全28テーブルでRLSを有効にしています。テーブル所有者のアプリロールはPostgreSQLの仕様によりRLSの対象外です。テナント・ユーザー・アプリ単位のアクセス制御はサーバーのRBACで行います。
+- 全29テーブルでRLSを有効にしています。テーブル所有者のアプリロールはPostgreSQLの仕様によりRLSの対象外です。テナント・ユーザー・アプリ単位のアクセス制御はサーバーのRBACで行います。
 - Supabaseの `anon` / `authenticated` には専用スキーマの利用権限を付与していません。Data APIの公開スキーマにも追加していません。
 
 接続文字列はGit管理対象外の `app/.env.local` に保存します。パスワードをREADMEやCIへ直接記載しないでください。接続例の `PASSWORD` は実際の値へ置き換え、特殊文字はURLエンコードします。
@@ -69,10 +69,13 @@ npm run db:supabase:export -- ../.cache/supabase-bootstrap.sql ai_lattice_app
 
 ## 今回の確認
 
-- 専用スキーマの28テーブル、15件のmigration履歴、全テーブルのRLSを確認しました。
+- 専用スキーマの29テーブル、18件のmigration履歴、全テーブルのRLSを確認しました。9月30日の永続実行追加はlease列・索引、スケジュール追加は `workflow_schedule_states`・レコード走査索引・revisionです。既存のmigrationは編集せず、additive migrationを適用しました。
+- 追加前後で既存 `public` の26テーブルの名前・所有者・列・RLSのメタデータが一致することを確認しました。アプリ用29テーブルの所有者はすべて `ai_lattice_app`、`anon` / `authenticated` は引き続き専用スキーマにアクセスできません。
 - migrationのchecksumをリポジトリのSQLと照合し、全件一致しました。
+- migration SQLの改行は `.gitattributes` で固定します。新規SQLはLF、既存9本はSupabaseに適用したバイト列と同じCRLFを指定し、Windows/Linuxのcheckoutによるchecksum差を防ぎます。SQL本文やDBの適用済みchecksumは書き換えていません。
 - `prisma migrate status` は適用済み、`prisma migrate diff` は差分なしでした。
 - Session poolerへのクライアント接続でTLSとCA・ホスト名検証を確認しました。
+- 接続の時刻設定はUTCです。実行期限はタイムゾーン付き列で保存し、DBの時計を用いて延長します。[ワークフローの永続実行と復旧](workflow-operations.md) にworkerの起動・復旧判断・配置時のdrain手順を記載しています。
 - Supabaseを接続先にした管理・レコード操作・二段階承認のブラウザーE2Eは3件成功しました。検証用アプリはテスト終了時に削除され、デモデータは残しています。
 - `npm run quality` は241件成功（実DB専用11件skip）、専用スキーマを使うローカル実DB統合テストは10件成功しました。診断API `/api/health/db` はHTTP 200・正常を返しました。
 - GitHub ActionsのE2EはSupabaseではなく、ジョブ内の一時PostgreSQLを使います。前回の失敗はデモ作成前のDB診断によるもので、Supabaseの停止とは別です。CIの診断順序を修正しています。

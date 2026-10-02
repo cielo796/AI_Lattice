@@ -33,6 +33,19 @@ export interface WorkflowDefinition {
   }>;
 }
 
+export interface WorkflowEditorContext {
+  tables: Array<{
+    id: string;
+    code: string;
+    name: string;
+    fields: Array<{ code: string; name: string; fieldType: string }>;
+  }>;
+  users: Array<{ id: string; name: string }>;
+  approvalPolicy: { enabled: boolean; targetTableId: string | null } | null;
+  allowedApiOrigins: string[];
+  promptTemplates: Array<{ key: string; name: string; operation: string }>;
+}
+
 export interface WorkflowNodeExecution {
   nodeId: string;
   nodeType: WorkflowNodeType;
@@ -55,12 +68,27 @@ export interface WorkflowRun {
   workflowId: string | null;
   workflowName: string;
   recordId: string;
-  status: "ready" | "running" | "waiting" | "completed" | "failed";
+  status: "ready" | "running" | "waiting" | "interrupted" | "completed" | "failed";
   state: WorkflowRunState;
   error: string | null;
   createdAt: string;
   updatedAt: string;
   finishedAt: string | null;
+}
+
+export interface WorkflowRecoveryInput {
+  action: "retry" | "skip" | "fail";
+  reason: string;
+  expectedUpdatedAt: string;
+  confirmExternalOutcome?: boolean;
+}
+
+export interface WorkflowScheduleInfo {
+  workflowStatus: "draft" | "active";
+  nextDueAt: string | null;
+  cycleInProgress: boolean;
+  lastBatchAt: string | null;
+  lastError: string | null;
 }
 
 export interface Workflow {

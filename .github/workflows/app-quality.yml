@@ -137,6 +137,10 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/stitch?schema=public
       DEMO_AUTO_SEED: "true"
       OPENAI_API_KEY: ""
+      CRON_SECRET: "ci-only-workflow-cron-token-32-characters"
+      PLAYWRIGHT_WORKFLOW_RECOVERY_TEST: "true"
+      PLAYWRIGHT_WORKFLOW_SCHEDULE_TEST: "true"
+      WORKFLOW_API_ALLOWED_ORIGINS: "https://workflow-test.invalid"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

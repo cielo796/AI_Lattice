@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_WORKFLOW_DEFINITION, createWorkflowForApp, listWorkflowsForApp, runApprovalWorkflowsForRecord, updateApprovalDecision } from "./service";
+import { DEFAULT_WORKFLOW_DEFINITION, createWorkflowForApp, enqueueWorkflowsForRecord, listWorkflowsForApp, runApprovalWorkflowsForRecord, updateApprovalDecision } from "./service";
 import type { User } from "@/types/user";
 
 const mocks = vi.hoisted(() => ({
   getPrismaClient: vi.fn(), requirePermission: vi.fn(),
   recordAuditLog: vi.fn(), recordAuditFailure: vi.fn(), executeSavedWorkflowRun: vi.fn(),
+  executeRuntimeAIAction: vi.fn(),
 }));
 vi.mock("@/server/db/prisma", () => ({ getPrismaClient: mocks.getPrismaClient }));
 vi.mock("@/server/admin/rbac", () => ({ requirePermission: mocks.requirePermission }));
@@ -16,6 +17,7 @@ vi.mock("@/server/notifications/service", () => ({
 vi.mock("./execution", async (importOriginal) => ({
   ...await importOriginal<typeof import("./execution")>(), executeSavedWorkflowRun: mocks.executeSavedWorkflowRun,
 }));
+vi.mock("@/server/ai/runtime-ai", () => ({ executeRuntimeAIAction: mocks.executeRuntimeAIAction, isRuntimeAIAction: (action: string) => ["summarize", "next_actions", "reply_draft"].includes(action) }));
 
 const user: User = { id: "user_1", tenantId: "tenant_1", name: "Owner", email: "owner@example.com", status: "active", createdAt: "2026-04-24T00:00:00Z" };
 const workflow = {
@@ -40,7 +42,56 @@ function approvalFixture(overrides: Record<string, unknown> = {}) {
 }
 
 describe("workflows service", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.requirePermission.mockResolvedValue(undefined); });
+  beforeEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); mocks.requirePermission.mockResolvedValue(undefined); });
+
+  async function executor() {
+    await runApprovalWorkflowsForRecord(user, input);
+    return mocks.executeSavedWorkflowRun.mock.calls.at(-1)![2] as import("./execution").WorkflowNodeExecutor;
+  }
+
+  function dispatchPrisma() {
+    return {
+      workflow: { findMany: vi.fn().mockResolvedValue([workflow]) },
+      appRecord: { findFirst: vi.fn().mockResolvedValue({ id: input.recordId, status: "draft", dataJson: {} }) },
+      workflowRun: { createMany: vi.fn().mockResolvedValue({ count: 1 }), findFirstOrThrow: vi.fn().mockResolvedValue({ id: "run_1" }) },
+      approval: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+  }
+
+  it("executes configured API method, safe headers, JSON templates and timeout with a stable idempotency key", async () => {
+    mocks.getPrismaClient.mockReturnValue(dispatchPrisma());
+    vi.stubEnv("WORKFLOW_API_ALLOWED_ORIGINS", "https://example.com");
+    const cancelBody = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, body: { cancel: cancelBody } });
+    vi.stubGlobal("fetch", fetchMock);
+    const execute = await executor();
+    await execute(user, { ...input, recordTitle: 'A "quoted" title' }, { id: workflow.id, name: workflow.name, runId: "run_1", sourceWorkflowId: workflow.id }, {
+      id: "api", data: { label: "API", nodeType: "api_call", config: { url: "https://example.com/records", method: "PATCH", timeoutMs: 1000, headers: '{"X-Record":"{{recordId}}","Content-Type":"application/json; charset=utf-8"}', bodyTemplate: '{"title":"{{recordTitle}}","amount":2}' } },
+    }, { appRecord: { findFirst: vi.fn().mockResolvedValue({ id: input.recordId, dataJson: {} }) } } as never);
+    const request = fetchMock.mock.calls[0][1];
+    expect(request).toMatchObject({ method: "PATCH", redirect: "manual", headers: { "x-record": input.recordId, "idempotency-key": "run_1:api", "content-type": "application/json; charset=utf-8" } });
+    expect(Object.keys(request.headers)).toHaveLength(3);
+    expect(cancelBody).toHaveBeenCalledOnce();
+    expect(JSON.parse(request.body)).toEqual({ title: 'A "quoted" title', amount: 2 });
+    expect(request.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("applies AI model/prompt config and writes output to a validated field without discarding other values", async () => {
+    mocks.getPrismaClient.mockReturnValue(dispatchPrisma());
+    mocks.executeRuntimeAIAction.mockResolvedValue({ summary: "要約", modelName: "configured-model", usage: { totalTokens: 4 } });
+    const transaction = {
+      appRecord: { findFirst: vi.fn().mockResolvedValue({ id: input.recordId, dataJson: { title: "元の件名", amount: 5 } }), update: vi.fn() },
+      appField: { findFirst: vi.fn().mockResolvedValue({ code: "title", fieldType: "text" }) },
+      recordComment: { create: vi.fn() },
+    };
+    const execute = await executor();
+    await execute(user, input, { id: workflow.id, name: workflow.name, runId: "run_1", sourceWorkflowId: workflow.id }, {
+      id: "ai", data: { label: "AI", nodeType: "ai_action", config: { action: "summarize", model: "configured-model", promptTemplateKey: "summary", output: "field", outputFieldCode: "title" } },
+    }, transaction as never);
+    expect(mocks.executeRuntimeAIAction).toHaveBeenCalledWith(user, input.appCode, input.tableCode, input.recordId, "summarize", undefined, { model: "configured-model", promptTemplateKey: "summary" });
+    expect(transaction.appRecord.update).toHaveBeenCalledWith({ where: { id: input.recordId }, data: { dataJson: { title: "AI summary: 要約", amount: 5 }, updatedById: user.id } });
+    expect(transaction.recordComment.create).not.toHaveBeenCalled();
+  });
 
   it("creates the compatible default definition for an app without workflows", async () => {
     const prisma = {
@@ -54,20 +105,41 @@ describe("workflows service", () => {
   });
 
   it("persists an event-scoped immutable graph before dispatching, rather than running array order", async () => {
-    const prisma = {
-      workflow: { findMany: vi.fn().mockResolvedValue([workflow]) },
-      appRecord: { findFirst: vi.fn().mockResolvedValue({ id: input.recordId, status: "draft", dataJson: {} }) },
-      workflowRun: { upsert: vi.fn().mockResolvedValue({ id: "run_1" }) },
-      approval: { findMany: vi.fn().mockResolvedValue([]) },
-    };
+    const prisma = dispatchPrisma();
     mocks.getPrismaClient.mockReturnValue(prisma);
     await runApprovalWorkflowsForRecord(user, input);
-    expect(prisma.workflowRun.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      where: { workflowId_eventKey: { workflowId: workflow.id, eventKey: "event_1" } },
-      update: {},
-      create: expect.objectContaining({ actorId: user.id, definitionJson: expect.objectContaining({ edges: DEFAULT_WORKFLOW_DEFINITION.edges }), stateJson: { queue: ["wf-node-1"], executions: [] } }),
+    expect(prisma.workflowRun.createMany).toHaveBeenCalledWith(expect.objectContaining({
+      skipDuplicates: true,
+      data: [expect.objectContaining({ actorId: user.id, definitionJson: expect.objectContaining({ edges: DEFAULT_WORKFLOW_DEFINITION.edges }), contextJson: expect.objectContaining({ recordSnapshot: { status: "draft", dataJson: {} } }), stateJson: { queue: ["wf-node-1"], executions: [] } })],
     }));
     expect(mocks.executeSavedWorkflowRun).toHaveBeenCalledWith(user, "run_1", expect.any(Function));
+  });
+
+  it("recovers a racing unique event insert by dispatching the already persisted run", async () => {
+    const prisma = dispatchPrisma();
+    prisma.workflowRun.createMany.mockResolvedValue({ count: 0 });
+    prisma.workflowRun.findFirstOrThrow.mockResolvedValue({ id: "winner_run" });
+    mocks.getPrismaClient.mockReturnValue(prisma);
+    await runApprovalWorkflowsForRecord(user, input);
+    expect(prisma.workflowRun.findFirstOrThrow).toHaveBeenCalledWith({ where: { workflowId: workflow.id, eventKey: input.eventKey, tenantId: user.tenantId } });
+    expect(mocks.executeSavedWorkflowRun).toHaveBeenCalledWith(user, "winner_run", expect.any(Function));
+  });
+
+  it("queues the captured record event without dispatching before transaction commit", async () => {
+    const prisma = dispatchPrisma();
+    expect(await enqueueWorkflowsForRecord(user, input, prisma as never)).toEqual(["run_1"]);
+    expect(mocks.executeSavedWorkflowRun).not.toHaveBeenCalled();
+    expect(mocks.getPrismaClient).not.toHaveBeenCalled();
+  });
+
+  it("treats a lost API response as an uncertain outcome instead of allowing automatic retry", async () => {
+    mocks.getPrismaClient.mockReturnValue(dispatchPrisma());
+    vi.stubEnv("WORKFLOW_API_ALLOWED_ORIGINS", "https://example.com");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection lost after send")));
+    const execute = await executor();
+    await expect(execute(user, input, { id: workflow.id, name: workflow.name, runId: "run_1", sourceWorkflowId: workflow.id }, {
+      id: "api", data: { label: "API", nodeType: "api_call", config: { url: "https://example.com", failurePolicy: "continue" } },
+    }, { appRecord: { findFirst: vi.fn().mockResolvedValue({ id: input.recordId }) } } as never)).rejects.toMatchObject({ message: expect.stringContaining("送信結果を確認できません") });
   });
 
   it("rejects activation of a cyclic graph before writing", async () => {

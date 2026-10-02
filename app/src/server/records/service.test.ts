@@ -6,12 +6,13 @@ import {
 } from "@/server/records/service";
 import type { User } from "@/types/user";
 
-const { getPrismaClient } = vi.hoisted(() => ({
-  getPrismaClient: vi.fn(),
+const { getPrismaClient, enqueueWorkflowsForRecord, dispatchWorkflowRunIds } = vi.hoisted(() => ({
+  getPrismaClient: vi.fn(), enqueueWorkflowsForRecord: vi.fn().mockResolvedValue([]), dispatchWorkflowRunIds: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/server/db/prisma", () => ({
-  getPrismaClient: () => ({
+  getPrismaClient: () => {
+    const prisma = {
     userRole: {
       findMany: vi.fn().mockResolvedValue([{
         appId: null,
@@ -21,7 +22,10 @@ vi.mock("@/server/db/prisma", () => ({
     },
     ...getPrismaClient(),
     appRecord: { findUnique: vi.fn().mockResolvedValue(null), ...getPrismaClient().appRecord },
-  }),
+    $queryRaw: vi.fn().mockResolvedValue([{ id: "rec_1" }]),
+    };
+    return { ...prisma, $transaction: vi.fn(async (action) => action(prisma)) };
+  },
 }));
 
 vi.mock("@/server/audit/service", () => ({
@@ -29,7 +33,7 @@ vi.mock("@/server/audit/service", () => ({
 }));
 
 vi.mock("@/server/workflows/service", () => ({
-  runApprovalWorkflowsForRecord: vi.fn().mockResolvedValue([]),
+  enqueueWorkflowsForRecord, dispatchWorkflowRunIds,
 }));
 
 vi.mock("@/server/records/bootstrap", () => ({
@@ -172,6 +176,7 @@ describe("records service master_ref validation", () => {
           .mockResolvedValueOnce({
             id: "customer_1",
           }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "rec_1", status: "active", dataJson: { subject: "Old subject" } }),
         update: vi.fn().mockResolvedValue({
           id: "rec_1",
           tenantId: "tenant_1",
@@ -945,6 +950,7 @@ describe("records service schema validation", () => {
             deletedAt: null,
           })
           .mockResolvedValueOnce(null),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "rec_1", status: "active", dataJson: { ticket_id: "TCK-001" } }),
         update: vi.fn().mockResolvedValue({
           id: "rec_1",
           tenantId: "tenant_1",

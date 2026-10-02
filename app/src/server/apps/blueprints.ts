@@ -1,3 +1,4 @@
+import { DEFAULT_AI_MODEL } from "@/lib/ai-models";
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
 import {
   generateJsonWithModelGateway,
@@ -29,7 +30,7 @@ const GENERATED_BLUEPRINT_FIELD_TYPES: GeneratedBlueprintFieldType[] = [
   "boolean",
   "select",
 ];
-const OPENAI_MODEL = "gpt-5-mini";
+const OPENAI_MODEL = DEFAULT_AI_MODEL;
 const GROUP_FIELD_CODES = new Set([
   "status",
   "state",
@@ -562,7 +563,6 @@ async function requestBlueprint(
     {
       user,
       operation,
-      model: OPENAI_MODEL,
       instructions,
       input,
       responseFormatName: "generated_app_blueprint",

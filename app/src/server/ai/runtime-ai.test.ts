@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppsServiceError } from "@/server/apps/service";
+vi.mock("@/server/ai/model-settings", () => ({ getTenantAIModel: vi.fn().mockResolvedValue("gpt-6.1-sol") }));
 import {
   buildRecordContext,
   executeRuntimeAIAction,
@@ -119,6 +120,12 @@ describe("buildRecordContext", () => {
 });
 
 describe("executeRuntimeAIAction", () => {
+  it("passes a workflow-selected model through the gateway and reports it", async () => {
+    const { client, create } = createFakeClient({ summary: "検証用の要約", keyPoints: [] });
+    const result = await executeRuntimeAIAction(user, "support-desk", "tickets", "rec-001", "summarize", client, { model: "configured-model" });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ model: "configured-model" }));
+    expect(result.modelName).toBe("configured-model");
+  });
   it("returns a normalized summary result", async () => {
     const { client, create } = createFakeClient({
       summary: "ログイン不具合のチケットで、現在調査中です。",
@@ -140,6 +147,8 @@ describe("executeRuntimeAIAction", () => {
     expect(result.usage.totalTokens).toBe(150);
     expect(create).toHaveBeenCalledTimes(1);
     const params = create.mock.calls[0][0];
+    expect(params.model).toBe("gpt-6.1-sol");
+    expect(result.modelName).toBe("gpt-6.1-sol");
     expect(params.input).toContain("サポートデスク");
     expect(params.input).toContain("件名 (subject): ログインできない");
   });

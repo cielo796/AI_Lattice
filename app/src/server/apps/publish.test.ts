@@ -4,6 +4,7 @@ import {
   publishAppForUser,
 } from "@/server/apps/publish";
 import type { User } from "@/types/user";
+import { recordAuditLog } from "@/server/audit/service";
 
 const { getPrismaClient } = vi.hoisted(() => ({
   getPrismaClient: vi.fn(),
@@ -58,7 +59,7 @@ function buildPrisma(overrides: Record<string, unknown> = {}) {
     publishedBy: { name: "Owner", email: "owner@example.com" },
   };
 
-  return {
+  const prisma = {
     app: {
       findFirst: vi.fn().mockResolvedValue(app),
       update: vi.fn().mockResolvedValue({ ...app, status: "published" }),
@@ -94,11 +95,12 @@ function buildPrisma(overrides: Record<string, unknown> = {}) {
       create: vi.fn().mockResolvedValue({ ...createdVersion, versionNo: 3 }),
       findMany: vi.fn().mockResolvedValue([createdVersion]),
     },
-    $transaction: vi.fn(async (operations: Promise<unknown>[]) =>
-      Promise.all(operations)
-    ),
+    $queryRaw: vi.fn().mockResolvedValue([{ id: app.id }]),
+    $transaction: vi.fn(),
     ...overrides,
   };
+  prisma.$transaction.mockImplementation(async (operation) => operation(prisma));
+  return prisma;
 }
 
 describe("publishAppForUser", () => {
@@ -128,6 +130,31 @@ describe("publishAppForUser", () => {
         data: { status: "published" },
       })
     );
+    expect(prisma.appVersion.aggregate).toHaveBeenCalledWith({
+      where: { tenantId: user.tenantId, appId: app.id },
+      _max: { versionNo: true },
+    });
+    expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.appVersion.aggregate.mock.invocationCallOrder[0]
+    );
+    expect(recordAuditLog).toHaveBeenCalledWith(user, expect.objectContaining({
+      actionType: "APP_PUBLISH",
+    }), prisma);
+  });
+
+  it("rejects an app deleted before acquiring the publication lock", async () => {
+    const prisma = buildPrisma({ $queryRaw: vi.fn().mockResolvedValue([]) });
+    getPrismaClient.mockReturnValue(prisma);
+    await expect(publishAppForUser(user, app.id)).rejects.toMatchObject({ status: 404 });
+    expect(prisma.appVersion.create).not.toHaveBeenCalled();
+  });
+
+  it("propagates audit failure inside the publication transaction", async () => {
+    const prisma = buildPrisma();
+    getPrismaClient.mockReturnValue(prisma);
+    vi.mocked(recordAuditLog).mockRejectedValueOnce(new Error("Audit unavailable"));
+    await expect(publishAppForUser(user, app.id)).rejects.toThrow("Audit unavailable");
+    expect(recordAuditLog).toHaveBeenCalledWith(user, expect.anything(), prisma);
   });
 
   it("rejects publishing an app without tables", async () => {

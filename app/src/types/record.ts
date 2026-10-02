@@ -11,6 +11,8 @@ export interface AppRecord {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;
+  workflowRunIds?: string[];
+  workflowDispatchPending?: boolean;
 }
 
 export interface RecordComment {

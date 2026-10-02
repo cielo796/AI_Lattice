@@ -24,7 +24,6 @@ import type {
 } from "@/types/app-refinement";
 import type { User } from "@/types/user";
 
-const OPENAI_MODEL = "gpt-5-mini";
 const MAX_REFINEMENT_OPERATIONS = 8;
 const REFINEMENT_FIELD_TYPES: FieldType[] = [
   "text",
@@ -430,7 +429,6 @@ async function requestRefinementPlan(
     user,
     appId,
     operation: "app_refinement.preview",
-    model: OPENAI_MODEL,
     instructions: REFINEMENT_INSTRUCTIONS,
     input,
     responseFormatName: "app_refinement_operations",

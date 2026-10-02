@@ -1,4 +1,5 @@
-import type { WorkflowDefinition, WorkflowNodeType } from "@/types/workflow";
+import type { Workflow, WorkflowDefinition, WorkflowNodeType } from "@/types/workflow";
+import { validateWorkflowNodeConfig } from "./workflow-config";
 
 const nodeTypes: WorkflowNodeType[] = ["trigger", "condition", "approval", "notification", "status_update", "api_call", "ai_action"];
 const operators = ["equals", "not_equals", "contains", "greater_than", "less_than", "empty", "not_empty"];
@@ -24,8 +25,8 @@ export function workflowNextNodeIds(definition: WorkflowDefinition, nodeId: stri
     if (edge.source !== nodeId) return false;
     const branch = workflowEdgeBranch(edge);
     if (node?.data.nodeType === "condition") {
-      const yes = ["", "yes", "true", "はい", String(node.data.config?.yesLabel ?? "yes").toLowerCase()];
-      const no = ["no", "false", "いいえ", String(node.data.config?.noLabel ?? "no").toLowerCase()];
+      const yes = ["", "yes", "true", "はい", String(node.data.config?.yesLabel ?? "yes").trim().toLowerCase()];
+      const no = ["no", "false", "いいえ", String(node.data.config?.noLabel ?? "no").trim().toLowerCase()];
       return (outcome === "yes" ? yes : no).includes(branch);
     }
     if (node?.data.nodeType === "approval") {
@@ -41,7 +42,7 @@ export function workflowNextNodeIds(definition: WorkflowDefinition, nodeId: stri
   }).sort((left, right) => left.id.localeCompare(right.id, "en")).map((edge) => edge.target))];
 }
 
-export function validateWorkflowGraph(definition: WorkflowDefinition, options: { active?: boolean; legacy?: boolean } = {}) {
+export function validateWorkflowGraph(definition: WorkflowDefinition, options: { active?: boolean; legacy?: boolean; triggerType?: Workflow["triggerType"] } = {}) {
   const errors: string[] = [];
   if (definition.nodes.length > 100 || definition.edges.length > 300) return ["ノードは100件、接続は300件までです。"];
   const nodeIds = new Set<string>();
@@ -49,8 +50,10 @@ export function validateWorkflowGraph(definition: WorkflowDefinition, options: {
   for (const node of definition.nodes) {
     if (!node.id || nodeIds.has(node.id)) errors.push(`ノードID「${node.id}」が空または重複しています。`);
     nodeIds.add(node.id);
+    if (!nonEmptyString(node.data.label)) errors.push(`ノード「${node.id}」の名前を入力してください。`);
     if (!nodeTypes.includes(node.data.nodeType)) errors.push(`ノード「${node.id}」の種類が不正です。`);
     if (!options.active) continue;
+    errors.push(...validateWorkflowNodeConfig(node, options.triggerType));
     const config = node.data.config ?? {};
     const prefix = `「${node.data.label}」`;
     if (config.failurePolicy !== undefined && !["continue", "fail"].includes(String(config.failurePolicy))) errors.push(`${prefix}: failurePolicy は continue / fail を指定してください。`);
@@ -66,6 +69,7 @@ export function validateWorkflowGraph(definition: WorkflowDefinition, options: {
       const expected = config.value ?? config.expectedValue ?? config.status;
       if (expected !== undefined && expected !== null && !["string", "number", "boolean"].includes(typeof expected)) errors.push(`${prefix}: 比較値には文字列・数値・真偽値を指定してください。`);
       if (String(config.yesLabel ?? "yes").trim().toLowerCase() === String(config.noLabel ?? "no").trim().toLowerCase()) errors.push(`${prefix}: yes と no の分岐ラベルを別にしてください。`);
+      if (["no", "false", "いいえ"].includes(String(config.yesLabel ?? "yes").trim().toLowerCase()) || ["yes", "true", "はい"].includes(String(config.noLabel ?? "no").trim().toLowerCase())) errors.push(`${prefix}: 反対側の分岐に予約されているラベルは指定できません。`);
     }
     if (node.data.nodeType === "api_call") {
       try {
@@ -86,7 +90,7 @@ export function validateWorkflowGraph(definition: WorkflowDefinition, options: {
     if (!options.active) continue;
     const source = definition.nodes.find((node) => node.id === edge.source);
     const branch = workflowEdgeBranch(edge);
-    if (source?.data.nodeType === "condition" && !["", "yes", "no", "true", "false", "はい", "いいえ", String(source.data.config?.yesLabel ?? "yes").toLowerCase(), String(source.data.config?.noLabel ?? "no").toLowerCase()].includes(branch)) errors.push(`接続「${edge.id}」に yes / no の分岐を指定してください。`);
+    if (source?.data.nodeType === "condition" && !["", "yes", "no", "true", "false", "はい", "いいえ", String(source.data.config?.yesLabel ?? "yes").trim().toLowerCase(), String(source.data.config?.noLabel ?? "no").trim().toLowerCase()].includes(branch)) errors.push(`接続「${edge.id}」に yes / no の分岐を指定してください。`);
     if (source?.data.nodeType === "approval" && !["", "approved", "rejected", "returned", "approve", "reject", "return", "yes", "no", "承認", "却下", "差戻し"].includes(branch)) errors.push(`接続「${edge.id}」の承認分岐が不正です。`);
   }
   const visited = new Set<string>();

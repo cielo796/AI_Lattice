@@ -1,25 +1,16 @@
 import { NextResponse } from "next/server";
-import { ServiceError } from "@/server/errors/service-error";
-import { runDueScheduledWorkflows } from "@/server/workflows/scheduler";
+import { authorizeWorkflowCron } from "@/server/workflows/internal-auth";
+import { runDueScheduledWorkflows, scheduleRecordLimit } from "@/server/workflows/scheduler";
 import { toRouteErrorResponse } from "@/app/api/_helpers";
 
-function authorize(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret) {
-    throw new ServiceError("CRON_SECRET is not configured.", 503);
-  }
-
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
-    throw new ServiceError("Unauthorized", 401);
-  }
-}
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
-    authorize(request);
+    authorizeWorkflowCron(request);
     const url = new URL(request.url);
     const limitValue = url.searchParams.get("limit");
-    const limit = limitValue ? Number.parseInt(limitValue, 10) : undefined;
+    const limit = limitValue === null ? undefined : scheduleRecordLimit(Number(limitValue));
     const result = await runDueScheduledWorkflows(limit);
     return NextResponse.json(result, {
       status: result.failures.length > 0 ? 207 : 200,

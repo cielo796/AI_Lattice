@@ -1,16 +1,20 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useId, useMemo, useState } from "react";
+import { AIModelSelect } from "@/components/shared/AIModelSelect";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { TopBar } from "@/components/shared/TopBar";
 import {
   clearOpenAISettings,
+  getAIModelSettings,
   getOpenAISettings,
+  saveAIModelSettings,
   saveOpenAISettings,
 } from "@/lib/api/openai-settings";
-import type { OpenAISettingsStatus } from "@/types/settings";
+import { AI_MODEL_DOCUMENTATION_URL, AI_MODEL_OPTIONS, DEFAULT_AI_MODEL } from "@/lib/ai-models";
+import type { AIModelSettings, OpenAISettingsStatus } from "@/types/settings";
 
 const sourceLabels: Record<OpenAISettingsStatus["source"], string> = {
   tenant: "管理画面",
@@ -49,7 +53,11 @@ function getStatusVariant(status: OpenAISettingsStatus | null) {
 }
 
 export default function OpenAISettingsPage() {
+  const modelSelectId = useId();
   const [status, setStatus] = useState<OpenAISettingsStatus | null>(null);
+  const [modelSettings, setModelSettings] = useState<AIModelSettings | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_AI_MODEL);
+  const [isSavingModel, setIsSavingModel] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,12 +88,15 @@ export default function OpenAISettingsPage() {
   async function loadStatus() {
     try {
       setIsLoading(true);
-      const nextStatus = await getOpenAISettings();
+      const [nextStatus, nextModelSettings] = await Promise.all([getOpenAISettings(), getAIModelSettings()]);
 
       setStatus(nextStatus);
+      setModelSettings(nextModelSettings);
+      setSelectedModel(nextModelSettings.defaultModel);
       setError(null);
     } catch (nextError) {
       setStatus(null);
+      setModelSettings(null);
       setError(
         nextError instanceof Error
           ? nextError.message
@@ -99,6 +110,23 @@ export default function OpenAISettingsPage() {
   useEffect(() => {
     void loadStatus();
   }, []);
+
+  async function handleModelSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setIsSavingModel(true);
+      const saved = await saveAIModelSettings(selectedModel);
+      setModelSettings(saved);
+      setSelectedModel(saved.defaultModel);
+      setNotice("AIモデル設定を保存しました。");
+      setError(null);
+    } catch (nextError) {
+      setNotice(null);
+      setError(nextError instanceof Error ? nextError.message : "AIモデル設定の保存に失敗しました。");
+    } finally {
+      setIsSavingModel(false);
+    }
+  }
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -157,7 +185,7 @@ export default function OpenAISettingsPage() {
             variant="ghost"
             size="md"
             onClick={() => void loadStatus()}
-            disabled={isLoading}
+            disabled={isLoading || isSavingModel}
           >
             <Icon name="refresh" size="sm" />
             更新
@@ -203,6 +231,27 @@ export default function OpenAISettingsPage() {
             {notice}
           </div>
         )}
+
+        <section className="mb-6 rounded-xl border border-outline-variant bg-surface p-6">
+          <h2 className="mb-2 font-headline text-xl font-bold text-on-surface">AIモデル設定</h2>
+          <p className="mb-5 text-sm text-on-surface-variant">アプリ生成・改善提案・レコードAI処理で使う、このテナントの既定モデルを選択します。</p>
+          <form onSubmit={(event) => void handleModelSave(event)} className="space-y-4">
+            <div className="max-w-xl">
+              <label htmlFor={modelSelectId} className="mb-1.5 block text-sm font-semibold text-on-surface">既定AIモデル</label>
+              <AIModelSelect id={modelSelectId} value={selectedModel} onChange={setSelectedModel} disabled={!modelSettings || isLoading || isSavingModel} />
+            </div>
+            <p className="text-sm text-on-surface-variant">{AI_MODEL_OPTIONS.find((model) => model.id === selectedModel)?.description}</p>
+            <p className="text-xs leading-relaxed text-on-surface-variant">適用順: ワークフローのモデル指定 → 有効なPrompt Templateのモデル → この設定。既存の個別指定は変更しません。</p>
+            <p className="text-xs leading-relaxed text-on-surface-variant">利用にはAPIキーと選択モデルの利用権限が必要です。モデルによって料金・応答時間が異なり、利用できない場合も別モデルへ自動変更しません。</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={!modelSettings || isLoading || isSavingModel}>
+                {isSavingModel ? "保存中..." : "モデルを保存"}
+              </Button>
+              {modelSettings && <span className="text-xs text-on-surface-muted">{modelSettings.source === "tenant" ? "テナント設定" : "初期設定"} · モデル一覧確認日: {modelSettings.catalogVerifiedAt}</span>}
+              <a href={AI_MODEL_DOCUMENTATION_URL} target="_blank" rel="noreferrer" className="text-xs text-primary underline">公式モデル情報</a>
+            </div>
+          </form>
+        </section>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">

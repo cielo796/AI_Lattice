@@ -1,3 +1,4 @@
+import { DEFAULT_AI_MODEL } from "@/lib/ai-models";
 import {
   generateJsonWithModelGateway,
   type ModelGatewayClientLike,
@@ -12,7 +13,7 @@ import type { AppField } from "@/types/app";
 import type { AppRecord, RecordComment } from "@/types/record";
 import type { User } from "@/types/user";
 
-const OPENAI_MODEL = "gpt-5-mini";
+const OPENAI_MODEL = DEFAULT_AI_MODEL;
 const MAX_CONTEXT_COMMENTS = 8;
 const MAX_FIELD_VALUE_LENGTH = 600;
 
@@ -299,11 +300,12 @@ function normalizeNextActions(value: unknown): RuntimeAINextAction[] {
 function toExecutionResult(
   action: RuntimeAIActionType,
   parsed: Record<string, unknown>,
-  response: { usage: RuntimeAIExecution["usage"] }
+  response: { usage: RuntimeAIExecution["usage"] },
+  modelName = OPENAI_MODEL
 ): RuntimeAIExecution {
   const base = {
     action,
-    modelName: OPENAI_MODEL,
+    modelName,
     usage: response.usage,
   };
 
@@ -350,7 +352,8 @@ export async function executeRuntimeAIAction(
   tableCode: string,
   recordId: string,
   action: RuntimeAIActionType,
-  client?: ModelGatewayClientLike
+  client?: ModelGatewayClientLike,
+  options: { model?: string; promptTemplateKey?: string } = {}
 ): Promise<RuntimeAIExecution> {
   if (!isRuntimeAIAction(action)) {
     throw new AppsServiceError("サポートされていないAIアクションです。", 400);
@@ -376,12 +379,13 @@ export async function executeRuntimeAIAction(
     {
       user,
       operation: definition.operation,
-      model: OPENAI_MODEL,
+      model: options.model,
       instructions: definition.instructions,
       input,
       responseFormatName: definition.responseFormatName,
       responseSchema: definition.responseSchema,
-      promptTemplateKey: definition.promptTemplateKey,
+      promptTemplateKey: options.promptTemplateKey ?? definition.promptTemplateKey,
+      requirePromptTemplate: options.promptTemplateKey !== undefined,
       appId: record.appId,
       recordId: record.id,
       metadata: {
@@ -394,7 +398,7 @@ export async function executeRuntimeAIAction(
   );
 
   const parsed = parseJsonOutput(response.outputText, action);
-  return toExecutionResult(action, parsed, response);
+  return toExecutionResult(action, parsed, response, response.modelName ?? options.model ?? OPENAI_MODEL);
 }
 
 export { OPENAI_MODEL as RUNTIME_AI_MODEL };

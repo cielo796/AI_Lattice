@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/shared/Badge";
+import { AIModelSelect } from "@/components/shared/AIModelSelect";
+import { DEFAULT_AI_MODEL } from "@/lib/ai-models";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { Input } from "@/components/shared/Input";
@@ -54,10 +56,10 @@ export default function AdminPromptTemplatesPage() {
   const [name, setName] = useState("Record Summary");
   const [operation, setOperation] = useState("record.summarize");
   const [description, setDescription] = useState("");
-  const [modelName, setModelName] = useState("gpt-5-mini");
+  const [modelName, setModelName] = useState<string>(DEFAULT_AI_MODEL);
   const [instructions, setInstructions] = useState("");
   const [schemaText, setSchemaText] = useState(defaultSchema);
-  const [versionModelName, setVersionModelName] = useState("gpt-5-mini");
+  const [versionModelName, setVersionModelName] = useState<string>(DEFAULT_AI_MODEL);
   const [versionInstructions, setVersionInstructions] = useState("");
   const [versionSchemaText, setVersionSchemaText] = useState(defaultSchema);
   const [isLoading, setIsLoading] = useState(true);
@@ -262,7 +264,7 @@ export default function AdminPromptTemplatesPage() {
                 <Input value={key} onChange={(event) => setKey(event.target.value)} placeholder="key" />
                 <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="name" />
                 <Input value={operation} onChange={(event) => setOperation(event.target.value)} placeholder="operation" />
-                <Input value={modelName} onChange={(event) => setModelName(event.target.value)} placeholder="model" />
+                <AIModelSelect value={modelName} onChange={setModelName} aria-label="新規テンプレートのモデル" />
                 <Input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="description" />
                 <textarea
                   value={instructions}
@@ -335,10 +337,10 @@ export default function AdminPromptTemplatesPage() {
                 <h3 className="font-headline text-sm font-bold text-on-surface">
                   新しい version
                 </h3>
-                <Input
+                <AIModelSelect
                   value={versionModelName}
-                  onChange={(event) => setVersionModelName(event.target.value)}
-                  placeholder="model"
+                  onChange={setVersionModelName}
+                  aria-label="追加バージョンのモデル"
                 />
                 <textarea
                   value={versionInstructions}
@@ -363,4 +365,3 @@ export default function AdminPromptTemplatesPage() {
     </>
   );
 }
-
