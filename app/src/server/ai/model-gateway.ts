@@ -42,7 +42,7 @@ export type ModelGatewayClientLike = {
           schema: Record<string, unknown>;
         };
       };
-    }) => Promise<OpenAIResponseLike>;
+    }, options?: { signal?: AbortSignal }) => Promise<OpenAIResponseLike>;
   };
 };
 
@@ -60,6 +60,9 @@ export interface ModelGatewayJsonRequest {
   requirePromptTemplate?: boolean;
   promptTemplateVersionId?: string;
   metadata?: Record<string, unknown>;
+  signal?: AbortSignal;
+  supplementTemplateInstructions?: boolean;
+  useRequestResponseSchema?: boolean;
 }
 
 export interface ModelGatewayJsonResponse {
@@ -330,8 +333,8 @@ async function resolvePromptTemplateRequest(
   return {
     ...request,
     model: request.model ?? activeTemplate.modelName,
-    instructions: activeTemplate.instructions,
-    responseSchema: activeTemplate.responseSchemaJson ?? request.responseSchema,
+    instructions: request.supplementTemplateInstructions ? `${activeTemplate.instructions}\n${request.instructions}` : activeTemplate.instructions,
+    responseSchema: request.useRequestResponseSchema ? request.responseSchema : activeTemplate.responseSchemaJson ?? request.responseSchema,
     promptTemplateKey: activeTemplate.key,
     promptTemplateVersionId: activeTemplate.id,
     metadata: {
@@ -345,6 +348,11 @@ async function resolvePromptTemplateRequest(
   };
 }
 
+export async function resolveModelGatewayConfiguration(request: ModelGatewayJsonRequest, templateResolved = false): Promise<ResolvedModelGatewayJsonRequest> {
+  const templatedRequest = templateResolved ? request : await resolvePromptTemplateRequest(request);
+  return { ...templatedRequest, model: templatedRequest.model ?? await getTenantAIModel(request.user.tenantId) };
+}
+
 export async function generateJsonWithModelGateway(
   request: ModelGatewayJsonRequest,
   client?: ModelGatewayClientLike
@@ -356,13 +364,11 @@ export async function generateJsonWithModelGateway(
     const templatedRequest = await resolvePromptTemplateRequest(request);
     resolvedRequest = { ...templatedRequest, model: templatedRequest.model ?? DEFAULT_AI_MODEL };
     const openAIClient = client ?? (await getOpenAIClient(resolvedRequest.user.tenantId));
-    resolvedRequest = {
-      ...templatedRequest,
-      model: templatedRequest.model ?? await getTenantAIModel(request.user.tenantId),
-    };
-    const response = await openAIClient.responses.create(
-      buildRequestParams(resolvedRequest)
-    );
+    resolvedRequest = await resolveModelGatewayConfiguration(templatedRequest, true);
+    const params = buildRequestParams(resolvedRequest);
+    const response = resolvedRequest.signal
+      ? await openAIClient.responses.create(params, { signal: resolvedRequest.signal })
+      : await openAIClient.responses.create(params);
     const usage = normalizeUsage(response.usage);
 
     await safeRecordAIExecutionLog({

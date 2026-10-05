@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { listRecords } from "@/lib/api/records";
 import { Button } from "@/components/shared/Button";
 import { Input } from "@/components/shared/Input";
@@ -34,6 +34,7 @@ type FormFieldLayout = {
   field: AppField;
   width: "half" | "full";
   helpText?: string;
+  rowIndex?: number;
 };
 
 function formatFieldLabel(field: AppField) {
@@ -169,6 +170,7 @@ function getFormFieldLayouts(
           required: field.required || layoutField.required === true,
         },
         width: layoutField.width === "full" ? ("full" as const) : ("half" as const),
+        ...(typeof layoutField.rowIndex === "number" && Number.isInteger(layoutField.rowIndex) && layoutField.rowIndex >= 0 ? { rowIndex: layoutField.rowIndex } : {}),
         helpText:
           typeof layoutField.helpText === "string" && layoutField.helpText.trim()
             ? layoutField.helpText.trim()
@@ -564,13 +566,15 @@ export function RecordCreatePanel({
       <form onSubmit={(event) => void handleSubmit(event)}>
         {formFieldLayouts.length > 0 ? (
           <div className="grid gap-4 lg:grid-cols-2">
-            {formFieldLayouts.map(({ field, width, helpText }) => (
+            {formFieldLayouts.map(({ field, width, helpText, rowIndex }) => (
               <div
                 key={field.id}
                 className={cn(
                   "space-y-2",
-                  field.fieldType === "textarea" || width === "full" ? "lg:col-span-2" : ""
+                  width === "full" ? "lg:col-span-2" : "",
+                  rowIndex !== undefined ? "lg:[grid-row:var(--form-row)]" : ""
                 )}
+                style={rowIndex !== undefined ? { "--form-row": rowIndex + 1 } as CSSProperties : undefined}
               >
                 <div className="flex items-center gap-2">
                   <label className="text-[13px] font-semibold text-on-surface">

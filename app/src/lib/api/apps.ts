@@ -252,17 +252,18 @@ export async function generateApprovalStatusViews(appId: string) {
   });
 }
 
-export async function generateAppBlueprint(prompt: string) {
+export async function generateAppBlueprint(prompt: string, options?: { signal?: AbortSignal; blueprint?: GeneratedAppBlueprint }) {
   return apiFetch<GeneratedAppBlueprint>(appGeneratePath(), {
     method: "POST",
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, ...(options?.blueprint ? { blueprint: options.blueprint } : {}) }),
+    signal: options?.signal,
   });
 }
 
 export async function createAppFromBlueprint(blueprint: GeneratedAppBlueprint) {
   return apiFetch<App>(appBlueprintPath(), {
     method: "POST",
-    body: JSON.stringify(blueprint),
+    body: JSON.stringify({ ...blueprint, tables: blueprint.tables.map((table) => ({ ...table, fields: table.fields.map((field) => field.fieldType === "select" ? { ...field, options: (field.options ?? []).join(",") } : field) })) }),
   });
 }
 

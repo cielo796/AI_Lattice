@@ -426,7 +426,7 @@ export function GuideProvider({ children }: { children: ReactNode }) {
       {children}
 
       {introTour && !isOpen && (
-        <div className="fixed bottom-4 right-4 z-[70] w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
+        <div data-guide="guide-invitation" className="fixed bottom-4 right-4 z-[70] w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
           <div className="mb-2 flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-container text-primary">
               <Icon name="school" size="sm" />
