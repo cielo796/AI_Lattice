@@ -335,6 +335,21 @@ export async function hasPermission(
   });
 }
 
+export async function getPermissionMap(
+  user: Pick<User, "id" | "tenantId">,
+  scope?: PermissionScope
+): Promise<Record<Permission, boolean>> {
+  const assignments = await findUserRoleAssignments(user);
+  const granted = new Set(
+    assignments
+      .filter((assignment) => scopeMatches(assignment, scope))
+      .flatMap((assignment) => permissionsFromJson(assignment.role.permissionsJson))
+  );
+  return Object.fromEntries(
+    PERMISSIONS.map((permission) => [permission, granted.has("*") || granted.has(permission)])
+  ) as Record<Permission, boolean>;
+}
+
 export async function requirePermission(
   user: Pick<User, "id" | "tenantId">,
   permission: Permission,

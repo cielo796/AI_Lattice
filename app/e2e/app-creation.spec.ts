@@ -59,8 +59,10 @@ async function checkContrast(page: Page) {
   const ratios = await page.locator(".app-creation").evaluate((element) => {
     const style = getComputedStyle(element);
     const luminance = (token: string) => {
-      const hex = style.getPropertyValue(token).trim();
-      const channels = [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255).map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+      const color = style.getPropertyValue(token).trim();
+      const hex = color.length === 4 ? Array.from(color.slice(1)).map((digit) => digit + digit).join("") : color.slice(1);
+      if (!/^[0-9a-f]{6}$/i.test(hex)) throw new Error("Unexpected theme color: " + token + "=" + color);
+      const channels = [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255).map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
       return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
     };
     const ratio = (foreground: string, background: string) => {

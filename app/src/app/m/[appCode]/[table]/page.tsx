@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { PaginatedRecords } from "@/components/runtime/PaginatedRecords";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -567,10 +569,9 @@ export default function MobileRuntimePage() {
 
   const selectedRecord =
     records.find((record) => record.id === selectedId) ?? null;
-  const resolvedRecords = resolveRecordListReferences(
-    records,
-    tableMeta?.fields ?? [],
-    referenceLabelsByField
+  const resolvedRecords = useMemo(
+    () => resolveRecordListReferences(records, tableMeta?.fields ?? [], referenceLabelsByField),
+    [records, tableMeta, referenceLabelsByField]
   );
 
   useEffect(() => {
@@ -1001,28 +1002,42 @@ export default function MobileRuntimePage() {
     }
   }
 
-  const fields = tableMeta?.fields ?? [];
+  const fields = useMemo(() => tableMeta?.fields ?? [], [tableMeta]);
   const activeView =
     tableMeta?.views.find((view) => view.id === activeViewId) ??
     tableMeta?.views[0];
   const activeViewType = activeView?.viewType ?? "list";
-  const visibleColumnCodes = getViewColumns(activeView, fields);
-  const filteredRecords = applyViewQuery(
-    sortRecordsByView(
-      filterRecordsByView(resolvedRecords, getViewFilters(activeView)),
-      activeView
-    ),
-    visibleColumnCodes,
-    query
+  const visibleColumnCodes = useMemo(
+    () => getViewColumns(activeView, fields),
+    [activeView, fields]
   );
+  const viewRecords = useMemo(
+    () => sortRecordsByView(filterRecordsByView(resolvedRecords, getViewFilters(activeView)), activeView),
+    [resolvedRecords, activeView]
+  );
+  const filteredRecords = useMemo(
+    () => applyViewQuery(viewRecords, visibleColumnCodes, query),
+    [viewRecords, visibleColumnCodes, query]
+  );
+  const pageResetKey = `${appCode}:${tableCode}:${activeView?.id ?? ""}:${query.trim()}`;
   const groupFieldCode = getGroupFieldCode(activeView, fields);
   const dateFieldCode = getDateFieldCode(activeView, fields);
   const metricFieldCode = getMetricFieldCode(activeView, fields);
   const metricLabel = metricFieldCode
     ? getFieldDisplayLabel(metricFieldCode, fields)
     : "件数";
-  const kanbanGroups = groupRecordsByField(filteredRecords, groupFieldCode, fields);
-  const calendarGroups = groupRecordsByDate(filteredRecords, dateFieldCode);
+  const kanbanGroups = useMemo(
+    () => activeViewType === "kanban"
+      ? groupRecordsByField(filteredRecords, groupFieldCode, fields)
+      : [],
+    [activeViewType, filteredRecords, groupFieldCode, fields]
+  );
+  const calendarGroups = useMemo(
+    () => activeViewType === "calendar"
+      ? groupRecordsByDate(filteredRecords, dateFieldCode)
+      : [],
+    [activeViewType, filteredRecords, dateFieldCode]
+  );
   const recordsByDate = new Map(
     calendarGroups.map((group) => [group.key, group.records] as const)
   );
@@ -1034,14 +1049,27 @@ export default function MobileRuntimePage() {
   const undatedCalendarGroup = calendarGroups.find(
     (group) => group.key === "日付なし"
   );
-  const chartBuckets = getChartBuckets(filteredRecords, fields, activeView);
-  const metricValues = getNumericMetricValues(filteredRecords, metricFieldCode);
+  const chartBuckets = useMemo(
+    () => activeViewType === "chart"
+      ? getChartBuckets(filteredRecords, fields, activeView)
+      : [],
+    [activeViewType, filteredRecords, fields, activeView]
+  );
+  const metricValues = useMemo(
+    () => activeViewType === "summary"
+      ? getNumericMetricValues(filteredRecords, metricFieldCode)
+      : [],
+    [activeViewType, filteredRecords, metricFieldCode]
+  );
   const metricTotal = metricValues.reduce((total, value) => total + value, 0);
   const metricAverage =
     metricValues.length > 0 ? metricTotal / metricValues.length : 0;
-  const doneCount = filteredRecords.filter(
-    (record) => getStatusVariant(record.status) === "success"
-  ).length;
+  const doneCount = useMemo(
+    () => activeViewType === "summary"
+      ? filteredRecords.filter((record) => getStatusVariant(record.status) === "success").length
+      : 0,
+    [activeViewType, filteredRecords]
+  );
   const emptyMessage = query.trim()
     ? "検索条件に一致するレコードはありません。"
     : "まだレコードがありません。新規レコードから作成できます。";
@@ -1128,16 +1156,12 @@ export default function MobileRuntimePage() {
           filteredRecords.length > 0 &&
           activeViewType === "list" && (
             <div className="space-y-3" data-testid="mobile-runtime-list-view">
-              {filteredRecords.map((record) => (
-                <MobileRecordCard
-                  key={record.id}
-                  record={record}
-                  fields={fields}
-                  visibleColumnCodes={visibleColumnCodes}
-                  selectedId={selectedId}
-                  onOpen={openDetail}
-                />
-              ))}
+              <PaginatedRecords
+                key={pageResetKey}
+                records={filteredRecords}
+                label="レコード一覧"
+                renderRecord={(record) => <MobileRecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} onOpen={openDetail} />}
+              />
             </div>
           )}
 
@@ -1163,17 +1187,12 @@ export default function MobileRuntimePage() {
                     </span>
                   </div>
                   <div className="space-y-2 overflow-y-auto p-2">
-                    {group.records.map((record) => (
-                      <MobileRecordCard
-                        key={record.id}
-                        record={record}
-                        fields={fields}
-                        visibleColumnCodes={visibleColumnCodes}
-                        selectedId={selectedId}
-                        compact
-                        onOpen={openDetail}
-                      />
-                    ))}
+                    <PaginatedRecords
+                      key={`${pageResetKey}:${group.key}`}
+                      records={group.records}
+                      label={`${group.label}のレコード`}
+                      renderRecord={(record) => <MobileRecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} compact onOpen={openDetail} />}
+                    />
                   </div>
                 </section>
               ))}
@@ -1302,17 +1321,12 @@ export default function MobileRuntimePage() {
                     </span>
                   </div>
                   <div className="space-y-2 p-2">
-                    {undatedCalendarGroup.records.map((record) => (
-                      <MobileRecordCard
-                        key={record.id}
-                        record={record}
-                        fields={fields}
-                        visibleColumnCodes={visibleColumnCodes}
-                        selectedId={selectedId}
-                        compact
-                        onOpen={openDetail}
-                      />
-                    ))}
+                    <PaginatedRecords
+                      key={pageResetKey}
+                      records={undatedCalendarGroup.records}
+                      label="日付なしのレコード"
+                      renderRecord={(record) => <MobileRecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} compact onOpen={openDetail} />}
+                    />
                   </div>
                 </section>
               )}

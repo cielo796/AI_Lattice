@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/shared/Badge";
+import { PaginatedRecords } from "@/components/runtime/PaginatedRecords";
 import { Icon } from "@/components/shared/Icon";
 import { cn } from "@/lib/cn";
 import {
@@ -68,6 +69,9 @@ const VIEW_TYPE_META: Record<AppViewType, { label: string; icon: string }> = {
 const numberFormatter = new Intl.NumberFormat("ja-JP", {
   maximumFractionDigits: 1,
 });
+
+const EMPTY_FIELDS: AppField[] = [];
+const EMPTY_VIEWS: AppView[] = [];
 
 function formatNumber(value: number) {
   return numberFormatter.format(value);
@@ -257,8 +261,8 @@ function EmptyState({ message }: { message: string }) {
 
 export function RecordList({
   records,
-  fields = [],
-  views = [],
+  fields = EMPTY_FIELDS,
+  views = EMPTY_VIEWS,
   activeViewId,
   selectedId,
   isFullWidth = false,
@@ -272,12 +276,19 @@ export function RecordList({
   const activeView =
     views.find((view) => view.id === activeViewId) ?? views[0] ?? undefined;
   const activeViewType = activeView?.viewType ?? "list";
-  const visibleColumnCodes = getViewColumns(activeView, fields);
-  const viewRecords = sortRecordsByView(
-    filterRecordsByView(records, getViewFilters(activeView)),
-    activeView
+  const visibleColumnCodes = useMemo(
+    () => getViewColumns(activeView, fields),
+    [activeView, fields]
   );
-  const filteredRecords = applyViewQuery(viewRecords, visibleColumnCodes, query);
+  const viewRecords = useMemo(
+    () => sortRecordsByView(filterRecordsByView(records, getViewFilters(activeView)), activeView),
+    [records, activeView]
+  );
+  const filteredRecords = useMemo(
+    () => applyViewQuery(viewRecords, visibleColumnCodes, query),
+    [viewRecords, visibleColumnCodes, query]
+  );
+  const pageResetKey = `${records[0]?.tableId ?? ""}:${activeView?.id ?? ""}:${normalizedQuery}`;
   const emptyMessage = normalizedQuery
     ? "検索条件に一致するレコードはありません。"
     : "まだレコードがありません。新規レコードから作成できます。";
@@ -289,8 +300,18 @@ export function RecordList({
   const metricLabel = metricFieldCode
     ? getFieldDisplayLabel(metricFieldCode, fields)
     : "件数";
-  const kanbanGroups = groupRecordsByField(filteredRecords, groupFieldCode, fields);
-  const calendarGroups = groupRecordsByDate(filteredRecords, dateFieldCode);
+  const kanbanGroups = useMemo(
+    () => activeViewType === "kanban"
+      ? groupRecordsByField(filteredRecords, groupFieldCode, fields)
+      : [],
+    [activeViewType, filteredRecords, groupFieldCode, fields]
+  );
+  const calendarGroups = useMemo(
+    () => activeViewType === "calendar"
+      ? groupRecordsByDate(filteredRecords, dateFieldCode)
+      : [],
+    [activeViewType, filteredRecords, dateFieldCode]
+  );
   const recordsByDate = new Map(
     calendarGroups.map((group) => [group.key, group.records] as const)
   );
@@ -300,14 +321,27 @@ export function RecordList({
   const displayedCalendarMonthKey = calendarMonthKey ?? firstCalendarMonthKey;
   const calendarDays = getCalendarDays(displayedCalendarMonthKey, recordsByDate);
   const undatedCalendarGroup = calendarGroups.find((group) => group.key === "日付なし");
-  const chartBuckets = getChartBuckets(filteredRecords, fields, activeView);
-  const metricValues = getNumericMetricValues(filteredRecords, metricFieldCode);
+  const chartBuckets = useMemo(
+    () => activeViewType === "chart"
+      ? getChartBuckets(filteredRecords, fields, activeView)
+      : [],
+    [activeViewType, filteredRecords, fields, activeView]
+  );
+  const metricValues = useMemo(
+    () => activeViewType === "summary"
+      ? getNumericMetricValues(filteredRecords, metricFieldCode)
+      : [],
+    [activeViewType, filteredRecords, metricFieldCode]
+  );
   const metricTotal = metricValues.reduce((total, value) => total + value, 0);
   const metricAverage =
     metricValues.length > 0 ? metricTotal / metricValues.length : 0;
-  const doneCount = filteredRecords.filter(
-    (record) => getStatusVariant(record.status) === "success"
-  ).length;
+  const doneCount = useMemo(
+    () => activeViewType === "summary"
+      ? filteredRecords.filter((record) => getStatusVariant(record.status) === "success").length
+      : 0,
+    [activeViewType, filteredRecords]
+  );
 
   return (
     <div
@@ -407,16 +441,12 @@ export function RecordList({
 
         {!isLoading && filteredRecords.length > 0 && activeViewType === "list" && (
           <div className="space-y-0.5" data-testid="runtime-list-view">
-            {filteredRecords.map((record) => (
-              <RecordCard
-                key={record.id}
-                record={record}
-                fields={fields}
-                visibleColumnCodes={visibleColumnCodes}
-                selectedId={selectedId}
-                onSelect={onSelect}
-              />
-            ))}
+            <PaginatedRecords
+              key={pageResetKey}
+              records={filteredRecords}
+              label="レコード一覧"
+              renderRecord={(record) => <RecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} onSelect={onSelect} />}
+            />
           </div>
         )}
 
@@ -439,17 +469,12 @@ export function RecordList({
                   </span>
                 </div>
                 <div className="space-y-2 overflow-y-auto p-2">
-                  {group.records.map((record) => (
-                    <RecordCard
-                      key={record.id}
-                      record={record}
-                      fields={fields}
-                      visibleColumnCodes={visibleColumnCodes}
-                      selectedId={selectedId}
-                      compact
-                      onSelect={onSelect}
-                    />
-                  ))}
+                  <PaginatedRecords
+                    key={`${pageResetKey}:${group.key}`}
+                    records={group.records}
+                    label={`${group.label}のレコード`}
+                    renderRecord={(record) => <RecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} compact onSelect={onSelect} />}
+                  />
                 </div>
               </section>
             ))}
@@ -589,17 +614,12 @@ export function RecordList({
                   </span>
                 </div>
                 <div className="space-y-2 p-2">
-                  {undatedCalendarGroup.records.map((record) => (
-                    <RecordCard
-                      key={record.id}
-                      record={record}
-                      fields={fields}
-                      visibleColumnCodes={visibleColumnCodes}
-                      selectedId={selectedId}
-                      compact
-                      onSelect={onSelect}
-                    />
-                  ))}
+                  <PaginatedRecords
+                    key={pageResetKey}
+                    records={undatedCalendarGroup.records}
+                    label="日付なしのレコード"
+                    renderRecord={(record) => <RecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} compact onSelect={onSelect} />}
+                  />
                 </div>
               </section>
             )}
