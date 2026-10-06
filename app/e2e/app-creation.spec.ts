@@ -80,6 +80,21 @@ async function checkContrast(page: Page) {
   for (const ratio of ratios.controls) expect(ratio).toBeGreaterThanOrEqual(3);
 }
 
+test("creation cancellation and the legacy app list return to the home app list", async ({ page }) => {
+  await prepare(page);
+  await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+  await expect(page).toHaveURL(/\/home#my-apps$/);
+  await expect(page.getByRole("heading", { name: "マイアプリ", exact: true })).toBeVisible();
+  await page.goto("/apps/new/ai");
+  await page.getByLabel("作りたいアプリの説明").fill("キャンセル確認用のアプリ");
+  await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+  await page.getByRole("button", { name: "作成をキャンセル", exact: true }).click();
+  await expect(page).toHaveURL(/\/home#my-apps$/);
+  await page.goto("/apps");
+  await expect(page).toHaveURL(/\/home#my-apps$/);
+  await expect(page.getByRole("heading", { name: "マイアプリ", exact: true })).toBeVisible();
+});
+
 test("examples only insert, model is server resolved, 1000-character limit, keyboard generation and abort", async ({ page }) => {
   const prepared = await prepare(page);
   await expect(page.getByRole("button", { name: "設計案を生成", exact: true })).toBeDisabled();
@@ -100,11 +115,16 @@ test("examples only insert, model is server resolved, 1000-character limit, keyb
   await expect(page.getByRole("heading", { name: "設計案を確認してください" })).toBeVisible();
   expect(prepared.count()).toBe(1);
   await page.getByRole("button", { name: "説明を直す" }).click();
-  await page.route("**/api/apps/generate", async (route) => { if (route.request().method() === "GET") await route.continue(); else { await new Promise((resolve) => setTimeout(resolve, 1600)); await route.fulfill({ json: prepared.blueprint }).catch(() => undefined); } });
+  await page.route("**/api/apps/generate", async (route) => { if (route.request().method() === "GET") await route.continue(); else { await new Promise((resolve) => setTimeout(resolve, 3000)); await route.fulfill({ json: prepared.blueprint }).catch(() => undefined); } });
   await page.getByRole("button", { name: "設計案を生成", exact: true }).click();
   await expect(page.getByRole("button", { name: "生成をやめる" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "設計案の生成状況" })).toHaveAttribute("aria-busy", "true");
+  await expect(page.locator(".ac-progress ol li")).toHaveCount(4);
+  await expect(page.locator(".ac-progress .ac-skeleton")).toHaveCount(6);
+  await expect(page.locator(".ac-progress-note")).toContainText("目安");
+  await page.screenshot({ path: "test-results/creation-generating.png", fullPage: true });
   await page.getByRole("button", { name: "生成をやめる" }).click();
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(3200);
   await expect(page.getByLabel("作りたいアプリの説明")).toBeVisible();
   await expect(page.getByRole("heading", { name: "設計案を確認してください" })).toHaveCount(0);
 });
@@ -124,8 +144,10 @@ test("pointer placement, empty slots, keyboard, table, tags, differences and rea
   await dragTo(page, '[aria-label="真偽値を追加"]', '[data-form-row="1"] [data-empty-slot]');
   await expect(page.locator('[data-form-row="1"] .ac-field-card')).toHaveCount(2);
   await page.locator('[data-form-row="0"] .ac-field-card').focus();
+  await expect(page.locator('[data-form-row="0"] .ac-field-card')).toBeFocused();
   await page.keyboard.press("Alt+ArrowDown");
   await expect(page.locator('.ac-sr-only')).toContainText("移動しました");
+  await expect(page.locator('[data-form-row="1"]')).toContainText("備考");
   await page.getByRole("group", { name: "表示切替" }).getByRole("button", { name: "表", exact: true }).click();
   await dragTo(page, '[aria-label="備考を並べ替え"]', '.ac-fields-table tbody tr:first-child', 0.5, 0.1);
   await page.getByLabel("保管場所の表示名").fill("倉庫");
@@ -234,4 +256,106 @@ test("legacy layout fallback, last-field guard and actual touch pointer placemen
     await expect(page.locator(".ac-count")).toHaveText("1 / 10");
     await expect(page.getByRole("status")).toContainText("最後の1項目");
   } finally { await context.close(); }
+});
+
+test("reference metadata, suggestions and accessible additions use the same editable draft", async ({ page }) => {
+  await prepare(page); await generate(page);
+  const builder = await page.locator(".ac-builder").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").map(Number.parseFloat));
+  expect(builder).toHaveLength(3);
+  expect(builder[0]).toBe(224); expect(builder[2]).toBe(320);
+  await expect(page.getByRole("list", { name: "フォームの項目" })).toBeVisible();
+  const info = await (await page.request.get("/api/apps/generate")).json() as { model: string };
+  await expect(page.locator(".ac-metadata .ac-model")).toContainText(info.model);
+  await page.getByRole("listitem", { name: /^保管場所、/ }).click();
+  const choices = page.getByPlaceholder("入力してEnterで追加");
+  await choices.dispatchEvent("compositionstart");
+  await choices.fill("仮倉庫、仮店舗");
+  await choices.press("Enter");
+  await expect(page.getByRole("button", { name: "選択肢「仮倉庫」を削除" })).toHaveCount(0);
+  await choices.dispatchEvent("compositionend");
+  await expect(page.getByRole("button", { name: "選択肢「仮倉庫」を削除" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "選択肢「仮店舗」を削除" })).toBeVisible();
+  await page.getByRole("button", { name: "単価を追加", exact: true }).press("Enter");
+  await expect(page.getByRole("button", { name: "単価を追加", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "AIのおすすめ", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("表示名", { exact: true })).toHaveValue("単価");
+  await expect(page.locator(".ac-settings .ac-ai-reason")).toContainText("在庫金額");
+  await expect(page.getByRole("listitem", { name: /^単価、/ }).locator(".ac-ai-badge")).toContainText("AI");
+  await page.getByRole("button", { name: "長文を追加", exact: true }).dispatchEvent("click", { detail: 0 });
+  await expect(page.locator(".ac-count")).toHaveText("7 / 10");
+  await page.getByRole("button", { name: "数値を追加", exact: true }).click();
+  await expect(page.locator(".ac-count")).toHaveText("8 / 10");
+  await page.getByRole("button", { name: "真偽値を追加", exact: true }).press("Space");
+  await expect(page.locator(".ac-count")).toHaveText("9 / 10");
+  await expect(page.locator(".ac-count")).toHaveClass(/is-near-limit/);
+  await page.getByLabel("アプリコード", { exact: true }).fill("1-invalid");
+  await expect(page.getByLabel("アプリコード", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#creation-app-code-error")).toContainText("ハイフン");
+  await expect(page.getByRole("button", { name: "下書きとして作成", exact: true })).toBeDisabled();
+  await page.getByLabel("アプリコード", { exact: true }).fill("manual-app");
+  await page.getByLabel("アプリ名", { exact: true }).fill("手動コードを保持");
+  await expect(page.getByLabel("アプリコード", { exact: true })).toHaveValue("manual-app");
+  await page.getByLabel("テーブルコード", { exact: true }).fill("invalid_table");
+  await expect(page.locator("#creation-table-code-error")).toBeVisible();
+  await page.getByLabel("テーブルコード", { exact: true }).fill("items");
+  await expect(page.getByRole("button", { name: "下書きとして作成", exact: true })).toBeEnabled();
+});
+
+test("the existing three color themes and compact footer remain usable at every breakpoint", async ({ page }) => {
+  await prepare(page);
+  const inputPanel = await page.locator(".ac-prompt-panel").boundingBox();
+  expect(inputPanel!.height).toBeLessThan(420);
+  await expect(page.getByRole("button", { name: /日報/ })).toBeVisible();
+  await page.screenshot({ path: "test-results/creation-reference-describe.png", fullPage: true });
+  for (const preference of ["navy", "white", "dark"]) {
+    expect((await page.request.patch("/api/settings/display", { data: { preference } })).ok()).toBe(true);
+    await page.reload(); await generate(page); await checkContrast(page);
+    await page.screenshot({ path: `test-results/creation-reference-${preference}.png`, fullPage: true });
+  }
+  for (const width of [1280, 1024, 768, 639, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator('[data-guide="page-content"]')).toHaveCSS("margin-left", width < 768 ? "0px" : "232px");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const footer = await page.getByRole("contentinfo", { name: "設計案の操作" }).boundingBox();
+    const saveButton = await page.getByRole("button", { name: "下書きとして作成", exact: true }).boundingBox();
+    expect(saveButton!.x).toBeGreaterThanOrEqual(footer!.x);
+    expect(saveButton!.x + saveButton!.width).toBeLessThanOrEqual(width);
+    await expect(page.getByLabel("AIで調整", { exact: true })).toBeVisible();
+  }
+  await page.screenshot({ path: "test-results/creation-reference-mobile.png", fullPage: true });
+});
+
+test("generation, adjustment and save failures preserve edits and never apply an empty difference", async ({ page }) => {
+  const prepared = await prepare(page);
+  let failGeneration = true;
+  await page.route("**/api/apps/generate", async (route) => {
+    if (route.request().method() === "GET") { await route.continue(); return; }
+    const input = route.request().postDataJSON() as { blueprint?: GeneratedAppBlueprint };
+    if (failGeneration) await route.fulfill({ status: 502, json: { message: "生成を再試行してください" } });
+    else await route.fulfill({ json: input.blueprint ?? prepared.blueprint });
+  });
+  await page.getByLabel("作りたいアプリの説明").fill("失敗しても説明を残す在庫アプリ");
+  await page.getByRole("button", { name: "設計案を生成", exact: true }).click();
+  await expect(page.locator(".ac-error-banner")).toContainText("再試行");
+  await expect(page.getByLabel("作りたいアプリの説明")).toHaveValue("失敗しても説明を残す在庫アプリ");
+  failGeneration = false;
+  await page.getByRole("button", { name: "設計案を生成", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "設計案を確認してください" })).toBeVisible();
+  await page.getByLabel("表示名", { exact: true }).fill("編集した品目名");
+  await page.getByLabel("AIで調整", { exact: true }).fill("変更しない");
+  await page.getByLabel("AIで調整", { exact: true }).press("Enter");
+  await expect(page.getByRole("dialog", { name: "AIによる調整の差分" })).toContainText("変更はありません");
+  await expect(page.getByRole("button", { name: "適用する", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "破棄", exact: true }).click();
+  await expect(page.getByLabel("表示名", { exact: true })).toHaveValue("編集した品目名");
+  failGeneration = true;
+  await page.getByRole("button", { name: "差分を確認", exact: true }).click();
+  await expect(page.locator(".ac-error-banner")).toContainText("再試行");
+  await expect(page.getByLabel("表示名", { exact: true })).toHaveValue("編集した品目名");
+  await page.route("**/api/apps/blueprints", (route) => route.fulfill({ status: 500, json: { message: "保存を再試行してください" } }));
+  await page.getByRole("button", { name: "下書きとして作成", exact: true }).click();
+  await expect(page.locator(".ac-error-banner")).toContainText("保存を再試行");
+  await expect(page.getByLabel("表示名", { exact: true })).toHaveValue("編集した品目名");
+  await expect(page.getByRole("button", { name: "下書きとして作成", exact: true })).toBeEnabled();
+  await expect(page.locator('.ac-steps [aria-current="step"]')).toContainText("設計を確認・編集");
 });

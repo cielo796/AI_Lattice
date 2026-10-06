@@ -6,12 +6,15 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { AISidebar } from "@/components/ai/AISidebar";
 import { RefineBar } from "@/components/builder/RefineBar";
+import { FormLayoutBuilder } from "@/components/builder/FormLayoutBuilder";
+import { TableDesignWorkspace } from "@/components/builder/TableDesignWorkspace";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { Input } from "@/components/shared/Input";
 import { TopBar } from "@/components/shared/TopBar";
 import { cn } from "@/lib/cn";
+import { alignFormFields, buildFormLayout, getDefaultFormField, getFormFields, type FormLayoutField } from "@/lib/form-layout";
 import {
   getReferenceAppId,
   getReferenceDisplayFieldCode,
@@ -95,16 +98,9 @@ type ViewFilterFormState = {
   operator: "equals" | "contains" | "not_empty";
   value: string;
 };
-type FormFieldFormState = {
-  fieldCode: string;
-  visible: boolean;
-  required: boolean;
-  width: "half" | "full";
-  helpText: string;
-};
 type FormFormState = {
   name: string;
-  fields: FormFieldFormState[];
+  fields: FormLayoutField[];
 };
 type BadgeVariant = "default" | "success" | "warning" | "error" | "info" | "ai";
 
@@ -312,106 +308,6 @@ function buildViewSettings(form: ViewFormState, fields: AppField[]) {
   };
 }
 
-function getDefaultFormField(field: AppField): FormFieldFormState {
-  return {
-    fieldCode: field.code,
-    visible: true,
-    required: field.required,
-    width: field.fieldType === "textarea" ? "full" : "half",
-    helpText: "",
-  };
-}
-
-function getFormFields(form: AppForm, fields: AppField[]): FormFieldFormState[] {
-  const layoutFields = form.layoutJson?.fields;
-  const fieldByCode = new Map(fields.map((field) => [field.code, field]));
-
-  if (!Array.isArray(layoutFields)) {
-    return fields.map(getDefaultFormField);
-  }
-
-  const seenFieldCodes = new Set<string>();
-  const normalizedFields = layoutFields.flatMap((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) {
-      return [];
-    }
-
-    const layoutField = item as Record<string, unknown>;
-    const fieldCode =
-      typeof layoutField.fieldCode === "string" ? layoutField.fieldCode : "";
-    const field = fieldByCode.get(fieldCode);
-
-    if (!field || seenFieldCodes.has(fieldCode)) {
-      return [];
-    }
-
-    seenFieldCodes.add(fieldCode);
-
-    return [
-      {
-        fieldCode,
-        visible: field.required ? true : layoutField.visible !== false,
-        required: field.required || layoutField.required === true,
-        width: layoutField.width === "full" ? ("full" as const) : ("half" as const),
-        helpText: typeof layoutField.helpText === "string" ? layoutField.helpText : "",
-      },
-    ];
-  });
-
-  fields.forEach((field) => {
-    if (!seenFieldCodes.has(field.code)) {
-      normalizedFields.push(getDefaultFormField(field));
-    }
-  });
-
-  return normalizedFields;
-}
-
-function alignFormFields(
-  formFields: FormFieldFormState[],
-  fields: AppField[]
-): FormFieldFormState[] {
-  const fieldByCode = new Map(fields.map((field) => [field.code, field]));
-  const seenFieldCodes = new Set<string>();
-  const normalizedFields = formFields.flatMap((formField) => {
-    const field = fieldByCode.get(formField.fieldCode);
-
-    if (!field || seenFieldCodes.has(formField.fieldCode)) {
-      return [];
-    }
-
-    seenFieldCodes.add(formField.fieldCode);
-
-    return [
-      {
-        ...formField,
-        visible: field.required ? true : formField.visible,
-        required: field.required || formField.required,
-      },
-    ];
-  });
-
-  fields.forEach((field) => {
-    if (!seenFieldCodes.has(field.code)) {
-      normalizedFields.push(getDefaultFormField(field));
-    }
-  });
-
-  return normalizedFields;
-}
-
-function buildFormLayout(form: FormFormState) {
-  return {
-    fields: form.fields.map((field) => ({
-      fieldCode: field.fieldCode,
-      visible: field.visible,
-      required: field.required,
-      width: field.width,
-      ...(field.helpText.trim() ? { helpText: field.helpText.trim() } : {}),
-    })),
-  };
-}
-
 async function requestAppRefinementPreview(
   appId: string,
   input: { instruction: string; activeTableCode?: string }
@@ -438,6 +334,12 @@ async function requestApplyAppRefinement(
 }
 
 export default function TableDesignerPage() {
+  const params = useParams<{ appId: string }>();
+  const [advanced, setAdvanced] = useState(false);
+  return advanced ? <><button type="button" className="fixed bottom-24 right-6 z-40 rounded-md border border-outline bg-surface px-4 py-2 text-sm shadow-card" onClick={() => setAdvanced(false)}>統合ビルダーに戻る</button><AdvancedTableDesignerPage /></> : <TableDesignWorkspace appId={getParam(params.appId)} onAdvanced={() => setAdvanced(true)} />;
+}
+
+function AdvancedTableDesignerPage() {
   const params = useParams<{ appId: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1384,7 +1286,17 @@ export default function TableDesignerPage() {
                   {activeTable ? `${activeTable.code} に保存されているフィールドです。` : "先にテーブルを作成または選択してください。"}
                 </p>
               </div>
-              {activeTable && <Badge variant="info">{fields.length} フィールド</Badge>}
+              {activeTable && <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="info">{fields.length} フィールド</Badge>
+                <Button type="button" variant="ghost" disabled={isLoadingForms || fields.length === 0} onClick={() => {
+                  if (!editingFormId && !formForm.name.trim()) {
+                    const form = forms[0];
+                    if (form) { setEditingFormId(form.id); setFormForm({ name: form.name, fields: getFormFields(form, fields) }); }
+                    else setFormForm((current) => ({ ...current, name: "標準フォーム" }));
+                  }
+                  document.getElementById("table-form-layout")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}><Icon name="drag_indicator" size="sm" />フォーム配置を編集</Button>
+              </div>}
             </div>
 
             <section
@@ -1846,7 +1758,8 @@ export default function TableDesignerPage() {
             </section>
 
             <section
-              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-card md:p-6"
+              id="table-form-layout"
+              className="mb-8 scroll-mt-20 rounded-xl border border-outline-variant bg-surface p-4 shadow-card md:p-6"
               data-guide="builder-form-section"
             >
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1855,7 +1768,7 @@ export default function TableDesignerPage() {
                     フォーム
                   </h3>
                   <p className="mt-1 text-[13px] text-on-surface-variant">
-                    Runtime の作成/編集フォームに表示する項目と入力補助を定義します。
+                    ドラッグで項目の順番・全幅／2列を編集し、Runtime の入力フォームに反映します。
                   </p>
                 </div>
                 <Badge variant="info">{forms.length} フォーム</Badge>
@@ -1922,10 +1835,11 @@ export default function TableDesignerPage() {
               <form onSubmit={(event) => void onSubmitForm(event)} className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                   <div className="space-y-2">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
+                    <label htmlFor="table-form-name" className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
                       フォーム名
                     </label>
                     <Input
+                      id="table-form-name"
                       value={formForm.name}
                       onChange={(event) =>
                         setFormForm((current) => ({
@@ -1953,125 +1867,13 @@ export default function TableDesignerPage() {
                   </Button>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="hidden gap-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted md:grid md:grid-cols-[minmax(0,1.2fr)_88px_88px_112px_minmax(0,1.3fr)]">
-                    <div>フィールド</div>
-                    <div>表示</div>
-                    <div>必須</div>
-                    <div>幅</div>
-                    <div>ヘルプ</div>
-                  </div>
-                  {formForm.fields.map((formField, formFieldIndex) => {
-                    const field = fields.find((item) => item.code === formField.fieldCode);
-                    if (!field) return null;
-
-                    return (
-                      <div
-                        key={formField.fieldCode}
-                        className="grid gap-3 rounded-md border border-outline-variant bg-surface-container-low p-3 md:grid-cols-[minmax(0,1.2fr)_88px_88px_112px_minmax(0,1.3fr)] md:items-center"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] font-semibold text-on-surface">
-                            {field.name}
-                          </div>
-                          <div className="truncate font-mono text-[11px] text-on-surface-variant">
-                            {field.code}
-                          </div>
-                        </div>
-                        <label className="flex items-center gap-2 text-[13px] font-medium text-on-surface">
-                          <input
-                            type="checkbox"
-                            checked={formField.visible}
-                            disabled={!activeTable || isSavingForm || field.required}
-                            onChange={(event) =>
-                              setFormForm((current) => ({
-                                ...current,
-                                fields: current.fields.map((item, index) =>
-                                  index === formFieldIndex
-                                    ? {
-                                        ...item,
-                                        visible: event.target.checked,
-                                        required: event.target.checked
-                                          ? item.required
-                                          : false,
-                                      }
-                                    : item
-                                ),
-                              }))
-                            }
-                            className="h-4 w-4"
-                          />
-                          表示
-                        </label>
-                        <label className="flex items-center gap-2 text-[13px] font-medium text-on-surface">
-                          <input
-                            type="checkbox"
-                            checked={formField.required}
-                            disabled={
-                              !activeTable ||
-                              isSavingForm ||
-                              field.required ||
-                              !formField.visible
-                            }
-                            onChange={(event) =>
-                              setFormForm((current) => ({
-                                ...current,
-                                fields: current.fields.map((item, index) =>
-                                  index === formFieldIndex
-                                    ? { ...item, required: event.target.checked }
-                                    : item
-                                ),
-                              }))
-                            }
-                            className="h-4 w-4"
-                          />
-                          必須
-                        </label>
-                        <select
-                          value={formField.width}
-                          onChange={(event) =>
-                            setFormForm((current) => ({
-                              ...current,
-                              fields: current.fields.map((item, index) =>
-                                index === formFieldIndex
-                                  ? {
-                                      ...item,
-                                      width: event.target.value as FormFieldFormState["width"],
-                                    }
-                                  : item
-                              ),
-                            }))
-                          }
-                          disabled={!activeTable || isSavingForm || !formField.visible}
-                          className="w-full rounded-md border border-outline bg-surface px-3 py-2 text-[13.5px] text-on-surface hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        >
-                          <option value="half">1/2</option>
-                          <option value="full">全幅</option>
-                        </select>
-                        <Input
-                          value={formField.helpText}
-                          onChange={(event) =>
-                            setFormForm((current) => ({
-                              ...current,
-                              fields: current.fields.map((item, index) =>
-                                index === formFieldIndex
-                                  ? { ...item, helpText: event.target.value }
-                                  : item
-                              ),
-                            }))
-                          }
-                          placeholder="入力時の補足"
-                          disabled={!activeTable || isSavingForm || !formField.visible}
-                        />
-                      </div>
-                    );
-                  })}
-                  {fields.length === 0 && (
-                    <div className="rounded-md border border-dashed border-outline-variant bg-surface-container-low px-3 py-2 text-[12.5px] text-on-surface-variant">
-                      先にフィールドを追加してください。
-                    </div>
-                  )}
-                </div>
+                <FormLayoutBuilder
+                  key={`${activeTableId ?? "none"}-${editingFormId ?? "new"}`}
+                  fields={fields}
+                  value={formForm.fields}
+                  disabled={!activeTable || isSavingForm || isLoadingFields}
+                  onChange={(nextFields) => setFormForm((current) => ({ ...current, fields: nextFields }))}
+                />
 
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={!activeTable || isSavingForm || fields.length === 0}>

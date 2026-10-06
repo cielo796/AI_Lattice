@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { automaticCode, blueprintDiff, blueprintFromDraft, draftErrors, draftFromAdjustedBlueprint, draftFromBlueprint, fieldCodeError, newDraftField, orderedFields, preserveEditedDraft, splitChoices, uniqueFieldCode } from "@/lib/app-creation";
+import { automaticCode, blueprintDiff, blueprintFromDraft, draftCodeError, draftErrors, draftFromAdjustedBlueprint, draftFromBlueprint, fieldCodeError, newDraftField, orderedFields, preserveEditedDraft, splitChoices, uniqueFieldCode } from "@/lib/app-creation";
 import { buildInitialViewsForTable } from "@/lib/blueprint-views";
 import type { GeneratedAppBlueprint } from "@/types/ai";
 
@@ -38,6 +38,13 @@ describe("app creation draft", () => {
     expect(automaticCode("New field", "field_1")).toBe("new_field");
     expect(automaticCode("日本語", "field_1")).toBe("field_1");
   });
+  it.each(["inventory", "inventory-items", "app2"])("accepts the existing app/table code format %s", (code) => {
+    expect(draftCodeError(code)).toBe("");
+  });
+  it.each(["", "1app", "App", "inventory_items", "app code", "日本語"])("shares inline and save validation for invalid codes %s", (code) => {
+    expect(draftCodeError(code)).toContain("英小文字");
+    expect(draftErrors({ ...draftFromBlueprint(blueprint), code })).toContain("アプリ／テーブルコードは英小文字で始め、英小文字・数字・ハイフンで入力してください。");
+  });
   it("splits pasted Japanese and ASCII delimiters, trims and rejects duplicates", () => {
     expect(splitChoices(" 倉庫A、倉庫B\n倉庫C,倉庫B， ", ["倉庫A"])).toEqual({ choices: ["倉庫A", "倉庫B", "倉庫C"], duplicates: ["倉庫A", "倉庫B"] });
   });
@@ -48,6 +55,13 @@ describe("app creation draft", () => {
     updated.tables[0].fields.push({ name: "期限", code: "due", fieldType: "date", required: false });
     expect(blueprintDiff(blueprint, updated).map((change) => change.kind)).toEqual(["変更", "追加", "削除"]);
     expect(blueprint.tables[0].fields[0].required).toBe(true);
+  });
+  it("includes design explanations and recommendation-only changes in the review", () => {
+    const updated = { ...blueprint, aiInsight: "配置を見直しました。", suggestions: [{ name: "単価", code: "unit_price", fieldType: "number" as const, reason: "金額を集計します。" }] };
+    const changes = blueprintDiff(blueprint, updated);
+    expect(changes.map((change) => change.name)).toEqual(["AIの設計説明", "AIのおすすめ"]);
+    expect(changes[1].detail).toContain("単価（数値）");
+    expect(blueprintDiff({ ...blueprint, suggestions: [] }, blueprint)).toEqual([]);
   });
   it("preserves manual edits and layout during regeneration", () => {
     const current = draftFromBlueprint(blueprint);

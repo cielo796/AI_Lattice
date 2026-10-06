@@ -88,11 +88,15 @@ export function fieldCodeError(field: DraftField, fields: DraftField[]) {
   return "";
 }
 
+export function draftCodeError(code: string) {
+  return /^[a-z][a-z0-9-]*$/.test(code) ? "" : "英小文字で始め、英小文字・数字・ハイフンで入力してください。";
+}
+
 export function draftErrors(draft: AppDraft) {
   const fields = orderedFields(draft);
   return [
     ...(!draft.name.trim() || !draft.table.name.trim() || !draft.description.trim() ? ["アプリ名・テーブル名・説明を入力してください。"] : []),
-    ...(!/^[a-z][a-z0-9-]*$/.test(draft.code) || !/^[a-z][a-z0-9-]*$/.test(draft.table.code) ? ["アプリ／テーブルコードは英小文字で始め、英小文字・数字・ハイフンで入力してください。"] : []),
+    ...(draftCodeError(draft.code) || draftCodeError(draft.table.code) ? ["アプリ／テーブルコードは英小文字で始め、英小文字・数字・ハイフンで入力してください。"] : []),
     ...(fields.length < 1 || fields.length > 10 ? ["フィールドは1〜10個にしてください。"] : []),
     ...fields.flatMap((field) => [!field.name.trim() ? "表示名を入力してください。" : "", fieldCodeError(field, fields), field.fieldType === "select" && field.options.length === 0 ? "選択式には選択肢を追加してください。" : ""].filter(Boolean)),
   ];
@@ -129,6 +133,8 @@ export function blueprintDiff(before: GeneratedAppBlueprint, after: GeneratedApp
   for (const [code, field] of previous) if (!next.has(code)) changes.push({ kind: "削除", name: field.name, code, detail: "この項目を削除します" });
   if (before.name !== after.name || before.code !== after.code || before.description !== after.description || before.tables[0].name !== after.tables[0].name || before.tables[0].code !== after.tables[0].code) changes.push({ kind: "変更", name: "アプリ／テーブル", detail: `${after.name}・${after.tables[0].name}・${after.description}` });
   if (JSON.stringify(before.layout) !== JSON.stringify(after.layout)) changes.push({ kind: "変更", name: "フォームの配置", detail: "項目の順番・全幅／2列の配置を変更します" });
+  if (before.aiInsight !== after.aiInsight) changes.push({ kind: "変更", name: "AIの設計説明", detail: after.aiInsight });
+  if (JSON.stringify(before.suggestions ?? []) !== JSON.stringify(after.suggestions ?? [])) changes.push({ kind: "変更", name: "AIのおすすめ", detail: after.suggestions?.length ? after.suggestions.map((suggestion) => `${suggestion.name}（${FIELD_TYPES.find((type) => type.type === suggestion.fieldType)?.label}）${suggestion.reason ? `：${suggestion.reason}` : ""}`).join("・") : "追加候補はありません" });
   return changes;
 }
 
