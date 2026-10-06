@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { Avatar } from "./Avatar";
+import { AppSearch } from "./AppSearch";
+import { useDisplayTheme } from "./DisplayThemeProvider";
 import { cn } from "@/lib/cn";
 import { getUnreadNotificationCount } from "@/lib/api/notifications";
 import { useAuthStore } from "@/stores/authStore";
@@ -18,6 +20,8 @@ interface TopBarProps {
 
 export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
   const avatarName = useAuthStore((s) => s.user?.name ?? "Marcus Chen");
+  const { settings } = useDisplayTheme();
+  const userMenuId = useId();
   const { isSidebarCollapsed, toggleMobileNav } = useShellChrome();
   const { hasCurrentTour, currentTourLabel, startCurrentTour } = useGuideLauncher();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -76,7 +80,7 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
   return (
     <header
       className={cn(
-        "fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant bg-surface/90 px-3 backdrop-blur-md transition-[left] duration-200 ease-out md:left-64 md:px-6",
+        "fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center justify-between border-b border-outline-variant bg-surface px-3 transition-[left] duration-200 ease-out md:left-[232px] md:px-6",
         isSidebarCollapsed && "md:left-[4.5rem]"
       )}
       data-guide="topbar"
@@ -90,28 +94,19 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
         >
           <Icon name="menu" />
         </button>
-        <div className="min-w-0">
-          {breadcrumbs && breadcrumbs.length > 0 && (
-            <div className="mb-0.5 hidden items-center gap-1.5 text-[11px] lg:flex">
-              {breadcrumbs.slice(0, -1).map((crumb, i) => (
-                <span key={i} className="flex items-center gap-1.5">
-                  <span className="font-medium text-on-surface-muted">
-                    {crumb.label}
-                  </span>
-                  <Icon name="chevron_right" className="text-on-surface-muted" size="sm" />
-                </span>
-              ))}
-            </div>
-          )}
-          {title && (
-            <h1 className="truncate font-headline text-[17px] font-extrabold tracking-tight text-on-surface md:text-[19px]">
-              {title}
-            </h1>
-          )}
-        </div>
+        <nav aria-label="パンくず" className="flex min-w-0 items-center gap-1.5 text-xs">
+          {breadcrumbs?.slice(0, -1).map((crumb) => (
+            <span key={crumb.label} className="hidden items-center gap-1.5 lg:flex">
+              {crumb.href ? <Link href={crumb.href} className="text-on-surface-variant hover:text-info">{crumb.label}</Link> : <span className="text-on-surface-variant">{crumb.label}</span>}
+              <Icon name="chevron_right" className="text-on-surface-variant" size="sm" />
+            </span>
+          ))}
+          <span aria-current="page" className="truncate text-[13px] font-semibold">{title ?? breadcrumbs?.at(-1)?.label}</span>
+        </nav>
       </div>
 
       <div className="flex shrink-0 items-center gap-1 md:gap-2">
+        <AppSearch />
         {actions && (
           <div className="relative" ref={actionsRef}>
             <button
@@ -163,7 +158,7 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
             <Icon name="notifications" />
           </Link>
           {unreadCount > 0 && (
-            <span className="pointer-events-none absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-white ring-2 ring-surface">
+            <span className="pointer-events-none absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-on-primary ring-2 ring-surface">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
@@ -175,8 +170,11 @@ export function TopBar({ title, breadcrumbs, actions }: TopBarProps) {
         >
           <Icon name="settings" />
         </Link>
-        <div className="ml-1 flex items-center">
-          <Avatar name={avatarName} size="md" />
+        <button type="button" popoverTarget={userMenuId} aria-label="ユーザーメニュー" className="ml-1 rounded-full"><Avatar name={avatarName} size="md" /></button>
+        <div id={userMenuId} popover="auto" className="fixed left-auto right-3 top-14 m-0 w-52 rounded-md border border-outline-variant bg-surface p-2 text-xs text-on-surface shadow-popover">
+          <p className="truncate border-b border-outline-variant px-2 py-2 font-semibold">{avatarName}</p>
+          <Link href="/settings/profile" onClick={() => document.getElementById(userMenuId)?.hidePopover()} className="block rounded px-2 py-2 hover:bg-surface-container">プロフィール</Link>
+          <Link href="/settings/display" onClick={() => document.getElementById(userMenuId)?.hidePopover()} className="block rounded px-2 py-2 hover:bg-surface-container">表示設定{settings.allowUserTheme ? "" : "（管理者が固定）"}</Link>
         </div>
       </div>
     </header>

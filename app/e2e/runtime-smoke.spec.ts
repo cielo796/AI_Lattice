@@ -20,6 +20,7 @@ interface AppRecord {
 const mojibakePattern =
   /[\uFFFD\uF8FF\u7E67\u7E5D\u7E3A\u8373\u8C7A]|[\uFF66-\uFF9F]{3,}/u;
 const EXPECT_TIMEOUT = 30000;
+test.use({ actionTimeout: 15000 });
 
 async function expectJson<T>(response: APIResponse) {
   const body = await response.text();
@@ -36,7 +37,7 @@ async function login(page: Page) {
   await page.goto("/home");
   await expect(page).toHaveURL(/\/home$/);
   await expect(
-    page.getByRole("heading", { name: /おかえりなさい/ })
+    page.getByRole("heading", { name: "ホーム", exact: true })
   ).toBeVisible();
 }
 
@@ -188,8 +189,9 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
     await page.goto("/home");
     const deleteCard = page.getByTestId(`app-card-${app.id}`);
     await expect(deleteCard).toBeVisible();
+    await deleteCard.getByRole("button", { name: /その他の操作/ }).click();
     page.once("dialog", (dialog) => dialog.accept());
-    await deleteCard.getByTestId(`delete-app-${app.id}`).click();
+    await page.getByRole("button", { name: "削除", exact: true }).click();
     await expect(page.getByText("アプリを削除しました")).toBeVisible();
     await expect(page.getByTestId(`app-card-${app.id}`)).toHaveCount(0);
     appDeleted = true;

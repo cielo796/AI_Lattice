@@ -45,6 +45,25 @@ export interface GeneratedBlueprintField {
   fieldType: GeneratedBlueprintFieldType;
   required: boolean;
   options?: string[];
+  reason?: string;
+}
+
+export interface GeneratedBlueprintLayoutRow {
+  cols: 1 | 2;
+  items: string[];
+}
+
+export interface GeneratedBlueprintSuggestion {
+  name: string;
+  code: string;
+  fieldType: GeneratedBlueprintFieldType;
+  reason?: string;
+}
+
+export interface BlueprintModelInfo {
+  model: string;
+  source: "template" | "tenant";
+  templateName?: string;
 }
 
 export interface GeneratedBlueprintTable {
@@ -59,6 +78,8 @@ export interface GeneratedAppBlueprint {
   description: string;
   aiInsight: string;
   tables: GeneratedBlueprintTable[];
+  layout?: GeneratedBlueprintLayoutRow[];
+  suggestions?: GeneratedBlueprintSuggestion[];
 }
 
 export interface AISummary {

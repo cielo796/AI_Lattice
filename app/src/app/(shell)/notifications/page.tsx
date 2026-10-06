@@ -248,7 +248,7 @@ export default function NotificationsPage() {
                   onClick={() => setFilter(value)}
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
                     filter === value
-                      ? "bg-primary text-white"
+                      ? "bg-primary text-on-primary"
                       : "text-on-surface-variant hover:bg-surface-container"
                   }`}
                 >

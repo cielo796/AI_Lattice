@@ -132,7 +132,7 @@ export default function WorkflowEditorPage() {
       <Button onClick={() => void saveWorkflow("active")} disabled={!draft || readOnly || !context}>有効化</Button>
     </div>} />
     <main className="flex min-h-[calc(100vh-3.5rem)] flex-col pt-14 xl:flex-row">
-      <aside className="w-full shrink-0 border-b border-outline-variant bg-sidebar p-4 xl:w-64 xl:border-r" data-guide="workflow-list">
+      <aside className="w-full shrink-0 border-b border-outline-variant bg-surface p-4 xl:w-64 xl:border-r" data-guide="workflow-list">
         <h1 className="mb-3 text-sm font-bold text-on-surface">ワークフロー</h1>
         <div className="mb-4 space-y-2">
           <WorkflowField label="新規テンプレート"><select value={template} disabled={readOnly} onChange={(event) => setTemplate(event.target.value as "blank" | "approval")} className={workflowInputClass}><option value="blank">空テンプレート</option><option value="approval">アプリ承認テンプレート</option></select></WorkflowField>

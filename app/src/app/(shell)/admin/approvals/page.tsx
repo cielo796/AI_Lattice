@@ -160,7 +160,7 @@ export default function ApprovalsPage() {
 
       <main className="mx-auto max-w-7xl px-6 pt-20 pb-10 md:px-10">
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3" data-guide="approvals-summary">
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               承認待ち
             </div>
@@ -168,7 +168,7 @@ export default function ApprovalsPage() {
               {pendingCount}
             </div>
           </div>
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               表示中
             </div>
@@ -176,7 +176,7 @@ export default function ApprovalsPage() {
               {approvals.length}
             </div>
           </div>
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               選択中
             </div>
@@ -195,7 +195,7 @@ export default function ApprovalsPage() {
               className={cn(
                 "rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
                 filter === item.value
-                  ? "bg-primary text-white"
+                  ? "bg-primary text-on-primary"
                   : "border border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
               )}
             >
@@ -217,7 +217,7 @@ export default function ApprovalsPage() {
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <section
-            className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]"
+            className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-card"
             data-guide="approvals-list"
           >
             <div className="grid grid-cols-[1fr_120px_150px] gap-4 border-b border-outline-variant px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted md:grid-cols-[1.4fr_1fr_130px_150px]">
@@ -275,7 +275,7 @@ export default function ApprovalsPage() {
           </section>
 
           <aside
-            className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]"
+            className="rounded-xl border border-outline-variant bg-surface p-6 shadow-card"
             data-guide="approvals-detail"
           >
             {selected ? (

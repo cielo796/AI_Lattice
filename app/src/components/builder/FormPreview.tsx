@@ -24,7 +24,7 @@ export function FormPreview({ title, subtitle, aiInsight }: FormPreviewProps) {
       </div>
 
       {/* Mock ticket detail form */}
-      <div className="rounded-xl border border-outline-variant bg-surface p-8 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+      <div className="rounded-xl border border-outline-variant bg-surface p-8 shadow-card">
         <div className="grid grid-cols-2 gap-6">
           <div className="col-span-2">
             <label className="block text-[11px] font-semibold text-on-surface-muted mb-2 uppercase tracking-wider">

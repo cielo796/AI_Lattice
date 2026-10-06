@@ -192,7 +192,7 @@ export function RecordDetail({
                   referenceTableCode,
                   referenceRecordId
                 )}
-                className="inline-flex items-center gap-1 rounded-full bg-primary-container px-3 py-1 font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-white"
+                className="inline-flex items-center gap-1 rounded-full bg-primary-container px-3 py-1 font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary"
               >
                 <span>
                   {referenceLabelsByField[key]?.[referenceRecordId] ?? referenceRecordId}
@@ -403,7 +403,7 @@ export function RecordDetail({
               {approvals.some((approval) => approval.status === "pending") && (
                 <Link
                   href="/admin/approvals"
-                  className="inline-flex items-center gap-1 rounded-md bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-white"
+                  className="inline-flex items-center gap-1 rounded-md bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary"
                 >
                   Review queue
                   <Icon name="arrow_outward" size="sm" />
@@ -491,7 +491,7 @@ export function RecordDetail({
       <div className="px-8 py-4">
         <form
           onSubmit={(event) => void handleSubmit(event)}
-          className="rounded-xl border border-outline-variant bg-surface p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15"
+          className="rounded-xl border border-outline-variant bg-surface p-3 shadow-card focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15"
         >
           <input
             ref={attachmentInputRef}

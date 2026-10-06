@@ -149,7 +149,7 @@ export default function AIExecutionLogsPage() {
 
       <main className="mx-auto max-w-7xl px-6 pt-20 pb-10 md:px-10">
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               表示件数
             </div>
@@ -157,7 +157,7 @@ export default function AIExecutionLogsPage() {
               {logs.length}
             </div>
           </div>
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               成功
             </div>
@@ -165,7 +165,7 @@ export default function AIExecutionLogsPage() {
               {successCount}
             </div>
           </div>
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               失敗
             </div>
@@ -173,7 +173,7 @@ export default function AIExecutionLogsPage() {
               {errorCount}
             </div>
           </div>
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               Tokens
             </div>
@@ -192,7 +192,7 @@ export default function AIExecutionLogsPage() {
               className={cn(
                 "rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
                 status === item.value
-                  ? "bg-primary text-white"
+                  ? "bg-primary text-on-primary"
                   : "border border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
               )}
             >
@@ -208,7 +208,7 @@ export default function AIExecutionLogsPage() {
         )}
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-card">
             <div className="grid grid-cols-[1fr_92px_96px] gap-3 border-b border-outline-variant px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted md:grid-cols-[150px_1fr_120px_100px_100px]">
               <span className="hidden md:block">時刻</span>
               <span>操作</span>
@@ -265,7 +265,7 @@ export default function AIExecutionLogsPage() {
             )}
           </section>
 
-          <aside className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <aside className="rounded-xl border border-outline-variant bg-surface p-6 shadow-card">
             {selected ? (
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-3">

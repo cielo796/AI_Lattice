@@ -45,7 +45,7 @@ export function SetupForm() {
       <div className="space-y-5" role="status">
         <h2 className="text-xl font-bold">組織を作成しました</h2>
         <p className="text-sm text-on-surface-variant">登録した管理者のメールアドレスとパスワードでログインできます。</p>
-        <Link href="/login" className="inline-flex rounded-lg bg-primary px-5 py-3 font-semibold text-white">ログインへ進む</Link>
+        <Link href="/login" className="inline-flex rounded-lg bg-primary px-5 py-3 font-semibold text-on-primary">ログインへ進む</Link>
       </div>
     );
   }

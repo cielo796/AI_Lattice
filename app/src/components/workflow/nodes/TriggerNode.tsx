@@ -6,12 +6,12 @@ import type { WorkflowNodeData } from "@/types/workflow";
 
 export function TriggerNode({ data }: NodeProps<WorkflowNodeData>) {
   return (
-    <div className="w-56 rounded-xl border border-outline-variant bg-surface px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.06)]">
+    <div className="w-56 rounded-xl border border-outline-variant bg-surface px-4 py-3 shadow-card">
       <div className="mb-2 flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-info-container">
-          <Icon name="send" size="sm" className="text-[#4573d2]" />
+        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container">
+          <Icon name="send" size="sm" className="text-on-surface-variant" />
         </div>
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4573d2]">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">
           トリガー
         </span>
       </div>

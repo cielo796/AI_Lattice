@@ -97,7 +97,7 @@ test("admin governance pages and non-approval workflow execution", async ({ page
     await expect(page.getByRole("main").getByRole("heading", { name: `E2E Workflow ${suffix}` })).toBeVisible();
 
     await page.goto(`/run/${app.code}/dashboard`);
-    await expect(page.getByRole("banner").getByRole("heading", { name: "ダッシュボード" })).toBeVisible();
+    await expect(page.getByRole("banner").getByRole("navigation", { name: "パンくず" })).toContainText("ダッシュボード");
 
     await page.goto(`/run/${app.code}/approvals`);
     await expect(page.getByRole("main").getByRole("heading", { name: "承認待ち一覧" })).toBeVisible();

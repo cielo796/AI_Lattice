@@ -80,7 +80,7 @@ export default function TenantsPage() {
                 </Badge>
                 <Link
                   href="/home"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3.5 text-[13px] font-semibold text-white hover:bg-primary-hover"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3.5 text-[13px] font-semibold text-on-primary hover:bg-primary-hover"
                 >
                   開く
                   <Icon name="arrow_forward" size="sm" />

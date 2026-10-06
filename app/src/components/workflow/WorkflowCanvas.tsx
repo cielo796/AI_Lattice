@@ -24,7 +24,7 @@ export function WorkflowCanvas({ definition, onChange, selectedNodeId, selectedE
   const [mode, setMode] = useState<"select" | "pan">("select");
   const [instance, setInstance] = useState<ReactFlowInstance | null>(null);
   const nodes = useMemo(() => definition.nodes.map((node, index) => ({ ...node, type: workflowNodeViewType(node.data.nodeType), position: node.position ?? { x: index * 300 + 100, y: 120 }, selected: node.id === selectedNodeId })) as Node<WorkflowNodeData>[], [definition.nodes, selectedNodeId]);
-  const edges = useMemo(() => definition.edges.map((edge) => ({ ...edge, selected: edge.id === selectedEdgeId })) as Edge[], [definition.edges, selectedEdgeId]);
+  const edges = useMemo(() => definition.edges.map((edge) => ({ ...edge, selected: edge.id === selectedEdgeId, style: { ...(edge.style && typeof edge.style === "object" ? edge.style : {}), stroke: edge.id === selectedEdgeId ? "var(--brand-strong)" : "var(--ink-muted)" } })) as Edge[], [definition.edges, selectedEdgeId]);
 
   function addNode(nodeType: WorkflowNodeType) {
     if (readOnly || definition.nodes.length >= 100) return;
@@ -69,7 +69,7 @@ export function WorkflowCanvas({ definition, onChange, selectedNodeId, selectedE
         fitView fitViewOptions={{ padding: 0.25 }} minZoom={0.2} maxZoom={2}
         proOptions={{ hideAttribution: true }} className="bg-surface"
       >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#94a3b8" />
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--border-control)" />
       </ReactFlow>
     </>
   );

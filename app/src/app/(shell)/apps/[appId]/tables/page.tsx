@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { DeleteActionMenu } from "@/components/shared/OverflowMenu";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { AISidebar } from "@/components/ai/AISidebar";
@@ -1256,7 +1257,7 @@ export default function TableDesignerPage() {
       <main className="flex min-h-[calc(100vh-3.5rem)] flex-col pt-14 2xl:h-[calc(100vh-3.5rem)] 2xl:flex-row">
         <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
         <aside
-          className="w-full border-b border-outline-variant bg-sidebar p-4 xl:w-80 xl:overflow-y-auto xl:border-b-0 xl:border-r xl:p-6"
+          className="w-full border-b border-outline-variant bg-surface p-4 xl:w-80 xl:overflow-y-auto xl:border-b-0 xl:border-r xl:p-6"
           data-guide="builder-table-sidebar"
         >
           <div className="mb-4 flex items-center justify-between">
@@ -1332,7 +1333,7 @@ export default function TableDesignerPage() {
 
           <form
             onSubmit={(event) => void onSubmitTable(event)}
-            className="mt-6 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+            className="mt-6 rounded-xl border border-outline-variant bg-surface p-4 shadow-card"
             data-guide="builder-table-form"
           >
             <div className="mb-3 flex items-center justify-between">
@@ -1387,7 +1388,7 @@ export default function TableDesignerPage() {
             </div>
 
             <section
-              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-6"
+              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-card md:p-6"
               data-guide="builder-view-section"
             >
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1485,14 +1486,7 @@ export default function TableDesignerPage() {
                           >
                             編集
                           </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            onClick={() => void onDeleteView(view)}
-                          >
-                            削除
-                          </Button>
+                          <DeleteActionMenu name={view.name} onDelete={() => void onDeleteView(view)} />
                         </div>
                       </div>
                     </div>
@@ -1852,7 +1846,7 @@ export default function TableDesignerPage() {
             </section>
 
             <section
-              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-6"
+              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-card md:p-6"
               data-guide="builder-form-section"
             >
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1911,14 +1905,7 @@ export default function TableDesignerPage() {
                           >
                             編集
                           </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            onClick={() => void onDeleteForm(form)}
-                          >
-                            削除
-                          </Button>
+                          <DeleteActionMenu name={form.name} onDelete={() => void onDeleteForm(form)} />
                         </div>
                       </div>
                     </div>
@@ -2101,7 +2088,7 @@ export default function TableDesignerPage() {
 
             <form
               onSubmit={(event) => void onSubmitField(event)}
-              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.04)] md:p-6"
+              className="mb-8 rounded-xl border border-outline-variant bg-surface p-4 shadow-card md:p-6"
               data-guide="builder-field-form"
             >
               <div className="mb-4 flex items-center justify-between">
@@ -2404,7 +2391,7 @@ export default function TableDesignerPage() {
                 <div
                   key={field.id}
                   data-draggable
-                  className="group grid grid-cols-1 gap-4 rounded-lg border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)] md:grid-cols-[minmax(0,2fr)_160px_120px] md:items-center"
+                  className="group grid grid-cols-1 gap-4 rounded-lg border border-outline-variant bg-surface p-4 shadow-card transition-shadow hover:shadow-card md:grid-cols-[minmax(0,2fr)_160px_120px] md:items-center"
                 >
                   <div className="min-w-0">
                     <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted md:hidden">
@@ -2467,9 +2454,7 @@ export default function TableDesignerPage() {
                     >
                       編集
                     </Button>
-                    <Button type="button" size="sm" variant="danger" onClick={() => void onDeleteField(field)}>
-                      削除
-                    </Button>
+                    <DeleteActionMenu name={field.name} onDelete={() => void onDeleteField(field)} />
                   </div>
                 </div>
               ))}

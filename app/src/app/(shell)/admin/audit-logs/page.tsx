@@ -217,7 +217,7 @@ export default function AuditLogsPage() {
 
       <main className="mx-auto max-w-7xl px-6 pt-20 pb-10 md:px-10">
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               表示件数
             </div>
@@ -225,7 +225,7 @@ export default function AuditLogsPage() {
               {logs.length}
             </div>
           </div>
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               変更操作
             </div>
@@ -233,7 +233,7 @@ export default function AuditLogsPage() {
               {mutationCount}
             </div>
           </div>
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               AI 関与
             </div>
@@ -250,7 +250,7 @@ export default function AuditLogsPage() {
         )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
-          <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-card">
             <div className="hidden grid-cols-[140px_180px_150px_1fr] gap-4 border-b border-outline-variant px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted md:grid">
               <div>時刻</div>
               <div>ユーザー</div>
@@ -316,7 +316,7 @@ export default function AuditLogsPage() {
             )}
           </div>
 
-          <aside className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <aside className="rounded-xl border border-outline-variant bg-surface p-6 shadow-card">
             {selected ? (
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-3">

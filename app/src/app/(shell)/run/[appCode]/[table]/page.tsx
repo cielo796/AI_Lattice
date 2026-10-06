@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { mergeRecordComments } from "@/lib/runtime/comments";
 import {
   useParams,
@@ -203,10 +203,9 @@ export default function RuntimeViewPage() {
 
   const selectedRecord =
     records.find((record) => record.id === selectedId) ?? null;
-  const resolvedRecords = resolveRecordListReferences(
-    records,
-    tableMeta?.fields ?? [],
-    referenceLabelsByField
+  const resolvedRecords = useMemo(
+    () => resolveRecordListReferences(records, tableMeta?.fields ?? [], referenceLabelsByField),
+    [records, tableMeta, referenceLabelsByField]
   );
   const resolvedSelectedRecord =
     resolvedRecords.find((record) => record.id === selectedId) ?? null;

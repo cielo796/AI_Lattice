@@ -1,7 +1,10 @@
 import { DEFAULT_AI_MODEL } from "@/lib/ai-models";
+import { normalizeBlueprintLayout, toBlueprintFormLayout } from "@/lib/blueprint-layout";
+import { buildInitialViewsForTable } from "@/lib/blueprint-views";
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
 import {
   generateJsonWithModelGateway,
+  resolveModelGatewayConfiguration,
   type ModelGatewayClientLike,
 } from "@/server/ai/model-gateway";
 import { recordAuditLog } from "@/server/audit/service";
@@ -14,13 +17,13 @@ import type {
   GeneratedBlueprintField,
   GeneratedBlueprintFieldType,
   GeneratedBlueprintTable,
+  BlueprintModelInfo,
 } from "@/types/ai";
 import type { User } from "@/types/user";
 
 const MAX_TABLES = 1;
 const MAX_FIELDS_PER_TABLE = 10;
 const SAMPLE_RECORDS_PER_TABLE = 3;
-const DEFAULT_VIEW_COLUMN_LIMIT = 4;
 const GENERATED_BLUEPRINT_FIELD_TYPES: GeneratedBlueprintFieldType[] = [
   "text",
   "textarea",
@@ -31,20 +34,13 @@ const GENERATED_BLUEPRINT_FIELD_TYPES: GeneratedBlueprintFieldType[] = [
   "select",
 ];
 const OPENAI_MODEL = DEFAULT_AI_MODEL;
-const GROUP_FIELD_CODES = new Set([
-  "status",
-  "state",
-  "stage",
-  "priority",
-  "approval_status",
-]);
 const MULTI_TABLE_PROMPT_PATTERN =
   /(複数(?:の)?テーブル|テーブル(?:を|に)分け|別テーブル|参照テーブル|関連テーブル|マスタ|マスター|リレーション|multiple tables|separate tables|master table|reference table|lookup table|relationship|relational)/i;
 
 const BLUEPRINT_RESPONSE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "code", "description", "aiInsight", "tables"],
+  required: ["name", "code", "description", "aiInsight", "tables", "layout", "suggestions"],
   properties: {
     name: { type: "string" },
     code: { type: "string" },
@@ -64,7 +60,7 @@ const BLUEPRINT_RESPONSE_SCHEMA = {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["name", "code", "fieldType", "required", "options"],
+              required: ["name", "code", "fieldType", "required", "options", "reason"],
               properties: {
                 name: { type: "string" },
                 code: { type: "string" },
@@ -73,6 +69,7 @@ const BLUEPRINT_RESPONSE_SCHEMA = {
                   enum: GENERATED_BLUEPRINT_FIELD_TYPES,
                 },
                 required: { type: "boolean" },
+                reason: { type: "string" },
                 options: {
                   type: "array",
                   items: { type: "string" },
@@ -82,6 +79,14 @@ const BLUEPRINT_RESPONSE_SCHEMA = {
           },
         },
       },
+    },
+    layout: {
+      type: "array",
+      items: { type: "object", additionalProperties: false, required: ["cols", "items"], properties: { cols: { type: "integer", enum: [1, 2] }, items: { type: "array", items: { type: "string" } } } },
+    },
+    suggestions: {
+      type: "array",
+      items: { type: "object", additionalProperties: false, required: ["name", "code", "fieldType", "reason"], properties: { name: { type: "string" }, code: { type: "string" }, fieldType: { type: "string", enum: GENERATED_BLUEPRINT_FIELD_TYPES }, reason: { type: "string" } } },
     },
   },
 } as const;
@@ -98,6 +103,8 @@ const GENERATION_INSTRUCTIONS = [
   "Use Japanese for display names, descriptions, and AI insights when the prompt is Japanese. Keep all code fields ASCII.",
   "Only select fields may include options; all other fields must use an empty options array.",
   "Do not generate workflows or views.",
+  "Include a one-sentence Japanese reason for each field, and 0 to 3 optional additional field suggestions (name, code, fieldType, reason). Suggestions must not duplicate existing fields.",
+  "Include layout rows with cols 1 or 2 and items containing field codes. Include every field exactly once. Related pairs may share a two-column row; never use three columns.",
   "Choose clear business-friendly names and descriptions.",
 ].join(" ");
 
@@ -245,87 +252,6 @@ function getSampleRecordStatus(data: Record<string, unknown>, recordIndex: numbe
   return ["pending", "active", "approved"][recordIndex % 3];
 }
 
-function getInitialViewColumns(table: GeneratedBlueprintTable) {
-  return table.fields
-    .slice(0, DEFAULT_VIEW_COLUMN_LIMIT)
-    .map((field) => field.code);
-}
-
-function getInitialGroupField(table: GeneratedBlueprintTable) {
-  return (
-    table.fields.find((field) => GROUP_FIELD_CODES.has(field.code)) ??
-    table.fields.find(
-      (field) => field.fieldType === "select" || field.fieldType === "boolean"
-    )
-  );
-}
-
-function getInitialDateField(table: GeneratedBlueprintTable) {
-  return table.fields.find(
-    (field) => field.fieldType === "date" || field.fieldType === "datetime"
-  );
-}
-
-function getInitialMetricField(table: GeneratedBlueprintTable) {
-  return table.fields.find((field) => field.fieldType === "number");
-}
-
-function buildInitialViewsForTable(table: GeneratedBlueprintTable) {
-  const columns = getInitialViewColumns(table);
-  const groupField = getInitialGroupField(table);
-  const dateField = getInitialDateField(table);
-  const metricField = getInitialMetricField(table);
-  const views: Array<{
-    name: string;
-    viewType: "list" | "kanban" | "calendar" | "chart" | "summary";
-    settingsJson: Record<string, unknown>;
-  }> = [
-    {
-      name: "一覧",
-      viewType: "list",
-      settingsJson: { columns },
-    },
-  ];
-
-  if (groupField) {
-    views.push({
-      name: "カンバン",
-      viewType: "kanban",
-      settingsJson: { columns, groupByFieldCode: groupField.code },
-    });
-  }
-
-  if (dateField) {
-    views.push({
-      name: "カレンダー",
-      viewType: "calendar",
-      settingsJson: { columns, dateFieldCode: dateField.code },
-    });
-  }
-
-  if (groupField) {
-    views.push({
-      name: "チャート",
-      viewType: "chart",
-      settingsJson: {
-        columns,
-        groupByFieldCode: groupField.code,
-        ...(metricField ? { metricFieldCode: metricField.code } : {}),
-      },
-    });
-  }
-
-  if (metricField) {
-    views.push({
-      name: "集計",
-      viewType: "summary",
-      settingsJson: { columns, metricFieldCode: metricField.code },
-    });
-  }
-
-  return views;
-}
-
 function toJsonObject(value: Record<string, unknown>) {
   return value as Prisma.InputJsonObject;
 }
@@ -347,6 +273,7 @@ function assertString(value: unknown, fieldName: string) {
 }
 
 function normalizeStringArray(value: unknown) {
+  if (typeof value === "string") value = value.split(/[,、，\r\n]/);
   if (!Array.isArray(value)) {
     return [];
   }
@@ -389,6 +316,7 @@ function normalizeGeneratedField(
     fieldType: fieldType as GeneratedBlueprintFieldType,
     required: field.required,
     ...(fieldType === "select" ? { options } : {}),
+    ...(typeof field.reason === "string" && field.reason.trim() ? { reason: field.reason.trim() } : {}),
   };
 }
 
@@ -549,6 +477,15 @@ export function normalizeGeneratedAppBlueprint(
           )
         : aiInsight,
     tables: tables.slice(0, MAX_TABLES),
+    ...(blueprint.layout !== undefined ? { layout: normalizeBlueprintLayout(blueprint.layout, tables[0].fields.map((field) => field.code)) } : {}),
+    ...(Array.isArray(blueprint.suggestions) ? { suggestions: blueprint.suggestions.flatMap((candidate) => {
+      if (!candidate || typeof candidate !== "object") return [];
+      const suggestion = candidate as Record<string, unknown>;
+      const type = suggestion.fieldType ?? suggestion.type;
+      const code = typeof suggestion.code === "string" ? normalizeIdentifier(suggestion.code, "_") : "";
+      if (typeof suggestion.name !== "string" || !suggestion.name.trim() || !/^[a-z][a-z0-9_]*$/.test(code) || !GENERATED_BLUEPRINT_FIELD_TYPES.includes(type as GeneratedBlueprintFieldType) || tables[0].fields.some((field) => field.code === code)) return [];
+      return [{ name: suggestion.name.trim(), code, fieldType: type as GeneratedBlueprintFieldType, ...(typeof suggestion.reason === "string" && suggestion.reason.trim() ? { reason: suggestion.reason.trim() } : {}) }];
+    }).filter((suggestion, index, all) => all.findIndex((other) => other.code === suggestion.code) === index).slice(0, 3) } : {}),
   };
 }
 
@@ -557,7 +494,8 @@ async function requestBlueprint(
   client: ModelGatewayClientLike | undefined,
   instructions: string,
   input: string,
-  operation: string
+  operation: string,
+  signal?: AbortSignal
 ) {
   const response = await generateJsonWithModelGateway(
     {
@@ -567,6 +505,9 @@ async function requestBlueprint(
       input,
       responseFormatName: "generated_app_blueprint",
       responseSchema: BLUEPRINT_RESPONSE_SCHEMA,
+      signal,
+      supplementTemplateInstructions: true,
+      useRequestResponseSchema: true,
       metadata: {
         inputLength: input.length,
       },
@@ -618,9 +559,11 @@ function toCreatedAppSummary(app: {
 export async function generateBlueprintFromPrompt(
   prompt: string,
   user: Pick<User, "id" | "tenantId" | "name" | "email">,
-  client?: ModelGatewayClientLike
+  client?: ModelGatewayClientLike,
+  signal?: AbortSignal
 ) {
   const trimmedPrompt = assertString(prompt, "Prompt");
+  if (trimmedPrompt.length > 1000) throw new AppsServiceError("説明は1000文字以内で入力してください。", 400);
 
   try {
     return applySingleTableGenerationDefault(
@@ -629,7 +572,8 @@ export async function generateBlueprintFromPrompt(
         client,
         GENERATION_INSTRUCTIONS,
         trimmedPrompt,
-        "app_blueprint.generate"
+        "app_blueprint.generate",
+        signal
       ),
       trimmedPrompt
     );
@@ -652,7 +596,8 @@ export async function generateBlueprintFromPrompt(
           client,
           REPAIR_INSTRUCTIONS,
           repairInput,
-          "app_blueprint.repair"
+          "app_blueprint.repair",
+          signal
         ),
         trimmedPrompt
       );
@@ -663,6 +608,25 @@ export async function generateBlueprintFromPrompt(
 
       throw new AppsServiceError("有効なアプリ設計案を生成できませんでした", 502);
     }
+  }
+}
+
+export async function getBlueprintModelInfo(user: Pick<User, "id" | "tenantId" | "name" | "email">): Promise<BlueprintModelInfo> {
+  const resolved = await resolveModelGatewayConfiguration({ user, operation: "app_blueprint.generate", instructions: GENERATION_INSTRUCTIONS, input: "", responseFormatName: "generated_app_blueprint", responseSchema: BLUEPRINT_RESPONSE_SCHEMA });
+  const template = resolved.metadata?.promptTemplate as { name?: string } | undefined;
+  return { model: resolved.model, source: resolved.promptTemplateVersionId ? "template" : "tenant", ...(template?.name ? { templateName: template.name } : {}) };
+}
+
+export async function adjustBlueprintFromInstruction(instruction: string, input: unknown, user: Pick<User, "id" | "tenantId" | "name" | "email">, client?: ModelGatewayClientLike, signal?: AbortSignal) {
+  const trimmed = assertString(instruction, "Instruction");
+  if (trimmed.length > 1000) throw new AppsServiceError("調整指示は1000文字以内で入力してください。", 400);
+  const blueprint = normalizeGeneratedAppBlueprint(input);
+  const prompt = `Apply only the requested changes to this existing unsaved app blueprint. Preserve unrelated fields, codes, options and layout. Return the complete updated blueprint, not a patch.\nInstruction: ${trimmed}\nCurrent blueprint: ${JSON.stringify(blueprint)}`;
+  try {
+    return await requestBlueprint(user, client, GENERATION_INSTRUCTIONS, prompt, "app_blueprint.generate", signal);
+  } catch (error) {
+    if (!(error instanceof InvalidGeneratedBlueprintError)) throw error;
+    return await requestBlueprint(user, client, `${GENERATION_INSTRUCTIONS} ${REPAIR_INSTRUCTIONS}`, `${prompt}\n${error.message}`, "app_blueprint.repair", signal);
   }
 }
 
@@ -702,6 +666,11 @@ export async function createAppFromBlueprint(
     });
 
     for (const [tableIndex, table] of blueprint.tables.entries()) {
+      const layout = blueprint.layout;
+      if (layout) {
+        const fieldByCode = new Map(table.fields.map((field) => [field.code, field]));
+        table.fields = layout.flatMap((row) => row.items.map((code) => fieldByCode.get(code)!));
+      }
       const tableId = crypto.randomUUID();
 
       await tx.appTable.create({
@@ -749,6 +718,10 @@ export async function createAppFromBlueprint(
             sortOrder: viewIndex,
           },
         });
+      }
+
+      if (layout) {
+        await tx.appForm.create({ data: { id: crypto.randomUUID(), tenantId: user.tenantId, appId, tableId, name: "入力フォーム", layoutJson: toBlueprintFormLayout(layout, table.fields), sortOrder: 0 } });
       }
 
       for (let recordIndex = 0; recordIndex < SAMPLE_RECORDS_PER_TABLE; recordIndex += 1) {

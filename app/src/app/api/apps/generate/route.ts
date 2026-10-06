@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateBlueprintFromPrompt } from "@/server/apps/blueprints";
+import { adjustBlueprintFromInstruction, generateBlueprintFromPrompt, getBlueprintModelInfo } from "@/server/apps/blueprints";
 import {
   parseJsonBody,
   recordRouteFailure,
@@ -10,6 +10,16 @@ import type { User } from "@/types/user";
 
 interface GenerateBlueprintInput {
   prompt?: string;
+  blueprint?: unknown;
+}
+
+export async function GET() {
+  try {
+    const user = await requireAuthenticatedUser();
+    return NextResponse.json(await getBlueprintModelInfo(user));
+  } catch (error) {
+    return toRouteErrorResponse(error);
+  }
 }
 
 export async function POST(request: Request) {
@@ -19,10 +29,9 @@ export async function POST(request: Request) {
   try {
     user = await requireAuthenticatedUser();
     input = await parseJsonBody<GenerateBlueprintInput>(request);
-    const blueprint = await generateBlueprintFromPrompt(
-      input.prompt ?? "",
-      user
-    );
+    const blueprint = input.blueprint === undefined
+      ? await generateBlueprintFromPrompt(input.prompt ?? "", user, undefined, request.signal)
+      : await adjustBlueprintFromInstruction(input.prompt ?? "", input.blueprint, user, undefined, request.signal);
     return NextResponse.json(blueprint);
   } catch (error) {
     await recordRouteFailure(

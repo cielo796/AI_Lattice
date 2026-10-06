@@ -25,7 +25,7 @@ export function AIInsightCard({
     >
       {title && (
         <div className="mb-2 flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-tertiary text-white shadow-sm">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-tertiary text-on-primary shadow-sm">
             <Icon name={icon} size="sm" filled />
           </span>
           <span className="text-[11px] font-semibold uppercase tracking-wider text-on-tertiary-container">

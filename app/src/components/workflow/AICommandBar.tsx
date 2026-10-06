@@ -5,7 +5,7 @@ import { Icon } from "@/components/shared/Icon";
 export function AICommandBar() {
   return (
     <div className="absolute bottom-4 left-4 right-4 z-20 md:bottom-6 md:left-1/2 md:right-auto md:w-full md:max-w-2xl md:-translate-x-1/2">
-      <div className="flex items-center gap-3 rounded-full border border-outline-variant bg-surface px-4 py-2.5 shadow-[0_4px_8px_rgba(15,23,42,0.06),0_16px_40px_rgba(15,23,42,0.12)]">
+      <div className="flex items-center gap-3 rounded-full border border-outline-variant bg-surface px-4 py-2.5 shadow-card">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tertiary-container text-tertiary">
           <Icon name="auto_awesome" filled size="sm" />
         </span>
@@ -18,9 +18,9 @@ export function AICommandBar() {
         <button
           disabled
           aria-label="AIワークフロー編集はまだ利用できません"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white shadow-sm transition-colors hover:bg-primary-hover active:scale-95"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-on-primary shadow-sm transition-colors hover:bg-primary-hover active:scale-95"
         >
-          <Icon name="arrow_upward" size="sm" className="text-white" />
+          <Icon name="arrow_upward" size="sm" className="text-on-primary" />
         </button>
       </div>
     </div>

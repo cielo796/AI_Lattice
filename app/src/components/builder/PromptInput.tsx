@@ -20,7 +20,7 @@ export function PromptInput({
   return (
     <div className="relative group">
       <div className="absolute -inset-1 rounded-2xl bg-tertiary-container/40 opacity-60 blur transition duration-500 group-hover:opacity-100 group-focus-within:opacity-100" />
-      <div className="relative rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+      <div className="relative rounded-xl border border-outline-variant bg-surface p-6 shadow-card">
         <div className="flex items-center gap-4 mb-4">
           <Icon name="psychology" className="text-primary" filled />
           <input

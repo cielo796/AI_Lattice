@@ -47,7 +47,7 @@ export function RecordActivitySections({
   const roundedClass = compact ? "rounded-xl" : "rounded-lg";
   const activityCardClass = cn(
     roundedClass,
-    "border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+    "border border-outline-variant bg-surface p-4 shadow-card"
   );
   const emptyClass = cn(
     roundedClass,
@@ -150,12 +150,12 @@ export function RecordActivitySections({
                 <div
                   key={attachment.id}
                   className={cn(
-                    "flex items-center gap-3 border border-outline-variant bg-surface p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+                    "flex items-center gap-3 border border-outline-variant bg-surface p-3 shadow-card",
                     roundedClass
                   )}
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info-container">
-                    <Icon name="description" size="sm" className="text-[#4573d2]" />
+                    <Icon name="description" size="sm" className="text-on-surface-variant" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <a
@@ -189,7 +189,7 @@ export function RecordActivitySections({
                   target="_blank"
                   rel="noreferrer"
                   className={cn(
-                    "block border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)]",
+                    "block border border-outline-variant bg-surface p-4 shadow-card transition-shadow hover:shadow-card",
                     roundedClass
                   )}
                 >

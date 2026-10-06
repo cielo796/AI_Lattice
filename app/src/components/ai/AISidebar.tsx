@@ -26,7 +26,7 @@ export function AISidebar({
     >
       <div className="border-b border-outline-variant px-5 pb-4 pt-5">
         <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-tertiary text-white shadow-sm">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-tertiary text-on-primary shadow-sm">
             <Icon name="auto_awesome" size="sm" filled />
           </span>
           <span className="text-[13px] font-semibold text-on-surface">
