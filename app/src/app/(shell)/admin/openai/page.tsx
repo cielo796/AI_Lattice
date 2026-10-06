@@ -195,7 +195,7 @@ export default function OpenAISettingsPage() {
 
       <main className="mx-auto max-w-[1200px] px-4 py-10 pt-24 md:px-10">
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               状態
             </div>
@@ -203,7 +203,7 @@ export default function OpenAISettingsPage() {
               {getStatusLabel(status)}
             </Badge>
           </div>
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               利用元
             </div>
@@ -211,7 +211,7 @@ export default function OpenAISettingsPage() {
               {status ? sourceLabels[status.source] : "-"}
             </div>
           </div>
-          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="rounded-xl border border-outline-variant bg-surface p-5 shadow-card">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
               最終更新
             </div>
@@ -254,7 +254,7 @@ export default function OpenAISettingsPage() {
         </section>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+          <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-card">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="mb-2 flex items-center gap-2">
@@ -339,7 +339,7 @@ export default function OpenAISettingsPage() {
               </h2>
             </div>
             <div className="space-y-3 text-sm">
-              <div className="rounded-lg border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <div className="rounded-lg border border-outline-variant bg-surface p-4 shadow-card">
                 <div className="mb-1 font-semibold text-on-surface">
                   1. 管理画面
                 </div>
@@ -347,7 +347,7 @@ export default function OpenAISettingsPage() {
                   テナントに保存されたキーを優先します。
                 </div>
               </div>
-              <div className="rounded-lg border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <div className="rounded-lg border border-outline-variant bg-surface p-4 shadow-card">
                 <div className="mb-1 font-semibold text-on-surface">
                   2. 環境変数
                 </div>
@@ -355,7 +355,7 @@ export default function OpenAISettingsPage() {
                   未保存の場合は OPENAI_API_KEY を使います。
                 </div>
               </div>
-              <div className="rounded-lg border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <div className="rounded-lg border border-outline-variant bg-surface p-4 shadow-card">
                 <div className="mb-1 font-semibold text-on-surface">
                   保存形式
                 </div>

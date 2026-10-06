@@ -21,6 +21,7 @@ async function prepare(page: Page, blueprint = fixture()) {
   expect(["localhost", "127.0.0.1"]).toContain(database.hostname);
   expect(database.pathname).toMatch(/^\/lattice_test_[a-z0-9_]+$/);
   expect((await page.request.post("/api/auth/login", { data: { email: "marcus.chen@acme.com", password: "demo" } })).ok()).toBe(true);
+  expect((await page.request.patch("/api/settings/display", { data: { preference: "navy" } })).ok()).toBe(true);
   let calls = 0;
   await page.route("**/api/apps/generate", async (route) => {
     if (route.request().method() === "GET") { await route.continue(); return; }
@@ -192,8 +193,10 @@ test("limits, keyboard cancellation, regeneration confirmation, dark contrast an
   await expect(page.getByRole("dialog", { name: "編集内容を残して再生成しますか？" })).toBeVisible();
   await page.getByRole("button", { name: "全体を作り直す", exact: true }).click();
   await expect(page.locator(".ac-count")).toHaveText("5 / 10");
-  await page.evaluate(() => document.documentElement.dataset.theme = "dark");
-  await expect(page.locator(".app-creation")).toHaveCSS("background-color", "rgb(26, 23, 22)");
+  expect((await page.request.patch("/api/settings/display", { data: { preference: "dark" } })).ok()).toBe(true);
+  await page.reload();
+  await generate(page);
+  await expect(page.locator(".app-creation")).toHaveCSS("background-color", "rgb(17, 21, 27)");
   await checkContrast(page);
   await page.screenshot({ path: "test-results/creation-review-dark.png", fullPage: true });
   await page.setViewportSize({ width: 1024, height: 900 });

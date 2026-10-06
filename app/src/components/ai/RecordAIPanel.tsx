@@ -312,7 +312,7 @@ export function RecordAIPanel({
                   onClick={() =>
                     void handlePostReply(replyResult.replyDraft?.body ?? "")
                   }
-                  className="inline-flex h-6 items-center gap-1 rounded-full bg-tertiary px-2.5 text-[10px] font-bold text-white transition-colors hover:bg-tertiary/85 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-6 items-center gap-1 rounded-full bg-tertiary px-2.5 text-[10px] font-bold text-on-primary transition-colors hover:bg-tertiary/85 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Icon name="send" size="sm" className="text-[12px]" />
                   コメントに投稿

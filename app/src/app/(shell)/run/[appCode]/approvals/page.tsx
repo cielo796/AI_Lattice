@@ -83,7 +83,7 @@ export default function RuntimeApprovalsPage({ params }: { params: Promise<{ app
         </div>
         <div className="flex gap-2" data-guide="approvals-filters">
           {(["pending", "all", "approved", "rejected", "returned"] as Filter[]).map((value) => (
-            <button key={value} type="button" onClick={() => setFilter(value)} className={cn("rounded-md px-3 py-2 text-xs font-semibold", filter === value ? "bg-primary text-white" : "border border-outline-variant bg-surface text-on-surface-variant")}>
+            <button key={value} type="button" onClick={() => setFilter(value)} className={cn("rounded-md px-3 py-2 text-xs font-semibold", filter === value ? "bg-primary text-on-primary" : "border border-outline-variant bg-surface text-on-surface-variant")}>
               {value === "all" ? "すべて" : labels[value]}
             </button>
           ))}

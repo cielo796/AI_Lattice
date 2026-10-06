@@ -107,6 +107,8 @@ model Tenant {
   code      String       @unique
   status    TenantStatus @default(active)
   planType  String       @map("plan_type")
+  defaultTheme String   @default("navy") @map("default_theme")
+  allowUserTheme Boolean @default(true) @map("allow_user_theme")
   createdAt DateTime     @default(now()) @map("created_at")
   updatedAt DateTime     @updatedAt @map("updated_at")
 
@@ -242,6 +244,7 @@ model User {
   email        String
   name         String
   avatarUrl    String?    @map("avatar_url")
+  displayTheme String?    @map("display_theme")
   status       UserStatus @default(active)
   passwordHash String?    @map("password_hash")
   lastLoginAt  DateTime?  @map("last_login_at")

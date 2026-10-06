@@ -37,8 +37,8 @@ export function LoginForm({ demoEnabled, setupAvailable }: { demoEnabled: boolea
       <div className="relative flex min-h-screen items-center justify-center px-6">
         <div className="w-full max-w-md">
           <div className="mb-8 flex flex-col items-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_4px_8px_rgba(240,106,106,0.25)]">
-              <Icon name="hub" className="text-white" size="lg" />
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-on-primary shadow-card">
+              <Icon name="hub" className="text-on-primary" size="lg" />
             </div>
             <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
               AI Lattice
@@ -50,7 +50,7 @@ export function LoginForm({ demoEnabled, setupAvailable }: { demoEnabled: boolea
 
           <form
             onSubmit={handleSubmit}
-            className="space-y-5 rounded-2xl border border-outline-variant bg-surface p-7 shadow-[0_4px_8px_rgba(15,23,42,0.04),0_24px_64px_rgba(15,23,42,0.08)]"
+            className="space-y-5 rounded-2xl border border-outline-variant bg-surface p-7 shadow-card"
           >
             <div>
               <label htmlFor="login-email" className="mb-1.5 block text-[12px] font-semibold text-on-surface">

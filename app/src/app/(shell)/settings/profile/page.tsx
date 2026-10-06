@@ -7,6 +7,7 @@ import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { Input } from "@/components/shared/Input";
 import { TopBar } from "@/components/shared/TopBar";
+import { DisplaySettingsPanel } from "@/components/shared/DisplaySettingsPanel";
 import { getProfile, updateProfile } from "@/lib/api/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
@@ -106,6 +107,7 @@ export default function ProfileSettingsPage() {
           </div>
         </form>
         {!isLoading && !error && <PasswordChangeForm />}
+        <div className="mt-5"><DisplaySettingsPanel /></div>
       </main>
     </>
   );

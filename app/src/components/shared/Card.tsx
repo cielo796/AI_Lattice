@@ -12,9 +12,9 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export function Card({ children, className, variant = "default", ...props }: CardProps) {
   const base = {
     default:
-      "bg-surface rounded-xl border border-outline-variant p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]",
+      "bg-surface rounded-xl border border-outline-variant p-5 shadow-card transition-shadow hover:shadow-card",
     elevated:
-      "bg-surface rounded-xl border border-outline-variant p-5 shadow-[0_2px_4px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]",
+      "bg-surface rounded-xl border border-outline-variant p-5 shadow-card",
     glass: "glass-panel rounded-xl p-5",
   };
 

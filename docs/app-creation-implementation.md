@@ -2,6 +2,8 @@
 
 対象: `/apps/new/ai`。添付 `ai-lattice-app-creation/SPEC.md` に沿った改修。
 
+この文書は初回のアプリ作成実装の記録です。その後の全画面3テーマ・表示設定・ホーム刷新は `docs/design-refresh.md` を参照してください。現在の配色はグローバルな `tokens.css` を使用します。
+
 ## 既存実装の調査結果
 
 | 確認事項 | 結果・実装方針 |

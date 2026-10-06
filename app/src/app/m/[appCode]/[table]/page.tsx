@@ -179,7 +179,7 @@ function MobileRecordDetailView({
                   referenceTableCode,
                   referenceRecordId
                 )}
-                className="inline-flex items-center gap-1 rounded-full bg-primary-container px-3 py-1 font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-white"
+                className="inline-flex items-center gap-1 rounded-full bg-primary-container px-3 py-1 font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary"
               >
                 <span>
                   {referenceLabelsByField[key]?.[referenceRecordId] ?? referenceRecordId}
@@ -309,7 +309,7 @@ function MobileRecordDetailView({
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-surface-container-low">
-      <header className="border-b border-outline-variant bg-surface px-4 pb-4 pt-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <header className="border-b border-outline-variant bg-surface px-4 pb-4 pt-6 shadow-card">
         <div className="mb-4 flex items-start justify-between gap-4">
           <button
             type="button"
@@ -341,7 +341,7 @@ function MobileRecordDetailView({
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 pb-28 pt-4">
-        <div className="mb-4 rounded-2xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <div className="mb-4 rounded-2xl border border-outline-variant bg-surface p-4 shadow-card">
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="text-sm font-semibold text-on-surface">{customer}</span>
             <span className="text-[10px] text-on-surface-variant">
@@ -360,7 +360,7 @@ function MobileRecordDetailView({
             </div>
             <div className="space-y-2">
               {fields.map(([key, value]) => (
-                <div key={key} className="rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                <div key={key} className="rounded-xl border border-outline-variant bg-surface p-4 shadow-card">
                   <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
                     {formatFieldKey(key, fieldDefinitions)}
                   </div>
@@ -392,7 +392,7 @@ function MobileRecordDetailView({
         />
       </div>
 
-      <div className="border-t border-outline-variant bg-surface px-4 pb-6 pt-3 shadow-[0_-1px_2px_rgba(15,23,42,0.04)]">
+      <div className="border-t border-outline-variant bg-surface px-4 pb-6 pt-3 shadow-card">
         <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3">
           <input
             ref={attachmentInputRef}
@@ -464,7 +464,7 @@ function MobileRecordCard({
       data-testid={`mobile-record-card-${record.id}`}
       onClick={() => onOpen(record.id)}
       className={cn(
-        "block w-full rounded-xl border bg-surface p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all active:scale-[0.99] hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)]",
+        "block w-full rounded-xl border bg-surface p-4 text-left shadow-card transition-all active:scale-[0.99] hover:shadow-card",
         isSelected ? "border-primary bg-primary-container/30" : "border-outline-variant",
         compact && "p-3"
       )}
@@ -1112,7 +1112,7 @@ export default function MobileRuntimePage() {
         )}
 
         {(isLoadingRecords || isLoadingMeta) && (
-          <div className="rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] text-sm text-on-surface-variant">
+          <div className="rounded-xl border border-outline-variant bg-surface p-4 shadow-card text-sm text-on-surface-variant">
             レコードを読み込んでいます...
           </div>
         )}
@@ -1253,7 +1253,7 @@ export default function MobileRuntimePage() {
                               className={cn(
                                 "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
                                 day.isToday
-                                  ? "bg-primary text-white"
+                                  ? "bg-primary text-on-primary"
                                   : "text-on-surface-variant"
                               )}
                             >
@@ -1448,7 +1448,7 @@ export default function MobileRuntimePage() {
         type="button"
         onClick={() => setActiveOverlay("create")}
         disabled={isLoadingMeta}
-        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[0_4px_8px_rgba(240,106,106,0.25),0_8px_24px_rgba(240,106,106,0.18)] transition-all hover:bg-primary-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-on-primary shadow-card transition-all hover:bg-primary-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <Icon name="add" size="lg" className="text-on-surface" />
       </button>

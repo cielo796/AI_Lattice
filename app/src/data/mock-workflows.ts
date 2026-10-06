@@ -50,7 +50,7 @@ export const mockWorkflowEdges: Edge[] = [
     source: "wf-node-1",
     target: "wf-node-2",
     animated: true,
-    style: { stroke: "#475569", strokeWidth: 2, strokeDasharray: "8 4" },
+    style: { stroke: "var(--ink-muted)", strokeWidth: 2, strokeDasharray: "8 4" },
   },
   {
     id: "wf-edge-2",
@@ -58,13 +58,13 @@ export const mockWorkflowEdges: Edge[] = [
     target: "wf-node-3",
     label: "はい",
     animated: true,
-    style: { stroke: "#10b981", strokeWidth: 2 },
+    style: { stroke: "var(--success)", strokeWidth: 2 },
   },
   {
     id: "wf-edge-3",
     source: "wf-node-2",
     target: "wf-node-4",
     label: "いいえ",
-    style: { stroke: "#475569", strokeWidth: 2, strokeDasharray: "8 4" },
+    style: { stroke: "var(--ink-muted)", strokeWidth: 2, strokeDasharray: "8 4" },
   },
 ];

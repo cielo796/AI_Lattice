@@ -426,7 +426,7 @@ export function GuideProvider({ children }: { children: ReactNode }) {
       {children}
 
       {introTour && !isOpen && (
-        <div data-guide="guide-invitation" className="fixed bottom-4 right-4 z-[70] w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
+        <div data-guide="guide-invitation" className="fixed bottom-4 right-4 z-[70] w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-outline-variant bg-surface p-4 shadow-card">
           <div className="mb-2 flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-container text-primary">
               <Icon name="school" size="sm" />
@@ -463,9 +463,9 @@ export function GuideProvider({ children }: { children: ReactNode }) {
 
       {isOpen && decoratedStep && (
         <div aria-live="polite">
-          <div className="pointer-events-none fixed inset-0 z-[60] bg-black/20" />
+          <div className={cn("pointer-events-none fixed inset-0 z-[60]", targetRect ? "bg-transparent" : "bg-scrim")} />
           <div
-            className="pointer-events-none fixed z-[61] rounded-xl border-2 border-primary bg-transparent shadow-[0_0_0_9999px_rgba(15,23,42,0.22),0_0_0_6px_rgba(240,106,106,0.18)] transition-all duration-150"
+            className="pointer-events-none fixed z-[61] rounded-xl border-2 border-primary bg-transparent shadow-guide transition-all duration-150"
             style={getHighlightStyle(targetRect)}
           />
           <section
@@ -473,7 +473,7 @@ export function GuideProvider({ children }: { children: ReactNode }) {
             aria-modal="true"
             aria-label={decoratedStep.title}
             className={cn(
-              "fixed z-[70] rounded-xl border border-outline-variant bg-surface p-4 shadow-[0_12px_30px_rgba(15,23,42,0.22)]",
+              "fixed z-[70] rounded-xl border border-outline-variant bg-surface p-4 shadow-card",
               "w-[min(22.5rem,calc(100vw-2rem))]"
             )}
             style={getPopoverStyle(targetRect, decoratedStep)}

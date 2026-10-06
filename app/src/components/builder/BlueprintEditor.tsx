@@ -96,7 +96,7 @@ export function BlueprintEditor({
 
   return (
     <div className="w-full space-y-6">
-      <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+      <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-card">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-primary">
@@ -145,7 +145,7 @@ export function BlueprintEditor({
         </div>
       </section>
 
-      <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)]">
+      <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-card">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">

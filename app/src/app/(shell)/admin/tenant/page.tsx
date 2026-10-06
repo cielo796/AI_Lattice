@@ -6,6 +6,7 @@ import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { Input } from "@/components/shared/Input";
 import { TopBar } from "@/components/shared/TopBar";
+import { DisplaySettingsPanel } from "@/components/shared/DisplaySettingsPanel";
 import { getTenantSettings, updateTenantSettings } from "@/lib/api/tenant";
 import type { Tenant } from "@/types/user";
 import { useToastStore } from "@/stores/toastStore";
@@ -188,6 +189,7 @@ export default function AdminTenantPage() {
             </Button>
           </div>
         </form>
+        {!isLoading && !error && <DisplaySettingsPanel tenantOnly />}
       </main>
     </>
   );

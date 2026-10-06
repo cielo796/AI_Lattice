@@ -49,7 +49,7 @@ export function PasswordChangeForm() {
         </label>
       </fieldset>
       {error && <p role="alert" className="text-sm text-error">{error}</p>}
-      <Button type="submit" disabled={saving}>{saving ? "変更中…" : "パスワードを変更してログアウト"}</Button>
+      <Button type="submit" variant="secondary" disabled={saving}>{saving ? "変更中…" : "パスワードを変更してログアウト"}</Button>
     </form>
   );
 }

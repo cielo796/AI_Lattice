@@ -11,13 +11,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants = {
   primary:
-    "bg-primary text-white shadow-sm hover:bg-primary-hover active:bg-primary-pressed active:scale-[0.98] transition-all duration-100",
+    "bg-primary text-on-primary shadow-card hover:brightness-95 active:scale-[0.98] transition-all duration-100",
   secondary:
     "border border-outline bg-surface text-on-surface hover:bg-surface-container-high active:bg-surface-container-highest transition-colors",
   ghost:
     "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors",
   danger:
-    "bg-error text-white hover:bg-error/90 active:scale-[0.98] transition-all",
+    "border border-error bg-surface text-error hover:bg-error-container active:scale-[0.98] transition-all",
 };
 
 const sizes = {
@@ -37,8 +37,7 @@ export function Button({
     <button
       className={cn(
         "inline-flex items-center justify-center gap-1.5 rounded-md font-semibold tracking-tight",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1 focus-visible:ring-offset-surface",
-        "disabled:cursor-not-allowed disabled:opacity-50",
+        "disabled:cursor-not-allowed disabled:bg-surface-container disabled:text-on-surface-muted",
         variants[variant],
         sizes[size],
         className

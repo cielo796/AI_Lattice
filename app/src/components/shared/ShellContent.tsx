@@ -14,7 +14,7 @@ export function ShellContent({ children, className }: ShellContentProps) {
   return (
     <div
       className={cn(
-        "min-h-screen transition-[margin] duration-200 ease-out md:ml-64",
+        "min-h-screen transition-[margin] duration-200 ease-out md:ml-[232px]",
         isSidebarCollapsed && "md:ml-[4.5rem]",
         className
       )}

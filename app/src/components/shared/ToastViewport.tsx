@@ -10,8 +10,8 @@ const variantStyles: Record<
 > = {
   success: {
     icon: "check_circle",
-    accent: "text-primary",
-    border: "border-primary/30",
+    accent: "text-success",
+    border: "border-success/30",
   },
   error: {
     icon: "error",
@@ -20,8 +20,8 @@ const variantStyles: Record<
   },
   info: {
     icon: "info",
-    accent: "text-blue-300",
-    border: "border-blue-300/30",
+    accent: "text-info",
+    border: "border-info/30",
   },
 };
 

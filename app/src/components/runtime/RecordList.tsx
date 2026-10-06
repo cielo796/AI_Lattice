@@ -527,7 +527,7 @@ export function RecordList({
                             className={cn(
                               "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold",
                               day.isToday
-                                ? "bg-primary text-white"
+                                ? "bg-primary text-on-primary"
                                 : "text-on-surface-variant"
                             )}
                           >
