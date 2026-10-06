@@ -4,6 +4,7 @@ import { recordAuditLog } from "@/server/audit/service";
 import { ensureDemoBuilderData } from "@/server/apps/bootstrap";
 import { getPrismaClient } from "@/server/db/prisma";
 import { ServiceError } from "@/server/errors/service-error";
+import { isFormRowIndex } from "@/lib/form-layout";
 import type {
   App,
   AppField,
@@ -190,7 +191,7 @@ function toJsonValue(value: unknown): Prisma.InputJsonValue | typeof Prisma.Json
   return value as Prisma.InputJsonValue;
 }
 
-function toApp(app: {
+export function toApp(app: {
   id: string;
   tenantId: string;
   name: string;
@@ -239,7 +240,7 @@ function toAppSummary(app: {
   };
 }
 
-function toAppTable(table: {
+export function toAppTable(table: {
   id: string;
   tenantId: string;
   appId: string;
@@ -351,7 +352,7 @@ function referencesTargetTable(
   );
 }
 
-function toAppField(field: {
+export function toAppField(field: {
   id: string;
   tenantId: string;
   appId: string;
@@ -383,7 +384,7 @@ function toAppField(field: {
   };
 }
 
-function toAppView(view: {
+export function toAppView(view: {
   id: string;
   tenantId: string;
   appId: string;
@@ -413,7 +414,7 @@ function toLayoutJson(value: unknown): Record<string, unknown> {
   return toSettingsJson(value) ?? {};
 }
 
-function toAppForm(form: {
+export function toAppForm(form: {
   id: string;
   tenantId: string;
   appId: string;
@@ -1024,13 +1025,13 @@ function normalizeFormFieldWidth(value: unknown): FormFieldWidth {
     : "half";
 }
 
-async function normalizeFormLayout(
+export async function normalizeFormLayout(
   user: User,
   appId: string,
   tableId: string,
-  layoutJson: Record<string, unknown> | undefined
+  layoutJson: Record<string, unknown> | undefined,
+  prisma: Prisma.TransactionClient = getPrismaClient()
 ) {
-  const prisma = getPrismaClient();
   const fields = await prisma.appField.findMany({
     where: {
       tenantId: user.tenantId,
@@ -1102,6 +1103,7 @@ async function normalizeFormLayout(
         visible,
         required,
         width: normalizeFormFieldWidth(formField.width),
+        ...(isFormRowIndex(formField.rowIndex) ? { rowIndex: formField.rowIndex } : {}),
         ...(helpText ? { helpText } : {}),
       },
     ];

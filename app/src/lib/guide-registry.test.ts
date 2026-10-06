@@ -49,4 +49,9 @@ describe("guide registry", () => {
 
     expect(steps.map((step) => step.id)).toEqual(["record-create"]);
   });
+
+  it("shows integrated design instructions instead of legacy field forms", () => {
+    const steps = getVisibleGuideSteps(getGuideTourForPathname("/apps/app_1/tables"), new Set(["builder-design-metadata", "builder-design-palette", "builder-design-canvas"]));
+    expect(steps.map((step) => step.id)).toEqual(["design-metadata", "design-palette", "design-canvas"]);
+  });
 });

@@ -312,11 +312,36 @@ export const GUIDE_TOURS: GuideTour[] = [
     routePatterns: ["/apps/[appId]/tables"],
     steps: [
       {
+        id: "design-metadata",
+        title: "テーブルの基本情報を設定します",
+        body: "アプリ名・テーブル名を入力します。保存済みのコードは参照やレコードを守るため固定されています。",
+        selector: anchor("builder-design-metadata"),
+        placement: "bottom",
+        condition: { any: ["builder-design-metadata"] },
+      },
+      {
+        id: "design-palette",
+        title: "部品から項目を追加します",
+        body: "テキスト、数値、日付などの部品を中央にドラッグします。クリックでも追加でき、項目の表示名・コード・必須・選択肢を設定できます。",
+        selector: anchor("builder-design-palette"),
+        placement: "right",
+        condition: { any: ["builder-design-palette"] },
+      },
+      {
+        id: "design-canvas",
+        title: "フォームを直接並べ替えます",
+        body: "カードを上下にドラッグすると順番が変わり、左右の端に置くと2列になります。カードを選んで項目設定を開きます。保存までは変更がDBに反映されません。",
+        selector: anchor("builder-design-canvas"),
+        placement: "left",
+        condition: { any: ["builder-design-canvas"] },
+      },
+      {
         id: "table-sidebar",
         title: "テーブルを選びます",
         body: "アプリ内のテーブル一覧です。テーブルを選ぶと、右側でフィールド、View、フォームを設定できます。",
         selector: anchor("builder-table-sidebar"),
         placement: "right",
+        condition: { any: ["builder-table-sidebar"] },
       },
       {
         id: "table-form",
@@ -324,6 +349,7 @@ export const GUIDE_TOURS: GuideTour[] = [
         body: "業務で管理したいデータ単位をテーブルとして作成します。例: 経費申請、社員、取引先。",
         selector: anchor("builder-table-form"),
         placement: "right",
+        condition: { any: ["builder-table-form"] },
       },
       {
         id: "view-section",
@@ -331,6 +357,7 @@ export const GUIDE_TOURS: GuideTour[] = [
         body: "Runtime の見え方を設定します。ステータス別、承認待ち、カレンダーなどの一覧を作れます。",
         selector: anchor("builder-view-section"),
         placement: "left",
+        condition: { any: ["builder-view-section"] },
       },
       {
         id: "form-section",
@@ -338,6 +365,7 @@ export const GUIDE_TOURS: GuideTour[] = [
         body: "レコード作成・編集時に表示する項目や順番を設定します。",
         selector: anchor("builder-form-section"),
         placement: "left",
+        condition: { any: ["builder-form-section"] },
       },
       {
         id: "field-form",
@@ -345,6 +373,7 @@ export const GUIDE_TOURS: GuideTour[] = [
         body: "テキスト、日付、数値、選択肢、参照など、レコードに保存する項目を定義します。",
         selector: anchor("builder-field-form"),
         placement: "top",
+        condition: { any: ["builder-field-form"] },
       },
       {
         id: "field-list",
@@ -352,6 +381,7 @@ export const GUIDE_TOURS: GuideTour[] = [
         body: "作成済みの項目を確認し、必要に応じて編集・削除します。",
         selector: anchor("builder-field-list"),
         placement: "top",
+        condition: { any: ["builder-field-list"] },
       },
     ],
   },

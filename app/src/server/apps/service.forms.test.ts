@@ -87,6 +87,7 @@ describe("apps service forms", () => {
                 visible: true,
                 required: false,
                 width: "full",
+                rowIndex: 0,
                 helpText: "Keep it brief",
               },
               {
@@ -94,6 +95,7 @@ describe("apps service forms", () => {
                 visible: true,
                 required: true,
                 width: "half",
+                rowIndex: 1,
               },
               {
                 fieldCode: "priority",
@@ -121,9 +123,10 @@ describe("apps service forms", () => {
             visible: true,
             required: false,
             width: "full",
+            rowIndex: 0,
             helpText: " Keep it brief ",
           },
-          { fieldCode: "subject", visible: false, required: false },
+          { fieldCode: "subject", visible: false, required: false, rowIndex: 1 },
           { fieldCode: "description", visible: true },
         ],
       },
@@ -136,6 +139,7 @@ describe("apps service forms", () => {
           visible: true,
           required: false,
           width: "full",
+          rowIndex: 0,
           helpText: "Keep it brief",
         },
         {
@@ -143,6 +147,7 @@ describe("apps service forms", () => {
           visible: true,
           required: true,
           width: "half",
+          rowIndex: 1,
         },
         {
           fieldCode: "priority",

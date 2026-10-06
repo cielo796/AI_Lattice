@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 
 export function CreationDialog({ title, onClose, children, drawer = false }: { title: string; onClose: () => void; children: ReactNode; drawer?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const close = useRef(onClose);
-  useEffect(() => { close.current = onClose; }, [onClose]);
-  useEffect(() => {
+  useLayoutEffect(() => { close.current = onClose; }, [onClose]);
+  useLayoutEffect(() => {
     const element = dialog.current;
     element?.showModal();
     const handleEscape = (event: Event) => { event.preventDefault(); close.current(); };

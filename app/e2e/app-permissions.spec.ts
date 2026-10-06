@@ -3,6 +3,7 @@ import { Client } from "pg";
 import { randomUUID } from "node:crypto";
 import { getPostgresConnectionOptions } from "../src/server/db/connection.mjs";
 import type { App, AppTable } from "../src/types/app";
+import { serializeTableDesign, tableDesignDraft, type TableDesignSnapshot } from "../src/lib/table-design";
 
 test.skip(process.env.PLAYWRIGHT_APP_AUDIT_TEST !== "true", "Requires an explicitly enabled disposable local test database.");
 
@@ -60,6 +61,10 @@ test("app-scoped viewer and another tenant cannot mutate or execute protected re
     expect(await json(await stranger.get(modelSettingsPath))).toMatchObject({ defaultModel: "gpt-6-astra", source: "tenant" });
     expect((await anonymous.get(`/api/apps/${app.id}`)).status()).toBe(401);
     expect((await viewer.get(`/api/apps/${app.id}`)).status()).toBe(200);
+    const designer = await json<TableDesignSnapshot>(await request.get(`/api/apps/${app.id}/designer`));
+    expect((await viewer.get(`/api/apps/${app.id}/designer`)).status()).toBe(200);
+    expect((await viewer.put(`/api/apps/${app.id}/designer`, { data: serializeTableDesign(tableDesignDraft(designer), designer.revision) })).status()).toBe(403);
+    expect((await anonymous.get(`/api/apps/${app.id}/designer`)).status()).toBe(401);
     expect((await viewer.get(`${recordsUrl}/${record.id}`)).status()).toBe(200);
     expect((await viewer.get(`/api/apps/${app.id}/workflows`)).status()).toBe(200);
     expect([403, 404]).toContain((await viewer.get(`/api/apps/${apps[1].id}`)).status());
@@ -69,7 +74,7 @@ test("app-scoped viewer and another tenant cannot mutate or execute protected re
       await viewer.post(recordsUrl, { data: { data: { title: "Forbidden record" } } }),
       await viewer.post(`/api/apps/${app.id}/workflows/${workflow.id}/run`, { data: { tableId: table.id, recordId: record.id } }),
     ]) expect(response.status(), await response.text()).toBe(403);
-    for (const path of [`/api/apps/${app.id}`, `${recordsUrl}/${record.id}`, `/api/apps/${app.id}/workflows/${workflow.id}`, `/api/apps/${app.id}/workflow-runs`]) expect((await stranger.get(path)).status()).toBe(404);
+    for (const path of [`/api/apps/${app.id}`, `/api/apps/${app.id}/designer`, `${recordsUrl}/${record.id}`, `/api/apps/${app.id}/workflows/${workflow.id}`, `/api/apps/${app.id}/workflow-runs`]) expect((await stranger.get(path)).status()).toBe(404);
     expect((await stranger.post(`/api/apps/${app.id}/workflows/${workflow.id}/run`, { data: { tableId: table.id, recordId: record.id } })).status()).toBe(404);
     expect(await json(await request.get(`${recordsUrl}/${record.id}`))).toMatchObject({ status: record.status });
     expect(await json(await request.get(`/api/apps/${app.id}/workflow-runs`))).toEqual([]);
