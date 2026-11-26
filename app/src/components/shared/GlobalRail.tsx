@@ -112,7 +112,7 @@ export function GlobalRail({
               <span className="relative flex">
                 <Icon name={item.icon} />
                 {hasUnread && (
-                  <span aria-hidden="true" className="absolute -right-2 -top-1 min-w-4 rounded-full bg-primary px-0.5 text-center text-[10px] font-bold text-on-primary">
+                  <span aria-hidden="true" className="absolute -right-2 -top-1 min-w-4 rounded-full bg-side-action px-0.5 text-center text-[10px] font-bold text-on-side-action">
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}

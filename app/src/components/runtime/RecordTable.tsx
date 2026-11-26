@@ -5,7 +5,7 @@ import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn } from "@/lib/cn";
-import { getRuntimeFieldText } from "@/lib/runtime-field-display";
+import { getRecordTableColumns, getRuntimeFieldText } from "@/lib/runtime-field-display";
 import { getNextRowIndex, isRowNavigationKey } from "@/lib/runtime-keyboard";
 import { getRecordPage, RECORD_PAGE_SIZE } from "@/lib/runtime-pagination";
 import {
@@ -47,9 +47,7 @@ export function RecordTable({
   }
   const page = getRecordPage(records, pagination.requestedPage);
   const selectedIndex = page.records.findIndex((record) => record.id === selectedId);
-  const fieldsByCode = new Map(fields.map((field) => [field.code, field]));
-  const columns = Array.from(new Set(visibleColumnCodes), (code) => fieldsByCode.get(code))
-    .filter((field) => field !== undefined);
+  const columns = getRecordTableColumns(fields, visibleColumnCodes);
 
   function goToPage(requestedPage: number) {
     setPagination({ selectedId, requestedPage });

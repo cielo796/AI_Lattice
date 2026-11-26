@@ -1,5 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { getRuntimeFieldText, spansDetailColumns } from "@/lib/runtime-field-display";
+import { getRecordTableColumns, getRuntimeFieldText, spansDetailColumns } from "@/lib/runtime-field-display";
+
+describe("getRecordTableColumns", () => {
+  it("excludes only the highest-priority title field defined on the table", () => {
+    const fields = [{ code: "title" }, { code: "priority" }, { code: "subject" }];
+    expect(getRecordTableColumns(fields, ["title", "subject", "priority"])).toEqual([
+      { code: "title" }, { code: "priority" },
+    ]);
+  });
+
+  it("uses title priority independently of the view columns", () => {
+    const fields = [{ code: "requester_name" }, { code: "applicant_name" }, { code: "item_name" }];
+    expect(getRecordTableColumns(fields, ["requester_name", "applicant_name"])).toEqual([
+      { code: "requester_name" }, { code: "applicant_name" },
+    ]);
+    expect(getRecordTableColumns(fields, ["item_name", "requester_name"])).toEqual([
+      { code: "requester_name" },
+    ]);
+  });
+
+  it("keeps distinct known columns in view order when no title field is defined", () => {
+    const fields = [{ code: "priority" }, { code: "quantity" }];
+    expect(getRecordTableColumns(fields, ["quantity", "unknown", "quantity", "priority"])).toEqual([
+      { code: "quantity" }, { code: "priority" },
+    ]);
+  });
+});
 
 describe("getRuntimeFieldText", () => {
   it("formats numeric fields and preserves legacy nonnumeric values", () => {

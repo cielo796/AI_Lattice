@@ -1,10 +1,11 @@
 ﻿"use client";
 
-import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useImperativeHandle, useState, type CSSProperties, type FormEvent, type Ref } from "react";
 import { listRecords } from "@/lib/api/records";
 import { Button } from "@/components/shared/Button";
 import { Input } from "@/components/shared/Input";
 import { cn } from "@/lib/cn";
+import { isRecordDraftDirty, type DraftValue } from "@/lib/runtime-record-draft";
 import {
   getFieldDisplayName,
   getReferenceAppCode,
@@ -16,7 +17,10 @@ import {
 import type { AppField, AppForm } from "@/types/app";
 import type { AppRecord } from "@/types/record";
 
+export type RecordCreatePanelHandle = { isDirty: boolean };
+
 interface RecordCreatePanelProps {
+  ref?: Ref<RecordCreatePanelHandle>;
   appCode?: string;
   fields: AppField[];
   forms?: AppForm[];
@@ -29,7 +33,6 @@ interface RecordCreatePanelProps {
   onSubmit?: (input: { status: string; data: Record<string, unknown> }) => Promise<void>;
 }
 
-type DraftValue = string | string[] | boolean;
 type ReferenceOption = { value: string; label: string };
 type FormFieldLayout = {
   field: AppField;
@@ -124,7 +127,10 @@ function getDraftValue(field: AppField, initialRecord?: AppRecord | null): Draft
 
 function buildInitialDraft(fields: AppField[], initialRecord?: AppRecord | null) {
   return fields.reduce<Record<string, DraftValue>>((draft, field) => {
-    draft[field.code] = getDraftValue(field, initialRecord);
+    const value = getDraftValue(field, initialRecord);
+    draft[field.code] = value === "" && field.fieldType === "master_ref" && isMultiReferenceField(field)
+      ? []
+      : value;
     return draft;
   }, {});
 }
@@ -408,6 +414,7 @@ function renderFieldInput(
 }
 
 export function RecordCreatePanel({
+  ref,
   appCode,
   fields,
   forms = [],
@@ -419,9 +426,8 @@ export function RecordCreatePanel({
   onClose,
   onSubmit,
 }: RecordCreatePanelProps) {
-  const [draft, setDraft] = useState<Record<string, DraftValue>>(() =>
-    buildInitialDraft(fields, initialRecord)
-  );
+  const [initialDraft] = useState(() => buildInitialDraft(fields, initialRecord));
+  const [draft, setDraft] = useState(initialDraft);
   const [formError, setFormError] = useState<string | null>(null);
   const [referenceOptionsByField, setReferenceOptionsByField] = useState<
     Record<string, ReferenceOption[]>
@@ -429,6 +435,10 @@ export function RecordCreatePanel({
   const activeForm = forms[0];
   const formFieldLayouts = getFormFieldLayouts(fields, activeForm);
   const visibleFields = formFieldLayouts.map((item) => item.field);
+
+  useImperativeHandle(ref, () => ({
+    isDirty: isRecordDraftDirty(initialDraft, draft),
+  }), [initialDraft, draft]);
 
   useEffect(() => {
     let cancelled = false;

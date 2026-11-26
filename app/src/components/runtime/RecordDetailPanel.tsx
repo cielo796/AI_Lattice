@@ -27,6 +27,7 @@ type RecordDetailPanelProps = {
   isDrawer: boolean;
   focusVersion: number;
   onClose: () => void;
+  onDismiss: () => void;
   children: ReactNode;
 } & ({ record: AppRecord; formTitle?: never } | { record?: never; formTitle: string });
 
@@ -36,6 +37,7 @@ export function RecordDetailPanel({
   record,
   formTitle,
   onClose,
+  onDismiss,
   children,
 }: RecordDetailPanelProps) {
   const headingId = useId();
@@ -55,7 +57,7 @@ export function RecordDetailPanel({
     }
     if (event.key === "Escape") {
       event.preventDefault();
-      onClose();
+      onDismiss();
       return;
     }
     if (!isDrawer || event.key !== "Tab" || !panelRef.current) {
@@ -92,7 +94,7 @@ export function RecordDetailPanel({
         <div
           aria-hidden="true"
           className="fixed inset-0 z-[54] touch-none bg-on-surface/40 min-[1200px]:hidden"
-          onClick={onClose}
+          onClick={onDismiss}
         />
       )}
       <section

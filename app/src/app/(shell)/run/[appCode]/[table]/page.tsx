@@ -9,7 +9,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { RecordAIPanel } from "@/components/ai/RecordAIPanel";
-import { RecordCreatePanel } from "@/components/runtime/RecordCreatePanel";
+import { RecordCreatePanel, type RecordCreatePanelHandle } from "@/components/runtime/RecordCreatePanel";
 import { RecordDetail } from "@/components/runtime/RecordDetail";
 import { RecordDetailPanel, useRecordDrawer } from "@/components/runtime/RecordDetailPanel";
 import { RecordList } from "@/components/runtime/RecordList";
@@ -235,6 +235,7 @@ export default function RuntimeViewPage() {
   const panelOpen = Boolean(formMode || detailRecord);
   const isDrawer = useRecordDrawer();
   const listRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<RecordCreatePanelHandle>(null);
   const panelOpener = useRef<HTMLElement | null>(null);
   const previousPanel = useRef<{ open: boolean; recordId: string | null }>({ open: false, recordId: null });
 
@@ -432,9 +433,18 @@ export default function RuntimeViewPage() {
 
   function closeRecordPanel() {
     if (formMode) {
+      if (formRef.current?.isDirty && !window.confirm("保存していない変更を破棄しますか？")) {
+        return;
+      }
       setRecordPanelMode(null);
     } else {
       clearRecordDetail();
+    }
+  }
+
+  function dismissRecordPanel() {
+    if (!formRef.current?.isDirty) {
+      closeRecordPanel();
     }
   }
 
@@ -951,10 +961,12 @@ export default function RuntimeViewPage() {
           isDrawer={isDrawer}
           focusVersion={panelFocusVersion}
           onClose={closeRecordPanel}
+          onDismiss={dismissRecordPanel}
         >
           {formMode ? (
             <RecordCreatePanel
               key={formMode === "edit" ? `edit-${detailRecord?.id}` : "create"}
+              ref={formRef}
               appCode={appCode}
               fields={fields}
               forms={tableMeta?.forms ?? []}
