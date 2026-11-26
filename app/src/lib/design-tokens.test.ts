@@ -37,7 +37,7 @@ describe("global design tokens", () => {
         if (entry.isDirectory()) inspect(filename);
         else if (/\.(tsx?|css)$/.test(entry.name) && !entry.name.includes(".test.") && entry.name !== "tokens.css") {
           const content = readFileSync(filename, "utf8");
-          if (entry.name !== "Sidebar.tsx" && /\bbg-sidebar\b/.test(content)) violations.push(path.relative(process.cwd(), filename));
+          if (entry.name !== "GlobalRail.tsx" && /\bbg-sidebar\b/.test(content)) violations.push(path.relative(process.cwd(), filename));
           if (/#(?:[a-f\d]{6}|[a-f\d]{3})\b|\brgba?\(\s*[\d.]|\b(?:text|bg|border)-(?:pink|rose|purple|violet|blue|red|green|amber|yellow|white|black)-?\d*\b/i.test(content)) violations.push(path.relative(process.cwd(), filename));
         }
       }

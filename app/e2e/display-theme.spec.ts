@@ -147,7 +147,9 @@ test("home defaults to table, monochrome app tiles, overflow actions, search and
     const tableScroll = page.locator('[data-guide="home-app-grid"]');
     expect(await tableScroll.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
     await page.getByRole("button", { name: "ナビゲーションを開く" }).click();
-    await expect(page.getByRole("link", { name: "表示設定", exact: true }).last()).toBeVisible();
+    const drawer = page.getByRole("dialog", { name: "ナビゲーション" });
+    await drawer.getByRole("button", { name: "ユーザーメニュー" }).click();
+    await expect(drawer.getByRole("link", { name: "表示設定", exact: true })).toBeVisible();
   } finally {
     if (createdId) expect((await page.request.delete(`/api/apps/${createdId}`)).ok()).toBe(true);
     await reset(page);

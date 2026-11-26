@@ -17,8 +17,8 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
     <ShellChromeProvider>
       <div className="min-h-screen bg-surface-container-low">
         <Sidebar />
-        <TopBar title={title} breadcrumbs={breadcrumbs} actions={actions} />
         <ShellContent>
+          <TopBar title={title} breadcrumbs={breadcrumbs} actions={actions} />
           <main className="min-h-screen pt-14">{children}</main>
         </ShellContent>
       </div>
