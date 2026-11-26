@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { mergeRecordComments } from "@/lib/runtime/comments";
 import {
   useParams,
@@ -8,14 +8,14 @@ import {
   useRouter,
   useSearchParams,
 } from "next/navigation";
-import { AISidebar } from "@/components/ai/AISidebar";
 import { RecordAIPanel } from "@/components/ai/RecordAIPanel";
 import { RecordCreatePanel } from "@/components/runtime/RecordCreatePanel";
 import { RecordDetail } from "@/components/runtime/RecordDetail";
+import { RecordDetailPanel, useRecordDrawer } from "@/components/runtime/RecordDetailPanel";
 import { RecordList } from "@/components/runtime/RecordList";
-import { Button } from "@/components/shared/Button";
+import { TableHeader } from "@/components/runtime/TableHeader";
 import { Icon } from "@/components/shared/Icon";
-import { TopBar } from "@/components/shared/TopBar";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import { getAppByCode } from "@/lib/api/apps";
 import { ApiError } from "@/lib/api/client";
 import { getCurrentPermissions, type PermissionMap } from "@/lib/api/rbac";
@@ -52,9 +52,10 @@ import {
   resolveRecordListReferences,
   type ReferenceRecordsByField,
 } from "@/lib/runtime-records";
+import { applyViewQuery, filterRecordsByView, getViewColumns, getViewFilters, sortRecordsByView } from "@/lib/runtime-views";
 import { useToastStore } from "@/stores/toastStore";
 import type { ReferenceLabelsByField } from "@/lib/runtime-records";
-import type { RuntimeTableMeta } from "@/types/app";
+import type { AppField, RuntimeTableMeta } from "@/types/app";
 import type {
   AppRecord,
   Approval,
@@ -70,6 +71,8 @@ type RecommendedAction = {
 };
 
 type RecordPanelMode = "create" | "edit" | null;
+
+const EMPTY_FIELDS: AppField[] = [];
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -171,14 +174,18 @@ export default function RuntimeViewPage() {
   const activityRecordId = useRef<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [recordId, setRecordId] = useState<string | null>(requestedRecordId || null);
+  // Arrow keys can select a row without opening its drawer until Enter.
+  const [keyboardSelectionId, setKeyboardSelectionId] = useState<string | null>(null);
   const [tableMeta, setTableMeta] = useState<RuntimeTableMeta | null>(null);
   const [permissions, setPermissions] = useState<PermissionMap | null>(null);
-  const [activeViewId, setActiveViewId] = useState<string>("");
+  const [appName, setAppName] = useState("");
+  const [query, setQuery] = useState("");
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const [isLoadingMeta, setIsLoadingMeta] = useState(true);
   const [recordPanelMode, setRecordPanelMode] = useState<RecordPanelMode>(null);
+  const [panelFocusVersion, setPanelFocusVersion] = useState(0);
   const [isSavingRecord, setIsSavingRecord] = useState(false);
   const [isDeletingRecord, setIsDeletingRecord] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -201,14 +208,54 @@ export default function RuntimeViewPage() {
   const [isAccessDenied, setIsAccessDenied] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const selectedRecord =
-    records.find((record) => record.id === selectedId) ?? null;
+  const selectedRecord = records.find((record) => record.id === recordId) ?? null;
+  const selectedId = selectedRecord?.id ?? null;
+  const detailRecord = selectedRecord && selectedId !== keyboardSelectionId ? selectedRecord : null;
+  const detailId = detailRecord?.id ?? null;
+  const fields = tableMeta?.fields ?? EMPTY_FIELDS;
+  const activeView =
+    tableMeta?.views.find((view) => view.id === requestedViewId) ?? tableMeta?.views[0];
   const resolvedRecords = useMemo(
-    () => resolveRecordListReferences(records, tableMeta?.fields ?? [], referenceLabelsByField),
-    [records, tableMeta, referenceLabelsByField]
+    () => resolveRecordListReferences(records, fields, referenceLabelsByField),
+    [records, fields, referenceLabelsByField]
   );
-  const resolvedSelectedRecord =
-    resolvedRecords.find((record) => record.id === selectedId) ?? null;
+  const resolvedDetailRecord = resolvedRecords.find((record) => record.id === detailId) ?? null;
+  const visibleColumnCodes = useMemo(() => getViewColumns(activeView, fields), [activeView, fields]);
+  const viewRecords = useMemo(
+    () => sortRecordsByView(filterRecordsByView(resolvedRecords, getViewFilters(activeView)), activeView),
+    [resolvedRecords, activeView]
+  );
+  const filteredRecords = useMemo(
+    () => applyViewQuery(viewRecords, visibleColumnCodes, query),
+    [viewRecords, visibleColumnCodes, query]
+  );
+  const formMode = recordPanelMode === "create" || (recordPanelMode === "edit" && detailRecord)
+    ? recordPanelMode
+    : null;
+  const panelOpen = Boolean(formMode || detailRecord);
+  const isDrawer = useRecordDrawer();
+  const listRef = useRef<HTMLDivElement>(null);
+  const panelOpener = useRef<HTMLElement | null>(null);
+  const previousPanel = useRef<{ open: boolean; recordId: string | null }>({ open: false, recordId: null });
+
+  useLayoutEffect(() => {
+    const previous = previousPanel.current;
+    previousPanel.current = { open: panelOpen, recordId: formMode === "create" ? null : detailId };
+    if (!previous.open || panelOpen) {
+      return;
+    }
+
+    const list = listRef.current;
+    const rowButton = previous.recordId
+      ? list?.querySelector<HTMLElement>(`[data-record-row-trigger="${CSS.escape(previous.recordId)}"], button[data-testid="record-row-${CSS.escape(previous.recordId)}"]`)
+      : null;
+    const opener = panelOpener.current;
+    panelOpener.current = null;
+    const nextFocus = rowButton ?? (opener?.isConnected ? opener : null) ??
+      list?.querySelector<HTMLElement>('[data-record-row-trigger][tabindex="0"], button[data-testid^="record-row-"]') ??
+      list?.querySelector<HTMLElement>('input[type="search"]');
+    nextFocus?.focus();
+  }, [detailId, formMode, panelOpen]);
 
   useEffect(() => {
     if (!appCode || !tableCode) {
@@ -238,7 +285,6 @@ export default function RuntimeViewPage() {
         }
 
         setRecords([]);
-        setSelectedId(null);
         setComments([]);
         setAttachments([]);
         setApprovals([]);
@@ -263,17 +309,19 @@ export default function RuntimeViewPage() {
   }, [appCode, refreshKey, tableCode]);
 
   useEffect(() => {
-    if (!requestedRecordId) {
-      setSelectedId(null);
-      return;
-    }
+    setRecordId(requestedRecordId || null);
+  }, [pathname, requestedRecordId]);
 
-    setSelectedId(
-      records.some((record) => record.id === requestedRecordId)
-        ? requestedRecordId
-        : null
-    );
-  }, [records, requestedRecordId]);
+  useEffect(() => {
+    function restoreUrlSelection() {
+      const url = new URLSearchParams(window.location.search);
+      setRecordId(url.get("recordId")?.trim() || null);
+      setKeyboardSelectionId(null);
+      setRecordPanelMode(null);
+    }
+    window.addEventListener("popstate", restoreUrlSelection);
+    return () => window.removeEventListener("popstate", restoreUrlSelection);
+  }, []);
 
   useEffect(() => {
     if (!appCode || !tableCode) {
@@ -300,19 +348,7 @@ export default function RuntimeViewPage() {
 
         setTableMeta(nextMeta);
         setPermissions(nextPermissions);
-        setActiveViewId((current) => {
-          const fallbackViewId = nextMeta.views[0]?.id ?? "";
-
-          if (requestedViewId) {
-            return nextMeta.views.some((view) => view.id === requestedViewId)
-              ? requestedViewId
-              : fallbackViewId;
-          }
-
-          return current && nextMeta.views.some((view) => view.id === current)
-            ? current
-            : fallbackViewId;
-        });
+        setAppName(app.name);
         setError(null);
       } catch (nextError) {
         if (cancelled) {
@@ -320,6 +356,7 @@ export default function RuntimeViewPage() {
         }
 
         setTableMeta(null);
+        setAppName("");
         setPermissions(null);
         setError(
           nextError instanceof Error
@@ -338,11 +375,9 @@ export default function RuntimeViewPage() {
     return () => {
       cancelled = true;
     };
-  }, [appCode, refreshKey, requestedViewId, tableCode]);
+  }, [appCode, refreshKey, tableCode]);
 
   function handleViewChange(viewId: string) {
-    setActiveViewId(viewId);
-
     const nextSearchParams = new URLSearchParams(searchParams.toString());
     if (viewId) {
       nextSearchParams.set("viewId", viewId);
@@ -366,14 +401,41 @@ export default function RuntimeViewPage() {
     return `${pathname}${query ? `?${query}` : ""}`;
   }
 
+  function rememberPanelOpener() {
+    const active = document.activeElement;
+    if (!panelOpen && active instanceof HTMLElement && listRef.current?.contains(active)) {
+      panelOpener.current = active;
+    }
+  }
+
   function openRecordDetail(record: AppRecord) {
-    setSelectedId(record.id);
+    rememberPanelOpener();
+    setRecordPanelMode(null);
+    setKeyboardSelectionId(null);
+    setRecordId(record.id);
+    setPanelFocusVersion((current) => current + 1);
     router.push(buildRuntimeHref(record.id), { scroll: false });
   }
 
+  function navigateRecord(record: AppRecord) {
+    setRecordPanelMode(null);
+    setKeyboardSelectionId(detailRecord ? null : record.id);
+    setRecordId(record.id);
+    router.replace(buildRuntimeHref(record.id), { scroll: false });
+  }
+
   function clearRecordDetail() {
-    setSelectedId(null);
+    setKeyboardSelectionId(null);
+    setRecordId(null);
     router.replace(buildRuntimeHref(null), { scroll: false });
+  }
+
+  function closeRecordPanel() {
+    if (formMode) {
+      setRecordPanelMode(null);
+    } else {
+      clearRecordDetail();
+    }
   }
 
   useEffect(() => {
@@ -483,13 +545,14 @@ export default function RuntimeViewPage() {
   }, [appCode, refreshKey, tableMeta]);
 
   useEffect(() => {
-    if (!appCode || !tableCode || !selectedId) {
+    if (!appCode || !tableCode || !detailId) {
       setBackReferenceGroups([]);
       setIsLoadingBackReferences(false);
       return;
     }
 
-    const currentRecordId = selectedId;
+    setBackReferenceGroups([]);
+    const currentRecordId = detailId;
     let cancelled = false;
 
     async function loadBackReferences() {
@@ -517,18 +580,18 @@ export default function RuntimeViewPage() {
     return () => {
       cancelled = true;
     };
-  }, [appCode, refreshKey, selectedId, tableCode]);
+  }, [appCode, refreshKey, detailId, tableCode]);
 
   useEffect(() => {
-    activityRecordId.current = selectedId;
-    if (!appCode || !tableCode || !selectedId) {
+    activityRecordId.current = detailId;
+    if (!appCode || !tableCode || !detailId) {
       setComments([]);
       setAttachments([]);
       setApprovals([]);
       return;
     }
 
-    const currentRecordId = selectedId;
+    const currentRecordId = detailId;
     const requestedCommentsRevision = commentsRevision.current;
     setComments((current) => current.filter((comment) => comment.recordId === currentRecordId));
     let cancelled = false;
@@ -580,16 +643,16 @@ export default function RuntimeViewPage() {
       cancelled = true;
       activityRecordId.current = null;
     };
-  }, [appCode, refreshKey, selectedId, tableCode]);
+  }, [appCode, refreshKey, detailId, tableCode]);
 
   async function handleAddComment(commentText: string) {
-    if (!appCode || !tableCode || !selectedId) {
+    if (!appCode || !tableCode || !detailId) {
       return;
     }
 
     try {
       setIsSubmittingComment(true);
-      const currentRecordId = selectedId;
+      const currentRecordId = detailId;
       const comment = await createComment(appCode, tableCode, currentRecordId, {
         commentText,
       });
@@ -616,7 +679,7 @@ export default function RuntimeViewPage() {
   }
 
   async function handleSubmitApproval() {
-    if (!appCode || !tableCode || !selectedRecord) {
+    if (!appCode || !tableCode || !detailRecord) {
       return;
     }
 
@@ -625,7 +688,7 @@ export default function RuntimeViewPage() {
       const approval = await submitRecordApproval(
         appCode,
         tableCode,
-        selectedRecord.id
+        detailRecord.id
       );
       setApprovals((current) => [approval, ...current]);
       setRefreshKey((current) => current + 1);
@@ -736,13 +799,14 @@ export default function RuntimeViewPage() {
       setIsDeletingRecord(true);
       await deleteRecord(appCode, tableCode, selectedRecord.id);
 
-      const nextRecords = records.filter((record) => record.id !== selectedRecord.id);
-      setRecords(nextRecords);
-      clearRecordDetail();
-      setComments([]);
-      setAttachments([]);
-      setApprovals([]);
-      setRecordPanelMode(null);
+      setRecords((current) => current.filter((record) => record.id !== selectedRecord.id));
+      if (activityRecordId.current === selectedRecord.id) {
+        clearRecordDetail();
+        setComments([]);
+        setAttachments([]);
+        setApprovals([]);
+        setRecordPanelMode(null);
+      }
       setError(null);
       pushToast({ title: "レコードを削除しました", variant: "success" });
     } catch (nextError) {
@@ -762,13 +826,13 @@ export default function RuntimeViewPage() {
   }
 
   async function handleAddAttachment(file: File) {
-    if (!appCode || !tableCode || !selectedId) {
+    if (!appCode || !tableCode || !detailId) {
       return;
     }
 
     try {
       setIsUploadingAttachment(true);
-      const attachment = await uploadAttachment(appCode, tableCode, selectedId, file);
+      const attachment = await uploadAttachment(appCode, tableCode, detailId, file);
       setAttachments((current) => [attachment, ...current]);
       setError(null);
       pushToast({ title: "添付ファイルを追加しました", variant: "success" });
@@ -789,7 +853,7 @@ export default function RuntimeViewPage() {
   }
 
   async function handleDeleteAttachment(attachmentId: string) {
-    if (!appCode || !tableCode || !selectedId) {
+    if (!appCode || !tableCode || !detailId) {
       return;
     }
 
@@ -806,7 +870,7 @@ export default function RuntimeViewPage() {
 
     try {
       setDeletingAttachmentId(attachmentId);
-      await deleteAttachment(appCode, tableCode, selectedId, attachmentId);
+      await deleteAttachment(appCode, tableCode, detailId, attachmentId);
       setAttachments((current) =>
         current.filter((currentAttachment) => currentAttachment.id !== attachmentId)
       );
@@ -828,199 +892,175 @@ export default function RuntimeViewPage() {
     }
   }
 
-  const recommendedActions = buildRecommendedActions(resolvedSelectedRecord);
-  const similarRecords = buildSimilarRecords(
-    resolvedRecords,
-    resolvedSelectedRecord
-  );
-  const shouldRenderRecordPanel =
-    recordPanelMode === "create" ||
-    (recordPanelMode === "edit" && selectedRecord !== null);
   const canWriteRecords = permissions?.["record:write"] === true;
+  const formTitle = formMode === "edit" ? "レコードを編集" : "レコードを追加";
 
   return (
-    <>
-      <TopBar
-        breadcrumbs={[
-          { label: "実行画面" },
-          { label: tableMeta?.table.name || tableCode || "レコード" },
-        ]}
-        actions={
-          <>
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={() => setRefreshKey((current) => current + 1)}
-            >
-              <Icon name="sync" size="sm" />
-              更新
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => setRecordPanelMode("create")}
-              disabled={isLoadingMeta || !canWriteRecords}
-              title={!canWriteRecords && !isLoadingMeta ? "この操作を行う権限がありません。" : undefined}
-              data-guide="runtime-record-create-button"
-            >
-              <Icon name="add" size="sm" />
-              {isLoadingMeta ? "スキーマを読み込み中..." : "新規レコード"}
-            </Button>
-          </>
-        }
-      />
+    <main className="flex min-h-dvh min-w-0 bg-surface" data-guide="runtime-table-main">
+      <div ref={listRef} className="min-w-0 flex-1" inert={isDrawer && panelOpen}>
+        <TableHeader
+          appCode={appCode}
+          appName={appName || appCode}
+          tableName={tableMeta?.table.name || tableCode || "レコード"}
+          tableCode={tableCode}
+          views={tableMeta?.views ?? []}
+          activeView={activeView}
+          recordCount={filteredRecords.length}
+          query={query}
+          canWriteRecords={canWriteRecords}
+          isLoadingMeta={isLoadingMeta}
+          onQueryChange={setQuery}
+          onViewChange={handleViewChange}
+          onRefresh={() => setRefreshKey((current) => current + 1)}
+          onCreate={() => {
+            rememberPanelOpener();
+            setRecordPanelMode("create");
+          }}
+        />
 
-      <main className="flex min-h-[calc(100vh-4rem)] flex-col pt-16 2xl:h-[calc(100vh-4rem)] 2xl:flex-row" data-guide="runtime-table-main">
-        <div className="flex min-h-0 flex-1 flex-col">
-          {isAccessDenied && (
-            <div className="flex items-center gap-2 border-b border-error/20 bg-error/10 px-4 py-3 text-sm font-semibold text-error md:px-8">
-              <Icon name="lock" size="sm" />
-              このテーブルを表示する権限がありません。
-            </div>
-          )}
-          {error && !isAccessDenied && (
-            <div className="border-b border-error/20 bg-error/10 px-4 py-3 text-sm text-error md:px-8">
-              {error}
-            </div>
-          )}
-
-          <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
-            {!selectedRecord && (
-              <RecordList
-                records={resolvedRecords}
-                fields={tableMeta?.fields ?? []}
-                views={tableMeta?.views ?? []}
-                activeViewId={activeViewId}
-                selectedId={selectedId ?? undefined}
-                isFullWidth={!shouldRenderRecordPanel}
-                isLoading={isLoadingRecords}
-                onViewChange={handleViewChange}
-                onSelect={openRecordDetail}
-              />
-            )}
-
-            {(shouldRenderRecordPanel || selectedRecord) && (
-              <div className="flex min-w-0 flex-1 flex-col">
-                {selectedRecord && (
-                  <div className="border-b border-outline-variant bg-surface px-4 py-3 md:px-8">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearRecordDetail}
-                    >
-                      <Icon name="arrow_back" size="sm" />
-                      一覧へ戻る
-                    </Button>
-                  </div>
-                )}
-
-                {shouldRenderRecordPanel && (
-                  <RecordCreatePanel
-                    key={
-                      recordPanelMode === "edit"
-                        ? `edit-${selectedRecord?.id ?? "none"}`
-                        : "create"
-                    }
-                    appCode={appCode}
-                    fields={tableMeta?.fields ?? []}
-                    forms={tableMeta?.forms ?? []}
-                    mode={recordPanelMode ?? "create"}
-                    initialRecord={recordPanelMode === "edit" ? selectedRecord : null}
-                    tableName={tableMeta?.table.name}
-                    isSubmitting={isSavingRecord}
-                    onClose={() => setRecordPanelMode(null)}
-                    onSubmit={
-                      recordPanelMode === "edit" ? handleUpdateRecord : handleCreateRecord
-                    }
-                  />
-                )}
-
-                {selectedRecord && (
-                  <RecordDetail
-                    appCode={appCode}
-                    runtimeBasePath="/run"
-                    record={selectedRecord}
-                    fieldDefinitions={tableMeta?.fields}
-                    referenceLabelsByField={referenceLabelsByField}
-                    referenceRecordsByField={referenceRecordsByField}
-                    referenceFieldsByField={referenceFieldsByField}
-                    backReferenceGroups={backReferenceGroups}
-                    isLoadingBackReferences={isLoadingBackReferences}
-                    comments={comments}
-                    attachments={attachments}
-                    approvals={approvals}
-                    isLoadingActivity={isLoadingActivity}
-                    isLoadingApprovals={isLoadingActivity}
-                    isSubmittingComment={isSubmittingComment}
-                    isSubmittingApproval={isSubmittingApproval}
-                    isUploadingAttachment={isUploadingAttachment}
-                    isDeletingRecord={isDeletingRecord}
-                    deletingAttachmentId={deletingAttachmentId}
-                    onAddComment={canWriteRecords ? handleAddComment : undefined}
-                    onSubmitApproval={canWriteRecords ? handleSubmitApproval : undefined}
-                    onAddAttachment={canWriteRecords ? handleAddAttachment : undefined}
-                    onEditRecord={canWriteRecords ? () => setRecordPanelMode("edit") : undefined}
-                    onDeleteRecord={canWriteRecords ? handleDeleteRecord : undefined}
-                    onDeleteAttachment={canWriteRecords ? handleDeleteAttachment : undefined}
-                  />
-                )}
-              </div>
-            )}
+        {isAccessDenied && (
+          <div className="flex items-center gap-2 border-b border-error/20 bg-error/10 px-4 py-3 text-sm font-semibold text-error">
+            <Icon name="lock" size="sm" />
+            このテーブルを表示する権限がありません。
           </div>
-        </div>
+        )}
+        {error && !isAccessDenied && (
+          <div className="border-b border-error/20 bg-error/10 px-4 py-3 text-sm text-error">
+            {error}
+          </div>
+        )}
 
-        <AISidebar
-          className="border-t border-outline-variant/20 2xl:h-auto 2xl:w-80 2xl:border-l 2xl:border-t-0"
-          data-guide="runtime-ai-panel"
+        <RecordList
+          filteredRecords={filteredRecords}
+          fields={fields}
+          activeView={activeView}
+          visibleColumnCodes={visibleColumnCodes}
+          pageResetKey={`${appCode}:${tableCode}:${activeView?.id ?? ""}:${query.trim()}`}
+          hasQuery={Boolean(query.trim())}
+          selectedId={selectedId ?? undefined}
+          detailOpen={Boolean(detailRecord)}
+          isLoading={isLoadingMeta || isLoadingRecords}
+          onSelect={openRecordDetail}
+          onNavigate={navigateRecord}
+        />
+      </div>
+
+      {(formMode || detailRecord) && (
+        <RecordDetailPanel
+          {...(!formMode && resolvedDetailRecord ? { record: resolvedDetailRecord } : { formTitle })}
+          isDrawer={isDrawer}
+          focusVersion={panelFocusVersion}
+          onClose={closeRecordPanel}
         >
-          <RecordAIPanel
-            appCode={appCode}
-            tableCode={tableCode}
-            record={selectedRecord}
-            fallbackSummary={buildSummary(resolvedSelectedRecord)}
-            fallbackActions={recommendedActions}
-            isPostingReply={isSubmittingComment}
-            onPostReply={handleAddComment}
-          />
+          {formMode ? (
+            <RecordCreatePanel
+              key={formMode === "edit" ? `edit-${detailRecord?.id}` : "create"}
+              appCode={appCode}
+              fields={fields}
+              forms={tableMeta?.forms ?? []}
+              mode={formMode}
+              initialRecord={formMode === "edit" ? detailRecord : null}
+              tableName={tableMeta?.table.name}
+              inPanel
+              isSubmitting={isSavingRecord}
+              onClose={closeRecordPanel}
+              onSubmit={formMode === "edit" ? handleUpdateRecord : handleCreateRecord}
+            />
+          ) : detailRecord && (
+            <>
+              <RecordDetail
+                key={detailRecord.id}
+                appCode={appCode}
+                runtimeBasePath="/run"
+                record={detailRecord}
+                fieldDefinitions={fields}
+                referenceLabelsByField={referenceLabelsByField}
+                referenceRecordsByField={referenceRecordsByField}
+                referenceFieldsByField={referenceFieldsByField}
+                backReferenceGroups={backReferenceGroups}
+                isLoadingBackReferences={isLoadingBackReferences}
+                comments={comments.filter((item) => item.recordId === detailRecord.id)}
+                attachments={attachments.filter((item) => item.recordId === detailRecord.id)}
+                approvals={approvals.filter((item) => item.recordId === detailRecord.id)}
+                isLoadingActivity={isLoadingActivity}
+                isLoadingApprovals={isLoadingActivity}
+                isSubmittingComment={isSubmittingComment}
+                isSubmittingApproval={isSubmittingApproval}
+                isUploadingAttachment={isUploadingAttachment}
+                isDeletingRecord={isDeletingRecord}
+                deletingAttachmentId={deletingAttachmentId}
+                onAddComment={canWriteRecords ? handleAddComment : undefined}
+                onSubmitApproval={canWriteRecords ? handleSubmitApproval : undefined}
+                onAddAttachment={canWriteRecords ? handleAddAttachment : undefined}
+                onEditRecord={canWriteRecords ? () => setRecordPanelMode("edit") : undefined}
+                onDeleteRecord={canWriteRecords ? handleDeleteRecord : undefined}
+                onDeleteAttachment={canWriteRecords ? handleDeleteAttachment : undefined}
+              />
+              <section className="mx-4 rounded-lg bg-primary-container p-4" data-guide="runtime-ai-panel">
+                <RecordAIPanel
+                  key={detailRecord.id}
+                  appCode={appCode}
+                  tableCode={tableCode}
+                  record={detailRecord}
+                  fallbackSummary={buildSummary(resolvedDetailRecord)}
+                  fallbackActions={buildRecommendedActions(resolvedDetailRecord)}
+                  isPostingReply={isSubmittingComment}
+                  onPostReply={canWriteRecords ? handleAddComment : undefined}
+                />
+              </section>
+              <section className="space-y-3 p-4">
+                <h3 className="text-sm font-semibold text-on-surface">類似レコード</h3>
+                <SimilarRecords
+                  records={buildSimilarRecords(resolvedRecords, resolvedDetailRecord)}
+                  onSelect={openRecordDetail}
+                />
+              </section>
+            </>
+          )}
+        </RecordDetailPanel>
+      )}
+    </main>
+  );
+}
 
-          <div>
-            <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary">
-              類似レコード
-            </div>
-            <div className="space-y-2">
-              {similarRecords.length > 0 ? (
-                similarRecords.map((record) => (
-                  <button
-                    key={record.id}
-                    type="button"
-                    onClick={() => openRecordDetail(record)}
-                    className="w-full rounded-lg bg-surface-container p-3 text-left transition-colors hover:bg-surface-container-high"
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <span className="text-[9px] font-bold uppercase text-primary">
-                        {formatRelativeTime(record.updatedAt)}
-                      </span>
-                      <span className="text-[9px] text-on-surface-variant">
-                        {formatStatusLabel(record.status)}
-                      </span>
-                    </div>
-                    <div className="mb-1 line-clamp-2 text-xs font-bold text-on-surface">
-                      {getRecordTitle(record)}
-                    </div>
-                    <div className="line-clamp-2 text-[10px] text-on-surface-variant">
-                      {getRecordDescription(record) || "説明はありません"}
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="rounded-lg bg-surface-container p-3 text-xs text-on-surface-variant">
-                  現在のテーブルに関連レコードは見つかりません。
-                </div>
+function SimilarRecords({
+  records,
+  onSelect,
+}: {
+  records: AppRecord[];
+  onSelect: (record: AppRecord) => void;
+}) {
+  if (records.length === 0) {
+    return (
+      <p className="rounded-lg bg-surface-container p-3 text-sm text-on-surface-variant">
+        現在のテーブルに関連レコードは見つかりません。
+      </p>
+    );
+  }
+
+  return (
+    <ul className="space-y-2">
+      {records.map((record) => {
+        const description = getRecordDescription(record);
+        return (
+          <li key={record.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(record)}
+              className="min-h-10 w-full rounded-lg bg-surface-container p-3 text-left hover:bg-surface-container-high focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <span className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-on-surface-variant">{formatRelativeTime(record.updatedAt)}</span>
+                <StatusBadge status={record.status} />
+              </span>
+              <span className="line-clamp-2 wrap-anywhere font-semibold text-on-surface">{getRecordTitle(record)}</span>
+              {description && (
+                <span className="line-clamp-2 wrap-anywhere text-sm text-on-surface-variant">{description}</span>
               )}
-            </div>
-          </div>
-        </AISidebar>
-      </main>
-    </>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
