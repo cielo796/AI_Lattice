@@ -2,16 +2,25 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
+import { parseAppRoute, type AppRoute, type PermissionMap } from "@/lib/shell-navigation";
+import { getShellContentOffset } from "@/lib/shell-layout";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "ai-lattice:sidebar-collapsed:v1";
+const EMPTY_PERMISSIONS: PermissionMap = {};
 
 interface ShellChromeContextValue {
+  appRoute: AppRoute | null;
+  isAppNavShown: boolean;
+  contentOffset: number;
+  permissions: PermissionMap;
   isMobileNavOpen: boolean;
   isSidebarCollapsed: boolean;
   closeMobileNav: () => void;
@@ -23,9 +32,19 @@ interface ShellChromeContextValue {
 
 const ShellChromeContext = createContext<ShellChromeContextValue | null>(null);
 
-export function ShellChromeProvider({ children }: { children: ReactNode }) {
+export function ShellChromeProvider({
+  children,
+  permissions = EMPTY_PERMISSIONS,
+}: {
+  children: ReactNode;
+  permissions?: PermissionMap;
+}) {
+  const pathname = usePathname();
+  const appRoute = useMemo(() => parseAppRoute(pathname), [pathname]);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState(false);
+  const isAppNavShown = appRoute !== null && !isSidebarCollapsed;
+  const closeMobileNav = useCallback(() => setIsMobileNavOpen(false), []);
   const [hasLoadedSidebarPreference, setHasLoadedSidebarPreference] =
     useState(false);
 
@@ -59,9 +78,13 @@ export function ShellChromeProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<ShellChromeContextValue>(
     () => ({
+      appRoute,
+      isAppNavShown,
+      contentOffset: getShellContentOffset(isAppNavShown),
+      permissions,
       isMobileNavOpen,
       isSidebarCollapsed,
-      closeMobileNav: () => setIsMobileNavOpen(false),
+      closeMobileNav,
       openMobileNav: () => setIsMobileNavOpen(true),
       toggleMobileNav: () =>
         setIsMobileNavOpen((current) => !current),
@@ -69,7 +92,7 @@ export function ShellChromeProvider({ children }: { children: ReactNode }) {
       toggleSidebarCollapsed: () =>
         setIsSidebarCollapsedState((current) => !current),
     }),
-    [isMobileNavOpen, isSidebarCollapsed]
+    [appRoute, closeMobileNav, isAppNavShown, isMobileNavOpen, isSidebarCollapsed, permissions]
   );
 
   return (
