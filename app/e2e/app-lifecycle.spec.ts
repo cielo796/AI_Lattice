@@ -81,16 +81,18 @@ test("app metadata, typed records, five views, forms, publishing and cleanup", a
     expect((await client.query("SELECT metadata_json FROM app_versions WHERE app_id = $1 AND version_no = 1", [app.id])).rows[0].metadata_json).toEqual(before);
     expect(await json<AppVersionSummary[]>(await page.request.get(`/api/apps/${app.id}/versions`))).toEqual([expect.objectContaining({ versionNo: 2 }), expect.objectContaining({ versionNo: 1 })]);
     await page.goto(`/run/${app.code}/${table.code}`);
-    await expect(page.getByPlaceholder("レコードを検索...")).toBeVisible();
+    await expect(page.getByRole("searchbox", { name: "レコードを検索" })).toBeVisible();
     await expect(page.getByText("Alpha audit", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Beta audit", { exact: true })).toHaveCount(0);
     for (const view of views.slice(1)) {
-      await page.getByTestId(`runtime-view-tab-${view.id}`).click();
-      await expect(page.getByTestId(`runtime-view-tab-${view.id}`)).toBeVisible();
+      await page.getByRole("link", { name: view.name, exact: true }).click();
+      await expect(page).toHaveURL((url) => url.searchParams.get("viewId") === view.id);
+      await expect(page.getByTestId(`runtime-${view.viewType}-view`)).toBeVisible();
       await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
     }
-    await page.getByTestId(`runtime-view-tab-${views[0].id}`).click();
-    await page.getByPlaceholder("レコードを検索...").fill("does-not-match");
+    await page.getByRole("link", { name: "Renamed audit", exact: true }).click();
+    await expect(page).toHaveURL((url) => url.searchParams.get("viewId") === views[0].id);
+    await page.getByRole("searchbox", { name: "レコードを検索" }).fill("does-not-match");
     await expect(page.getByText("Alpha audit", { exact: true })).toHaveCount(0);
     await json(await page.request.delete(`${formsUrl}/${form.id}`));
     for (const view of views) await json(await page.request.delete(`${viewsUrl}/${view.id}`));
@@ -188,12 +190,18 @@ test("mobile runtime can create and display a record", async ({ page }) => {
     await json(await page.request.post(`${tablesUrl}/${table.id}/fields`, { data: { name: "件名", code: "title", fieldType: "text", required: true } }));
     await json(await page.request.post(`/api/apps/${app.id}/publish`));
     await page.goto(`/run/${app.code}/${table.code}`);
-    await page.getByRole("button", { name: "操作メニュー", exact: true }).click();
-    await page.getByRole("button", { name: /新規レコード/ }).click();
+    await expect(page.getByRole("button", { name: "メニューを開く" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "ビュー" })).toBeVisible();
+    await page.getByRole("button", { name: "レコードを追加", exact: true }).click();
     await page.getByPlaceholder("件名を入力").fill("Mobile audit record");
     await page.getByRole("button", { name: "レコードを作成", exact: true }).click();
     await expect(page.getByText("レコードを作成しました")).toBeVisible();
-    await expect(page.getByText("Mobile audit record", { exact: true }).first()).toBeVisible();
+    const detail = page.getByRole("dialog", { name: "Mobile audit record" });
+    await expect(detail.getByRole("heading", { name: "Mobile audit record" })).toBeFocused();
+    await expect(page).toHaveURL((url) => url.searchParams.has("recordId"));
+    await detail.getByRole("button", { name: "詳細を閉じる" }).click();
+    await expect(page).toHaveURL((url) => !url.searchParams.has("recordId"));
+    await expect(page.getByRole("table", { name: "レコード一覧" }).getByRole("button", { name: /Mobile audit record/ })).toBeFocused();
     await page.screenshot({ path: "test-results/audit-mobile.png", fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(392);
   } finally {

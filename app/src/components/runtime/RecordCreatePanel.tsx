@@ -23,6 +23,7 @@ interface RecordCreatePanelProps {
   mode?: "create" | "edit";
   initialRecord?: AppRecord | null;
   isSubmitting?: boolean;
+  inPanel?: boolean;
   tableName?: string;
   onClose?: () => void;
   onSubmit?: (input: { status: string; data: Record<string, unknown> }) => Promise<void>;
@@ -413,6 +414,7 @@ export function RecordCreatePanel({
   mode = "create",
   initialRecord = null,
   isSubmitting = false,
+  inPanel = false,
   tableName,
   onClose,
   onSubmit,
@@ -546,33 +548,37 @@ export function RecordCreatePanel({
 
   return (
     <section
-      className="border-b border-outline-variant bg-surface px-8 py-6 shadow-card"
+      className={inPanel
+        ? "bg-surface p-4 [&_button]:min-h-10 [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary"
+        : "border-b border-outline-variant bg-surface px-8 py-6 shadow-card"}
       data-guide="runtime-record-form"
     >
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
-            {title}
+      {!inPanel && (
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
+              {title}
+            </div>
+            <h2 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
+              {heading}
+            </h2>
           </div>
-          <h2 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
-            {heading}
-          </h2>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            キャンセル
+          </Button>
         </div>
-        <Button type="button" variant="ghost" onClick={onClose}>
-          キャンセル
-        </Button>
-      </div>
+      )}
 
       <form onSubmit={(event) => void handleSubmit(event)}>
         {formFieldLayouts.length > 0 ? (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className={cn("grid gap-4", inPanel ? "min-[1200px]:grid-cols-2" : "lg:grid-cols-2")}>
             {formFieldLayouts.map(({ field, width, helpText, rowIndex }) => (
               <div
                 key={field.id}
                 className={cn(
-                  "space-y-2",
-                  width === "full" ? "lg:col-span-2" : "",
-                  rowIndex !== undefined ? "lg:[grid-row:var(--form-row)]" : ""
+                  "min-w-0 space-y-2",
+                  width === "full" && (inPanel ? "min-[1200px]:col-span-2" : "lg:col-span-2"),
+                  rowIndex !== undefined && (inPanel ? "min-[1200px]:[grid-row:var(--form-row)]" : "lg:[grid-row:var(--form-row)]")
                 )}
                 style={rowIndex !== undefined ? { "--form-row": rowIndex + 1 } as CSSProperties : undefined}
               >

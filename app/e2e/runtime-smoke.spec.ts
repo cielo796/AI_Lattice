@@ -118,6 +118,7 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
   let appId: string | null = null;
   let appDeleted = false;
 
+  await page.setViewportSize({ width: 1440, height: 900 });
   await login(page);
 
   try {
@@ -133,16 +134,18 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
     });
     await expectNoMojibake(page);
 
-    await page.getByRole("button", { name: /新規レコード/ }).click();
-    await page.getByPlaceholder("件名を入力").fill(createdTitle);
-    await page.getByPlaceholder("内容を入力").fill("E2E smoke test description");
-    await page.getByRole("main").getByRole("combobox").selectOption("Open");
-    await page.getByRole("button", { name: "レコードを作成" }).click();
+    const form = page.locator('[data-guide="runtime-record-form"]');
+    const detail = page.locator('[data-guide="runtime-record-detail"]');
+    await page.getByRole("button", { name: "レコードを追加", exact: true }).click();
+    await form.getByPlaceholder("件名を入力").fill(createdTitle);
+    await form.getByPlaceholder("内容を入力").fill("E2E smoke test description");
+    await form.getByRole("combobox").selectOption("Open");
+    await form.getByRole("button", { name: "レコードを作成" }).click();
 
     await expect(page.getByText("レコードを作成しました")).toBeVisible({
       timeout: EXPECT_TIMEOUT,
     });
-    await expect(page.getByText(createdTitle).first()).toBeVisible();
+    await expect(detail.getByRole("heading", { name: createdTitle, exact: true })).toBeVisible();
     await expectNoMojibake(page);
 
     const records = await expectJson<AppRecord[]>(
@@ -151,15 +154,27 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
     const createdRecord = records.find((record) =>
       record.data.title === createdTitle
     );
-    expect(createdRecord).toBeDefined();
+    if (!createdRecord) throw new Error("The created record was missing from the runtime API response.");
+    const row = page.getByRole("table", { name: "レコード一覧" }).getByTestId(`record-row-${createdRecord.id}`);
+    const titleButton = row.getByRole("button", { name: new RegExp(createdTitle) });
+    await expect(page).toHaveURL((url) => url.searchParams.get("recordId") === createdRecord.id);
+    await expect(row).toHaveAttribute("aria-current", "true");
+    await page.reload();
+    await expect(detail.getByRole("heading", { name: createdTitle, exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL((url) => !url.searchParams.has("recordId"));
+    await expect(detail).toHaveCount(0);
+    await expect(titleButton).toBeFocused();
+    await titleButton.press("Enter");
+    await expect(page).toHaveURL((url) => url.searchParams.get("recordId") === createdRecord.id);
 
-    await page.getByRole("button", { name: "編集" }).click();
-    await page.getByPlaceholder("件名を入力").fill(updatedTitle);
-    await page.getByRole("button", { name: "変更を保存" }).click();
+    await detail.getByRole("button", { name: "レコードを編集" }).click();
+    await form.getByPlaceholder("件名を入力").fill(updatedTitle);
+    await form.getByRole("button", { name: "変更を保存" }).click();
     await expect(page.getByText("レコードを更新しました")).toBeVisible({
       timeout: EXPECT_TIMEOUT,
     });
-    await expect(page.getByText(updatedTitle).first()).toBeVisible();
+    await expect(detail.getByRole("heading", { name: updatedTitle, exact: true })).toBeVisible();
 
     await page.getByPlaceholder("コメントを追加...").fill(commentText);
     await page.getByRole("button", { name: "送信" }).click();
@@ -178,12 +193,14 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
     });
     await expect(page.getByText("e2e-note.txt")).toBeVisible();
 
+    await detail.getByRole("button", { name: "その他の操作" }).click();
     page.once("dialog", (dialog) => dialog.accept());
-    await page.getByTestId("delete-record-button").click();
+    await detail.getByTestId("delete-record-button").click();
     await expect(page.getByText("レコードを削除しました")).toBeVisible({
       timeout: EXPECT_TIMEOUT,
     });
     await expect(page.getByText(updatedTitle)).toHaveCount(0);
+    await expect(page).toHaveURL((url) => !url.searchParams.has("recordId"));
     await expectNoMojibake(page);
 
     await page.goto("/home");
@@ -199,6 +216,50 @@ test("runtime user flow creates, edits, deletes records and deletes the app", as
     if (appId && !appDeleted) {
       await page.request.delete(`/api/apps/${appId}`).catch(() => undefined);
     }
+  }
+});
+
+test("row navigation replaces the selection in the URL and restores focus after closing", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await login(page);
+  const { app, table } = await createRuntimeApp(page, `keyboard-${Date.now()}`);
+  const runtimePath = `/run/${app.code}/${table.code}`;
+
+  try {
+    for (const title of ["First keyboard record", "Second keyboard record"]) {
+      await expectJson<AppRecord>(await page.request.post(`/api${runtimePath}`, {
+        data: { data: { title, status: "Open" } },
+      }));
+    }
+
+    await page.goto(runtimePath);
+    const rows = page.getByRole("table", { name: "レコード一覧" }).locator("tbody tr");
+    await expect(rows).toHaveCount(2);
+    const firstButton = rows.first().getByRole("button");
+    const lastButton = rows.last().getByRole("button");
+    const lastId = (await rows.last().getAttribute("data-testid"))?.slice("record-row-".length);
+    const detail = page.locator('[data-guide="runtime-record-detail"]');
+    const historyLength = await page.evaluate(() => history.length);
+
+    await expect(firstButton).toHaveAttribute("tabindex", "0");
+    await expect(lastButton).toHaveAttribute("tabindex", "-1");
+    await firstButton.press("End");
+    await expect(page).toHaveURL((url) => url.searchParams.get("recordId") === lastId);
+    expect(await page.evaluate(() => history.length)).toBe(historyLength);
+    await expect(lastButton).toBeFocused();
+    await expect(lastButton).toHaveAttribute("tabindex", "0");
+    await expect(rows.last()).toHaveAttribute("aria-current", "true");
+    await expect(detail).toHaveCount(0);
+
+    await page.keyboard.press("Enter");
+    await expect(detail).toHaveAttribute("role", "dialog");
+    await expect(detail.getByRole("heading", { level: 2 })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL((url) => !url.searchParams.has("recordId"));
+    await expect(lastButton).toBeFocused();
+    await expect(firstButton).toHaveAttribute("tabindex", "0");
+  } finally {
+    await page.request.delete(`/api/apps/${app.id}`);
   }
 });
 
