@@ -117,6 +117,7 @@ model Tenant {
   workflows              Workflow[]
   workflowRuns           WorkflowRun[]
   workflowSchedules      WorkflowScheduleState[]
+  workflowWebhookEvents  WorkflowWebhookEvent[]
   approvals              Approval[]
   appApprovalSettings    AppApprovalSetting[]
   appApprovalApprovers   AppApprovalApprover[]
@@ -509,6 +510,7 @@ model AppRecord {
   notifications Notification[]
 
   workflowRuns WorkflowRun[]
+  workflowWebhookEvents WorkflowWebhookEvent[]
 
   @@unique([tableId, recordNo])
   @@index([tenantId])
@@ -569,6 +571,10 @@ model Workflow {
   createdById    String              @map("created_by_id")
   createdAt      DateTime            @default(now()) @map("created_at")
   updatedAt      DateTime            @updatedAt @map("updated_at")
+  webhookEnabled Boolean             @default(false) @map("webhook_enabled")
+  webhookSecretEncrypted String?     @map("webhook_secret_encrypted")
+  webhookKeyVersion Int              @default(0) @map("webhook_key_version")
+  webhookSecretUpdatedAt DateTime?   @db.Timestamptz(3) @map("webhook_secret_updated_at")
 
   tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   app       App        @relation(fields: [appId], references: [id], onDelete: Cascade)
@@ -576,11 +582,33 @@ model Workflow {
   approvals Approval[]
   runs      WorkflowRun[]
   schedule  WorkflowScheduleState?
+  webhookEvents WorkflowWebhookEvent[]
 
   @@index([tenantId])
   @@index([appId, status])
   @@index([createdById])
   @@map("workflows")
+}
+
+model WorkflowWebhookEvent {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  workflowId  String   @map("workflow_id")
+  deliveryId  String   @map("delivery_id")
+  payloadHash String   @map("payload_hash")
+  recordId    String?  @map("record_id")
+  runIdsJson  Json     @map("run_ids_json")
+  createdAt   DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflow Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  record   AppRecord? @relation(fields: [recordId], references: [id], onDelete: SetNull)
+
+  @@unique([workflowId, deliveryId])
+  @@index([workflowId, createdAt])
+  @@index([tenantId])
+  @@index([recordId])
+  @@map("workflow_webhook_events")
 }
 
 model WorkflowScheduleState {

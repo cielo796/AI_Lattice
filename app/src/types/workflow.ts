@@ -91,6 +91,33 @@ export interface WorkflowScheduleInfo {
   lastError: string | null;
 }
 
+export interface WorkflowWebhookDelivery {
+  deliveryId: string;
+  recordId: string | null;
+  runIds: string[];
+  receivedAt: string;
+}
+
+export interface WorkflowWebhookInfo {
+  enabled: boolean;
+  endpointPath: string;
+  keyVersion: number;
+  secretUpdatedAt: string | null;
+  recentDeliveries: WorkflowWebhookDelivery[];
+}
+
+export interface WorkflowWebhookSecretResult extends WorkflowWebhookInfo {
+  secret: string;
+}
+
+export interface WorkflowWebhookReceipt {
+  deliveryId: string;
+  recordId: string | null;
+  runIds: string[];
+  duplicate: boolean;
+  dispatchPending: boolean;
+}
+
 export interface Workflow {
   id: string;
   tenantId: string;

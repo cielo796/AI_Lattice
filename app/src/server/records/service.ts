@@ -1012,13 +1012,12 @@ function isPrismaUniqueError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
-export async function createRecordForTable(
+export async function prepareRecordCreation(
   user: User,
   appCode: string,
   tableCode: string,
   input: CreateRecordInput
 ) {
-  await ensureDemoRecordData();
   const { app, table } = await getTableByCodeOrThrow(user, appCode, tableCode);
   await requirePermission(user, "record:write", {
     appId: app.id,
@@ -1030,38 +1029,43 @@ export async function createRecordForTable(
     table.id,
     assertRecordData(input.data)
   );
-  const prisma = getPrismaClient();
   const status = input.status?.trim() || "active";
+  return { app, table, data, status };
+}
+
+export async function createPreparedRecord(
+  user: User,
+  prepared: Awaited<ReturnType<typeof prepareRecordCreation>>,
+  transaction: Prisma.TransactionClient
+) {
+  const { app, table, data, status } = prepared;
+  if (app.tenantId !== user.tenantId || table.tenantId !== user.tenantId || table.appId !== app.id) throw new RecordsServiceError("Record creation scope is invalid", 403);
+  const recordNo = await getNextRecordNoForTable(transaction, table.id);
+  const record = await transaction.appRecord.create({ data: {
+    id: crypto.randomUUID(), tenantId: user.tenantId, appId: app.id, tableId: table.id, recordNo,
+    status, dataJson: toJsonObject(data), createdById: user.id, updatedById: user.id,
+  } });
+  await recordAuditLog(user, {
+    actionType: "RECORD_CREATE", resourceType: "record", resourceId: record.id, resourceName: table.name,
+    detailJson: { appId: app.id, appCode: app.code, tableId: table.id, tableCode: table.code, status: record.status, data },
+  }, transaction);
+  const runIds = await enqueueWorkflowsForRecord(user, {
+    appId: app.id, appCode: app.code, tableId: table.id, tableCode: table.code, tableName: table.name,
+    recordId: record.id, recordTitle: getRecordTitle(toAppRecord(record)), triggerTypes: ["create"], eventKey: `record:create:${record.id}`,
+  }, transaction);
+  return { record, runIds };
+}
+
+export async function createRecordForTable(user: User, appCode: string, tableCode: string, input: CreateRecordInput) {
+  await ensureDemoRecordData();
+  const prepared = await prepareRecordCreation(user, appCode, tableCode, input);
+  const prisma = getPrismaClient();
   let record: Awaited<ReturnType<typeof prisma.appRecord.create>> | null = null;
   let runIds: string[] = [];
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const saved = await prisma.$transaction(async (transaction) => {
-        const recordNo = await getNextRecordNoForTable(transaction, table.id);
-        const created = await transaction.appRecord.create({
-          data: {
-            id: crypto.randomUUID(),
-            tenantId: user.tenantId,
-            appId: app.id,
-            tableId: table.id,
-            recordNo,
-            status,
-            dataJson: toJsonObject(data),
-            createdById: user.id,
-            updatedById: user.id,
-          },
-        });
-        await recordAuditLog(user, {
-          actionType: "RECORD_CREATE", resourceType: "record", resourceId: created.id, resourceName: table.name,
-          detailJson: { appId: app.id, appCode: app.code, tableId: table.id, tableCode: table.code, status: created.status, data },
-        }, transaction);
-        const queued = await enqueueWorkflowsForRecord(user, {
-          appId: app.id, appCode: app.code, tableId: table.id, tableCode: table.code, tableName: table.name,
-          recordId: created.id, recordTitle: getRecordTitle(toAppRecord(created)), triggerTypes: ["create"], eventKey: `record:create:${created.id}`,
-        }, transaction);
-        return { record: created, runIds: queued };
-      });
+      const saved = await prisma.$transaction((transaction) => createPreparedRecord(user, prepared, transaction));
       record = saved.record;
       runIds = saved.runIds;
       break;
