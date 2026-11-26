@@ -19,6 +19,7 @@ export const REQUIRED_DATABASE_TABLES = [
   "workflows",
   "workflow_runs",
   "workflow_schedule_states",
+  "workflow_webhook_events",
   "app_approval_settings",
   "app_approval_approvers",
   "approvals",
