@@ -151,7 +151,7 @@ export const GUIDE_TOURS: GuideTour[] = [
       {
         id: "home-sidebar",
         title: "左メニューから移動できます",
-        body: "現在のアプリに応じて、テーブル、ワークフロー、承認、設定などの画面へ移動できます。",
+        body: "ここからホーム、マイアプリ、承認の受信箱、通知へ移動できます。",
         selector: anchor("sidebar-nav"),
         placement: "right",
       },
@@ -548,7 +548,7 @@ export const GUIDE_TOURS: GuideTour[] = [
       {
         id: "admin-topbar",
         title: "画面名と現在位置を確認します",
-        body: "上部には現在の画面やパンくずが表示されます。右上から通知や設定にも移動できます。",
+        body: "上部には現在の画面やパンくずが表示されます。右側からアプリを検索できます。",
         selector: anchor("topbar"),
         placement: "bottom",
       },
@@ -562,7 +562,7 @@ export const GUIDE_TOURS: GuideTour[] = [
       {
         id: "admin-sidebar",
         title: "管理メニューを切り替えます",
-        body: "左メニューから、他の管理画面やアプリ画面へ移動できます。",
+        body: "メインメニューの「管理」から管理画面に移動し、管理メニューで設定項目を切り替えられます。",
         selector: anchor("sidebar-nav"),
         placement: "right",
       },

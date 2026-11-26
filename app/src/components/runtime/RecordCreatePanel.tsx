@@ -1,10 +1,11 @@
 ﻿"use client";
 
-import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useImperativeHandle, useState, type CSSProperties, type FormEvent, type Ref } from "react";
 import { listRecords } from "@/lib/api/records";
 import { Button } from "@/components/shared/Button";
 import { Input } from "@/components/shared/Input";
 import { cn } from "@/lib/cn";
+import { isRecordDraftDirty, type DraftValue } from "@/lib/runtime-record-draft";
 import {
   getFieldDisplayName,
   getReferenceAppCode,
@@ -16,19 +17,22 @@ import {
 import type { AppField, AppForm } from "@/types/app";
 import type { AppRecord } from "@/types/record";
 
+export type RecordCreatePanelHandle = { isDirty: boolean };
+
 interface RecordCreatePanelProps {
+  ref?: Ref<RecordCreatePanelHandle>;
   appCode?: string;
   fields: AppField[];
   forms?: AppForm[];
   mode?: "create" | "edit";
   initialRecord?: AppRecord | null;
   isSubmitting?: boolean;
+  inPanel?: boolean;
   tableName?: string;
   onClose?: () => void;
   onSubmit?: (input: { status: string; data: Record<string, unknown> }) => Promise<void>;
 }
 
-type DraftValue = string | string[] | boolean;
 type ReferenceOption = { value: string; label: string };
 type FormFieldLayout = {
   field: AppField;
@@ -123,7 +127,10 @@ function getDraftValue(field: AppField, initialRecord?: AppRecord | null): Draft
 
 function buildInitialDraft(fields: AppField[], initialRecord?: AppRecord | null) {
   return fields.reduce<Record<string, DraftValue>>((draft, field) => {
-    draft[field.code] = getDraftValue(field, initialRecord);
+    const value = getDraftValue(field, initialRecord);
+    draft[field.code] = value === "" && field.fieldType === "master_ref" && isMultiReferenceField(field)
+      ? []
+      : value;
     return draft;
   }, {});
 }
@@ -407,19 +414,20 @@ function renderFieldInput(
 }
 
 export function RecordCreatePanel({
+  ref,
   appCode,
   fields,
   forms = [],
   mode = "create",
   initialRecord = null,
   isSubmitting = false,
+  inPanel = false,
   tableName,
   onClose,
   onSubmit,
 }: RecordCreatePanelProps) {
-  const [draft, setDraft] = useState<Record<string, DraftValue>>(() =>
-    buildInitialDraft(fields, initialRecord)
-  );
+  const [initialDraft] = useState(() => buildInitialDraft(fields, initialRecord));
+  const [draft, setDraft] = useState(initialDraft);
   const [formError, setFormError] = useState<string | null>(null);
   const [referenceOptionsByField, setReferenceOptionsByField] = useState<
     Record<string, ReferenceOption[]>
@@ -427,6 +435,10 @@ export function RecordCreatePanel({
   const activeForm = forms[0];
   const formFieldLayouts = getFormFieldLayouts(fields, activeForm);
   const visibleFields = formFieldLayouts.map((item) => item.field);
+
+  useImperativeHandle(ref, () => ({
+    isDirty: isRecordDraftDirty(initialDraft, draft),
+  }), [initialDraft, draft]);
 
   useEffect(() => {
     let cancelled = false;
@@ -546,33 +558,37 @@ export function RecordCreatePanel({
 
   return (
     <section
-      className="border-b border-outline-variant bg-surface px-8 py-6 shadow-card"
+      className={inPanel
+        ? "bg-surface p-4 [&_button]:min-h-10 [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary"
+        : "border-b border-outline-variant bg-surface px-8 py-6 shadow-card"}
       data-guide="runtime-record-form"
     >
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
-            {title}
+      {!inPanel && (
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
+              {title}
+            </div>
+            <h2 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
+              {heading}
+            </h2>
           </div>
-          <h2 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
-            {heading}
-          </h2>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            キャンセル
+          </Button>
         </div>
-        <Button type="button" variant="ghost" onClick={onClose}>
-          キャンセル
-        </Button>
-      </div>
+      )}
 
       <form onSubmit={(event) => void handleSubmit(event)}>
         {formFieldLayouts.length > 0 ? (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className={cn("grid gap-4", inPanel ? "min-[1200px]:grid-cols-2" : "lg:grid-cols-2")}>
             {formFieldLayouts.map(({ field, width, helpText, rowIndex }) => (
               <div
                 key={field.id}
                 className={cn(
-                  "space-y-2",
-                  width === "full" ? "lg:col-span-2" : "",
-                  rowIndex !== undefined ? "lg:[grid-row:var(--form-row)]" : ""
+                  "min-w-0 space-y-2",
+                  width === "full" && (inPanel ? "min-[1200px]:col-span-2" : "lg:col-span-2"),
+                  rowIndex !== undefined && (inPanel ? "min-[1200px]:[grid-row:var(--form-row)]" : "lg:[grid-row:var(--form-row)]")
                 )}
                 style={rowIndex !== undefined ? { "--form-row": rowIndex + 1 } as CSSProperties : undefined}
               >

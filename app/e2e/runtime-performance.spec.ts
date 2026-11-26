@@ -50,30 +50,31 @@ test("5,000 records stay bounded while paging, searching and aggregating on desk
     const rowSelector = '[data-testid^="record-row-"]';
 
     await page.goto(`/run/${app.code}/${table.code}`);
+    const tableView = page.getByRole("table", { name: "レコード一覧" });
     await expect(page.locator(rowSelector)).toHaveCount(50);
-    await expect(page.getByText("Perf 00001", { exact: true })).toBeVisible();
-    await expect(page.getByText("Perf 05000", { exact: true })).toHaveCount(0);
+    await expect(tableView.getByRole("button", { name: /^Perf 00001/ })).toBeVisible();
+    await expect(tableView.getByRole("button", { name: /^Perf 05000/ })).toHaveCount(0);
     await page.getByRole("button", { name: "レコード一覧の次のページ", exact: true }).click();
-    await expect(page.getByText("Perf 00051", { exact: true })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "レコード一覧のページ切替" })).toContainText("51〜100 / 5000件");
-    await page.getByPlaceholder("レコードを検索...").fill("Perf 05000");
+    await expect(tableView.getByRole("button", { name: /^Perf 00051/ })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "レコード一覧のページ切替" })).toContainText("5000件中 51–100件を表示");
+    await page.getByRole("searchbox", { name: "レコードを検索" }).fill("Perf 05000");
     await expect(page.locator(rowSelector)).toHaveCount(1);
     await expect(page.getByTestId(`record-row-${target.id}`)).toBeVisible();
-    await page.getByPlaceholder("レコードを検索...").fill("");
+    await page.getByRole("searchbox", { name: "レコードを検索" }).fill("");
     await expect(page.locator(rowSelector)).toHaveCount(50);
-    await expect(page.getByText("Perf 00001", { exact: true })).toBeVisible();
+    await expect(tableView.getByRole("button", { name: /^Perf 00001/ })).toBeVisible();
 
-    await page.getByTestId(`runtime-view-tab-${views[1].id}`).click();
+    await page.getByRole("link", { name: views[1].name, exact: true }).click();
     await expect(page.getByTestId("runtime-kanban-view").locator(rowSelector)).toHaveCount(100);
     await page.getByRole("button", { name: "Aのレコードの次のページ", exact: true }).click();
     await expect(page.getByRole("navigation", { name: "Aのレコードのページ切替" })).toContainText("51〜100 / 2500件");
-    await page.getByTestId(`runtime-view-tab-${views[2].id}`).click();
+    await page.getByRole("link", { name: views[2].name, exact: true }).click();
     await expect(page.getByTestId("runtime-calendar-view").locator(rowSelector)).toHaveCount(50);
     await page.getByRole("button", { name: "日付なしのレコードの次のページ", exact: true }).click();
     await expect(page.getByRole("navigation", { name: "日付なしのレコードのページ切替" })).toContainText("51〜100 / 100件");
-    await page.getByTestId(`runtime-view-tab-${views[3].id}`).click();
+    await page.getByRole("link", { name: views[3].name, exact: true }).click();
     await expect(page.getByTestId("runtime-chart-view")).toContainText("5000");
-    await page.getByTestId(`runtime-view-tab-${views[4].id}`).click();
+    await page.getByRole("link", { name: views[4].name, exact: true }).click();
     await expect(page.getByTestId("runtime-summary-view")).toContainText("12,502,500");
 
     await page.setViewportSize({ width: 390, height: 844 });

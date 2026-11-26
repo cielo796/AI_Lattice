@@ -111,8 +111,8 @@ test("saved table forms support pointer layout, gaps, keyboard, retry and runtim
     await expect(page.locator('[data-layout-row="1"] [data-layout-slot]')).toHaveCount(1);
     await page.locator(".form-layout-builder").screenshot({ path: "test-results/table-form-layout-desktop.png" });
     await page.goto(`/run/${fixture.app.code}/${fixture.table.code}`);
-    await page.getByRole("button", { name: "新規レコード", exact: true }).click();
-    const runtimeForm = page.locator("form").filter({ has: page.getByRole("button", { name: "レコードを作成", exact: true }) });
+    await page.getByRole("button", { name: "レコードを追加", exact: true }).click();
+    const runtimeForm = page.locator('[data-guide="runtime-record-form"] form');
     const runtimeRows = await runtimeForm.evaluate((element) => Array.from(element.querySelectorAll<HTMLElement>("[style*='--form-row']")).map((field) => ({ name: field.querySelector("label")?.textContent?.trim(), row: getComputedStyle(field).gridRowStart })));
     expect(runtimeRows).toEqual([{ name: "品目名", row: "1" }, { name: "備考", row: "1" }, { name: "発注点", row: "2" }, { name: "入荷日", row: "3" }, { name: "在庫数", row: "4" }]);
     await expect(runtimeForm.getByText("実在庫を入力", { exact: true })).toBeVisible();

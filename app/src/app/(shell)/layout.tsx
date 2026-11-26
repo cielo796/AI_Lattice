@@ -6,11 +6,13 @@ import { ShellContent } from "@/components/shared/ShellContent";
 import { redirect } from "next/navigation";
 import { listAppsForUser } from "@/server/apps/service";
 import { getAuthenticatedUser } from "@/server/auth/service";
+import { getPermissionMap } from "@/server/admin/rbac";
 import {
   isDatabaseSetupError,
   toDatabaseSetupErrorBody,
 } from "@/server/db/setup-errors";
 import type { App } from "@/types/app";
+import type { PermissionMap } from "@/lib/shell-navigation";
 
 export default async function ShellLayout({
   children,
@@ -19,11 +21,15 @@ export default async function ShellLayout({
 }) {
   let user;
   let initialApps: App[] = [];
+  let permissions: PermissionMap = {};
 
   try {
     user = await getAuthenticatedUser();
     if (user) {
-      initialApps = await listAppsForUser(user);
+      [initialApps, permissions] = await Promise.all([
+        listAppsForUser(user),
+        getPermissionMap(user),
+      ]);
     }
   } catch (error) {
     if (isDatabaseSetupError(error)) {
@@ -46,10 +52,10 @@ export default async function ShellLayout({
   }
 
   return (
-    <ShellChromeProvider>
+    <ShellChromeProvider permissions={permissions}>
       <GuideProvider>
         <div className="min-h-screen bg-surface-container-low">
-          <Sidebar initialApps={initialApps} />
+          <Sidebar initialApps={initialApps} userName={user.name} />
           <ShellContent>
             {children}
           </ShellContent>

@@ -59,18 +59,19 @@ export function getRecordIdentifier(record: AppRecord | null | undefined) {
   );
 }
 
+export const RECORD_TITLE_FIELD_CODES = [
+  "subject", "title", "name", "item_name", "applicant_name", "requester_name",
+] as const;
+
 export function getRecordTitle(record: AppRecord | null | undefined) {
   const data = getRecordData(record);
-
-  return (
-    getStringValue(data, "subject") ||
-    getStringValue(data, "title") ||
-    getStringValue(data, "name") ||
-    getStringValue(data, "item_name") ||
-    getStringValue(data, "applicant_name") ||
-    getStringValue(data, "requester_name") ||
-    getRecordIdentifier(record)
-  );
+  for (const code of RECORD_TITLE_FIELD_CODES) {
+    const title = getStringValue(data, code);
+    if (title) {
+      return title;
+    }
+  }
+  return getRecordIdentifier(record);
 }
 
 export function getRecordDescription(record: AppRecord | null | undefined) {

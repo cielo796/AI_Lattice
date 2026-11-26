@@ -1,52 +1,46 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/shared/Badge";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { RecordTable } from "@/components/runtime/RecordTable";
 import { PaginatedRecords } from "@/components/runtime/PaginatedRecords";
 import { Icon } from "@/components/shared/Icon";
 import { cn } from "@/lib/cn";
 import {
   formatFieldKey,
   formatFieldValue,
-  formatPriorityLabel,
   formatRelativeTime,
   formatStatusLabel,
-  getPriorityVariant,
-  getRecordDescription,
   getRecordIdentifier,
-  getRecordPriority,
   getRecordTitle,
   getStatusVariant,
 } from "@/lib/runtime-records";
 import {
-  applyViewQuery,
-  filterRecordsByView,
   getChartBuckets,
   getDateFieldCode,
   getFieldDisplayLabel,
   getGroupFieldCode,
   getMetricFieldCode,
   getNumericMetricValues,
-  getViewColumns,
-  getViewFilters,
   getVisibleFields,
   groupRecordsByDate,
   groupRecordsByField,
-  sortRecordsByView,
 } from "@/lib/runtime-views";
 import type { AppField, AppView, AppViewType } from "@/types/app";
 import type { AppRecord } from "@/types/record";
 
 interface RecordListProps {
-  records: AppRecord[];
-  fields?: AppField[];
-  views?: AppView[];
-  activeViewId?: string;
+  filteredRecords: AppRecord[];
+  fields: AppField[];
+  activeView?: AppView;
+  visibleColumnCodes: string[];
+  pageResetKey: string;
+  hasQuery: boolean;
   selectedId?: string;
-  isFullWidth?: boolean;
+  detailOpen: boolean;
   isLoading?: boolean;
-  onViewChange?: (viewId: string) => void;
   onSelect: (record: AppRecord) => void;
+  onNavigate: (record: AppRecord) => void;
 }
 
 interface RecordCardProps {
@@ -54,24 +48,20 @@ interface RecordCardProps {
   fields: AppField[];
   visibleColumnCodes: string[];
   selectedId?: string;
-  compact?: boolean;
   onSelect: (record: AppRecord) => void;
 }
 
-const VIEW_TYPE_META: Record<AppViewType, { label: string; icon: string }> = {
-  list: { label: "一覧", icon: "view_list" },
-  kanban: { label: "カンバン", icon: "view_kanban" },
-  calendar: { label: "カレンダー", icon: "calendar_month" },
-  chart: { label: "チャート", icon: "insert_chart" },
-  summary: { label: "集計", icon: "speed" },
+const VIEW_TYPE_ICONS: Record<AppViewType, string> = {
+  list: "view_list",
+  kanban: "view_kanban",
+  calendar: "calendar_month",
+  chart: "insert_chart",
+  summary: "speed",
 };
 
 const numberFormatter = new Intl.NumberFormat("ja-JP", {
   maximumFractionDigits: 1,
 });
-
-const EMPTY_FIELDS: AppField[] = [];
-const EMPTY_VIEWS: AppView[] = [];
 
 function formatNumber(value: number) {
   return numberFormatter.format(value);
@@ -163,16 +153,14 @@ function RecordCard({
   fields,
   visibleColumnCodes,
   selectedId,
-  compact = false,
   onSelect,
 }: RecordCardProps) {
   const isSelected = record.id === selectedId;
-  const priority = getRecordPriority(record);
   const visibleFields = getVisibleFields(
     record,
     visibleColumnCodes,
     fields,
-    compact ? 2 : 3
+    2
   );
 
   return (
@@ -183,54 +171,36 @@ function RecordCard({
       data-draggable
       onClick={() => onSelect(record)}
       className={cn(
-        "group relative w-full rounded-lg p-2.5 text-left transition-all",
-        isSelected ? "bg-primary-container/60" : "hover:bg-surface-container",
-        compact && "border border-outline-variant bg-surface"
+        "group relative w-full rounded-lg border border-outline-variant p-2.5 text-left transition-colors",
+        isSelected ? "bg-primary-container/60" : "bg-surface hover:bg-surface-container"
       )}
     >
       {isSelected && (
         <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
       )}
       <div className="mb-1 flex items-center gap-2">
-        <span className="drag-handle material-symbols-outlined text-[16px] text-on-surface-muted">
-          drag_indicator
-        </span>
-        <span className="min-w-0 truncate font-mono text-[10.5px] font-semibold text-on-surface-muted">
+        <Icon name="drag_indicator" size="sm" className="drag-handle text-on-surface-muted" />
+        <span className="min-w-0 truncate font-mono text-xs font-semibold text-on-surface-muted">
           {getRecordIdentifier(record)}
         </span>
-        <div className="ml-auto flex shrink-0 items-center gap-1">
-          <Badge variant={getStatusVariant(record.status)} className="!text-[10px]">
-            {formatStatusLabel(record.status)}
-          </Badge>
-          {priority && !compact && (
-            <Badge variant={getPriorityVariant(priority)} className="!text-[10px]">
-              {formatPriorityLabel(priority)}
-            </Badge>
-          )}
-        </div>
+        <StatusBadge status={record.status} className="ml-auto shrink-0" />
       </div>
 
       <div
         className={cn(
-          "mb-1 line-clamp-2 pl-6 text-[13.5px] font-semibold leading-snug tracking-tight",
+          "mb-1 line-clamp-2 pl-6 text-sm font-semibold leading-snug tracking-tight",
           isSelected ? "text-on-primary-container" : "text-on-surface"
         )}
       >
         {getRecordTitle(record)}
       </div>
 
-      {!compact && (
-        <div className="mb-1.5 line-clamp-2 pl-6 text-[11.5px] leading-relaxed text-on-surface-variant">
-          {getRecordDescription(record) || "説明はありません"}
-        </div>
-      )}
-
       {visibleFields.length > 0 && (
         <div className="mb-1.5 space-y-0.5 pl-6">
           {visibleFields.map((field) => (
             <div
               key={field.fieldCode}
-              className="grid grid-cols-[72px_minmax(0,1fr)] gap-1 text-[10.5px]"
+              className="grid grid-cols-[72px_minmax(0,1fr)] gap-1 text-sm"
             >
               <span className="truncate text-on-surface-muted">
                 {formatFieldKey(field.fieldCode, fields)}
@@ -243,7 +213,7 @@ function RecordCard({
         </div>
       )}
 
-      <div className="flex items-center gap-1 pl-6 text-[10.5px] text-on-surface-muted">
+      <div className="flex items-center gap-1 pl-6 text-xs text-on-surface-muted">
         <Icon name="schedule" size="sm" className="text-[11px]" />
         {formatRelativeTime(record.updatedAt)}
       </div>
@@ -253,45 +223,30 @@ function RecordCard({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low p-6 text-center text-[13px] text-on-surface-variant">
+    <div className="rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low p-6 text-center text-sm text-on-surface-variant">
       {message}
     </div>
   );
 }
 
 export function RecordList({
-  records,
-  fields = EMPTY_FIELDS,
-  views = EMPTY_VIEWS,
-  activeViewId,
+  filteredRecords,
+  fields,
+  activeView,
+  visibleColumnCodes,
+  pageResetKey,
+  hasQuery,
   selectedId,
-  isFullWidth = false,
+  detailOpen,
   isLoading = false,
-  onViewChange,
   onSelect,
+  onNavigate,
 }: RecordListProps) {
-  const [query, setQuery] = useState("");
   const [calendarMonthKey, setCalendarMonthKey] = useState<string | null>(null);
-  const normalizedQuery = query.trim();
-  const activeView =
-    views.find((view) => view.id === activeViewId) ?? views[0] ?? undefined;
   const activeViewType = activeView?.viewType ?? "list";
-  const visibleColumnCodes = useMemo(
-    () => getViewColumns(activeView, fields),
-    [activeView, fields]
-  );
-  const viewRecords = useMemo(
-    () => sortRecordsByView(filterRecordsByView(records, getViewFilters(activeView)), activeView),
-    [records, activeView]
-  );
-  const filteredRecords = useMemo(
-    () => applyViewQuery(viewRecords, visibleColumnCodes, query),
-    [viewRecords, visibleColumnCodes, query]
-  );
-  const pageResetKey = `${records[0]?.tableId ?? ""}:${activeView?.id ?? ""}:${normalizedQuery}`;
-  const emptyMessage = normalizedQuery
+  const emptyMessage = hasQuery
     ? "検索条件に一致するレコードはありません。"
-    : "まだレコードがありません。新規レコードから作成できます。";
+    : "まだレコードがありません。";
   const isListView = activeViewType === "list";
 
   const groupFieldCode = getGroupFieldCode(activeView, fields);
@@ -319,7 +274,9 @@ export function RecordList({
     calendarGroups.find((group) => group.key !== "日付なし")?.key.slice(0, 7) ??
     getCurrentMonthKey();
   const displayedCalendarMonthKey = calendarMonthKey ?? firstCalendarMonthKey;
-  const calendarDays = getCalendarDays(displayedCalendarMonthKey, recordsByDate);
+  const calendarDays = activeViewType === "calendar"
+    ? getCalendarDays(displayedCalendarMonthKey, recordsByDate)
+    : [];
   const undatedCalendarGroup = calendarGroups.find((group) => group.key === "日付なし");
   const chartBuckets = useMemo(
     () => activeViewType === "chart"
@@ -344,113 +301,45 @@ export function RecordList({
   );
 
   return (
-    <div
-      className={cn(
-        "flex w-full flex-col border-b border-outline-variant bg-surface xl:border-b-0",
-        isFullWidth
-          ? "min-w-0 flex-1"
-          : [
-              "shrink-0 xl:border-r",
-              isListView ? "xl:w-80" : "xl:w-[44rem] 2xl:w-[48rem]",
-            ]
+    <div className="min-w-0 bg-surface" data-guide="runtime-record-list">
+      {isLoading && (
+        <div className="mx-4 my-3 rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant">
+          レコードを読み込んでいます...
+        </div>
       )}
-      data-guide="runtime-record-list"
-    >
-      <div className="border-b border-outline-variant p-3">
-        <div className="relative" data-guide="runtime-record-search">
-          <Icon
-            name="search"
-            size="sm"
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted"
-          />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="レコードを検索..."
-            className="w-full rounded-md border border-outline bg-surface py-1.5 pl-8 pr-3 text-[13px] text-on-surface placeholder:text-on-surface-muted hover:border-outline-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-          />
+
+      {!isLoading && filteredRecords.length === 0 && (
+        <div className="p-4" data-guide="runtime-empty-records">
+          <EmptyState message={emptyMessage} />
         </div>
-        {views.length > 0 && (
-          <div className="mt-2 flex gap-1 overflow-x-auto" data-guide="runtime-view-tabs">
-            {views.map((view) => {
-              const isActive = view.id === activeView?.id;
-              const viewMeta = VIEW_TYPE_META[view.viewType];
+      )}
 
-              return (
-                <button
-                  key={view.id}
-                  type="button"
-                  data-testid={`runtime-view-tab-${view.id}`}
-                  onClick={() => onViewChange?.(view.id)}
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
-                    isActive
-                      ? "bg-primary-container text-on-primary-container"
-                      : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container"
-                  )}
-                  title={viewMeta.label}
-                >
-                  <Icon name={viewMeta.icon} size="sm" className="text-[14px]" />
-                  <span>{view.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {isListView && filteredRecords.length > 0 && (
+        <RecordTable
+          key={pageResetKey}
+          records={filteredRecords}
+          fields={fields}
+          visibleColumnCodes={visibleColumnCodes}
+          selectedId={selectedId}
+          detailOpen={detailOpen}
+          onSelect={onSelect}
+          onNavigate={onNavigate}
+        />
+      )}
 
-      <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Icon
-            name={VIEW_TYPE_META[activeViewType].icon}
-            size="sm"
-            className="text-primary"
-          />
-          <div className="min-w-0">
-            <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-on-surface-muted">
-              {activeView?.name ?? VIEW_TYPE_META[activeViewType].label}
-            </div>
-            {!isListView && (
-              <div className="truncate text-[10.5px] text-on-surface-variant">
-                {activeViewType === "calendar"
-                  ? `${getFieldDisplayLabel(dateFieldCode, fields)} 別`
-                  : activeViewType === "summary"
-                    ? metricLabel
-                    : `${getFieldDisplayLabel(groupFieldCode, fields)} 別`}
-              </div>
-            )}
-          </div>
+      <div
+        hidden={isListView || filteredRecords.length === 0}
+        className="min-w-0 p-4 [&_button]:min-h-10 [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary"
+      >
+        <div className="mb-3 flex items-center gap-2 text-xs text-on-surface-variant">
+          <Icon name={VIEW_TYPE_ICONS[activeViewType]} size="sm" className="text-primary" />
+          {activeViewType === "calendar"
+            ? getFieldDisplayLabel(dateFieldCode, fields) + " 別"
+            : activeViewType === "summary"
+              ? metricLabel
+              : getFieldDisplayLabel(groupFieldCode, fields) + " 別"}
         </div>
-        <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
-          {filteredRecords.length}
-        </span>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-2 pb-6">
-        {isLoading && (
-          <div className="rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant">
-            レコードを読み込んでいます...
-          </div>
-        )}
-
-        {!isLoading && filteredRecords.length === 0 && (
-          <div data-guide="runtime-empty-records">
-            <EmptyState message={emptyMessage} />
-          </div>
-        )}
-
-        {!isLoading && filteredRecords.length > 0 && activeViewType === "list" && (
-          <div className="space-y-0.5" data-testid="runtime-list-view">
-            <PaginatedRecords
-              key={pageResetKey}
-              records={filteredRecords}
-              label="レコード一覧"
-              renderRecord={(record) => <RecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} onSelect={onSelect} />}
-            />
-          </div>
-        )}
-
-        {!isLoading && filteredRecords.length > 0 && activeViewType === "kanban" && (
+        {filteredRecords.length > 0 && activeViewType === "kanban" && (
           <div
             className="flex h-full min-h-[28rem] gap-3 overflow-x-auto pb-4"
             data-testid="runtime-kanban-view"
@@ -473,7 +362,7 @@ export function RecordList({
                     key={`${pageResetKey}:${group.key}`}
                     records={group.records}
                     label={`${group.label}のレコード`}
-                    renderRecord={(record) => <RecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} compact onSelect={onSelect} />}
+                    renderRecord={(record) => <RecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} onSelect={onSelect} />}
                   />
                 </div>
               </section>
@@ -481,7 +370,7 @@ export function RecordList({
           </div>
         )}
 
-        {!isLoading && filteredRecords.length > 0 && activeViewType === "calendar" && (
+        {filteredRecords.length > 0 && activeViewType === "calendar" && (
           <div className="space-y-3" data-testid="runtime-calendar-view">
             <div className="rounded-lg border border-outline-variant bg-surface-container-low">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-3 py-2">
@@ -618,7 +507,7 @@ export function RecordList({
                     key={pageResetKey}
                     records={undatedCalendarGroup.records}
                     label="日付なしのレコード"
-                    renderRecord={(record) => <RecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} compact onSelect={onSelect} />}
+                    renderRecord={(record) => <RecordCard record={record} fields={fields} visibleColumnCodes={visibleColumnCodes} selectedId={selectedId} onSelect={onSelect} />}
                   />
                 </div>
               </section>
@@ -626,7 +515,7 @@ export function RecordList({
           </div>
         )}
 
-        {!isLoading && filteredRecords.length > 0 && activeViewType === "chart" && (
+        {filteredRecords.length > 0 && activeViewType === "chart" && (
           <div className="space-y-4" data-testid="runtime-chart-view">
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-lg border border-outline-variant bg-surface-container-low p-3">
@@ -678,7 +567,7 @@ export function RecordList({
           </div>
         )}
 
-        {!isLoading && filteredRecords.length > 0 && activeViewType === "summary" && (
+        {filteredRecords.length > 0 && activeViewType === "summary" && (
           <div className="space-y-4" data-testid="runtime-summary-view">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4">
@@ -727,7 +616,6 @@ export function RecordList({
                     fields={fields}
                     visibleColumnCodes={visibleColumnCodes}
                     selectedId={selectedId}
-                    compact
                     onSelect={onSelect}
                   />
                 ))}

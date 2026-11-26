@@ -1,28 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useId, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { RecordActivitySections } from "@/components/runtime/RecordActivitySections";
-import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { Icon } from "@/components/shared/Icon";
+import { cn } from "@/lib/cn";
+import { getRuntimeFieldText, spansDetailColumns } from "@/lib/runtime-field-display";
 import {
   buildReferenceRecordHref,
   formatDateTime,
   formatFieldKey,
-  formatFieldValue,
-  formatStatusLabel,
-  getDisplayFields,
-  getRecordCustomer,
-  getRecordDescription,
+  getRecordData,
   getRecordTitle,
   getRecordFieldValueText,
   getReferenceAppCode,
   getReferenceLookupFieldCodes,
   getReferenceTableCode,
   getReferenceValueIds,
-  getStatusVariant,
   resolveRecordReferences,
 } from "@/lib/runtime-records";
 import type {
@@ -42,7 +38,7 @@ import type {
 interface RecordDetailProps {
   appCode?: string;
   runtimeBasePath?: string;
-  record: AppRecord | null;
+  record: AppRecord;
   fieldDefinitions?: AppField[];
   referenceLabelsByField?: ReferenceLabelsByField;
   referenceRecordsByField?: ReferenceRecordsByField;
@@ -124,6 +120,9 @@ export function RecordDetail({
   onDeleteAttachment,
 }: RecordDetailProps) {
   const [commentText, setCommentText] = useState("");
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const actionsId = useId();
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const resolvedRecord = resolveRecordReferences(
     record,
@@ -135,7 +134,7 @@ export function RecordDetail({
     event.preventDefault();
 
     const nextComment = commentText.trim();
-    if (!nextComment || !resolvedRecord || !onAddComment) {
+    if (!nextComment || !onAddComment) {
       return;
     }
 
@@ -146,7 +145,7 @@ export function RecordDetail({
   async function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
-    if (!file || !resolvedRecord || !onAddAttachment) {
+    if (!file || !onAddAttachment) {
       return;
     }
 
@@ -154,26 +153,12 @@ export function RecordDetail({
     event.target.value = "";
   }
 
-  if (!resolvedRecord) {
-    return (
-      <section className="flex flex-1 items-center justify-center bg-surface-container-low">
-        <div className="max-w-md rounded-xl border-2 border-dashed border-outline-variant bg-surface-container-low p-8 text-center">
-          <div className="mb-2 text-lg font-bold text-on-surface">レコードが選択されていません</div>
-          <p className="text-sm text-on-surface-variant">
-            一覧からレコードを選択すると、詳細、コメント、添付ファイルを確認できます。
-          </p>
-        </div>
-      </section>
-    );
-  }
+  const data = getRecordData(resolvedRecord);
+  const fieldsByCode = new Map(fieldDefinitions.map((field) => [field.code, field]));
+  const fieldCodes = new Set([...fieldsByCode.keys(), ...Object.keys(data)]);
 
-  const description = getRecordDescription(resolvedRecord);
-  const customer = getRecordCustomer(resolvedRecord) || "依頼者不明";
-  const fields = getDisplayFields(resolvedRecord);
-
-  function renderFieldContent(key: string, value: unknown) {
-    const fieldDefinition = fieldDefinitions.find((field) => field.code === key);
-    const rawValue = record?.data?.[key];
+  function renderFieldContent(key: string, text: string, fieldDefinition?: AppField) {
+    const rawValue = record.data?.[key];
 
     if (appCode && fieldDefinition?.fieldType === "master_ref") {
       const referenceAppCode = getReferenceAppCode(fieldDefinition) || appCode;
@@ -192,9 +177,9 @@ export function RecordDetail({
                   referenceTableCode,
                   referenceRecordId
                 )}
-                className="inline-flex items-center gap-1 rounded-full bg-primary-container px-3 py-1 font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary"
+                className="inline-flex min-h-10 min-w-0 max-w-full items-center gap-1 rounded-lg bg-primary-container px-3 py-1 font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary focus-visible:ring-2 focus-visible:ring-primary"
               >
-                <span>
+                <span className="min-w-0 wrap-anywhere">
                   {referenceLabelsByField[key]?.[referenceRecordId] ?? referenceRecordId}
                 </span>
                 <Icon name="arrow_outward" size="sm" />
@@ -205,12 +190,12 @@ export function RecordDetail({
       }
     }
 
-    return formatFieldValue(value);
+    return text || <span className="text-on-surface-variant">未入力</span>;
   }
 
   function renderLookupDetails(fieldDefinition: AppField) {
     const lookupFieldCodes = getReferenceLookupFieldCodes(fieldDefinition);
-    const referenceRecordIds = getReferenceValueIds(record?.data?.[fieldDefinition.code]);
+    const referenceRecordIds = getReferenceValueIds(record.data?.[fieldDefinition.code]);
 
     if (lookupFieldCodes.length === 0 || referenceRecordIds.length === 0) {
       return null;
@@ -275,19 +260,19 @@ export function RecordDetail({
             key={lookupCard.label}
             className="rounded-lg border border-tertiary-container bg-tertiary-container/40 p-3"
           >
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-on-tertiary-container">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-on-tertiary-container">
               {lookupCard.label}
             </div>
             <div className="space-y-1">
               {lookupCard.values.map((lookupValue) => (
                 <div
                   key={`${lookupCard.label}-${lookupValue.fieldLabel}`}
-                  className="flex items-start justify-between gap-3 text-xs"
+                  className="flex items-start justify-between gap-3 text-sm"
                 >
                   <span className="text-on-surface-variant">
                     {lookupValue.fieldLabel}
                   </span>
-                  <span className="text-right text-on-surface">{lookupValue.value}</span>
+                  <span className="min-w-0 wrap-anywhere text-right text-on-surface">{lookupValue.value}</span>
                 </div>
               ))}
             </div>
@@ -298,183 +283,77 @@ export function RecordDetail({
   }
 
   return (
-    <section className="flex flex-1 flex-col bg-surface-container-low" data-guide="runtime-record-detail">
-      <div className="px-8 py-6">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge variant={getStatusVariant(resolvedRecord.status)}>
-              {formatStatusLabel(resolvedRecord.status)}
-            </Badge>
-            <span className="text-xs text-on-surface-variant">
-              更新: {formatDateTime(resolvedRecord.updatedAt)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
+    <div className="space-y-6 px-4 py-4">
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          size="lg"
+          onClick={onEditRecord}
+          disabled={!onEditRecord || isDeletingRecord}
+          className="focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <Icon name="edit" size="sm" />
+          レコードを編集
+        </Button>
+        <div
+          className="relative"
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              setIsActionsOpen(false);
+            }
+          }}
+        >
+          <button
+            ref={actionsButtonRef}
+            type="button"
+            aria-label="その他の操作"
+            aria-expanded={isActionsOpen}
+            aria-controls={actionsId}
+            disabled={!onDeleteRecord || isDeletingRecord}
+            className="flex h-11 w-11 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+            onClick={() => setIsActionsOpen((current) => !current)}
+          >
+            <Icon name="more_horiz" />
+          </button>
+          <div id={actionsId} hidden={!isActionsOpen} className="absolute right-0 z-10 min-w-28 rounded-md border border-outline-variant bg-surface p-1 shadow-card">
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onEditRecord}
-              disabled={!onEditRecord || isDeletingRecord}
-            >
-              <Icon name="edit" size="sm" />
-              編集
-            </Button>
-            <Button
-              type="button"
-              variant="danger"
-              size="sm"
               data-testid="delete-record-button"
-              onClick={() => void onDeleteRecord?.()}
-              disabled={!onDeleteRecord || isDeletingRecord}
+              className="flex min-h-10 w-full items-center gap-2 rounded px-3 text-sm font-semibold text-error hover:bg-error-container focus-visible:ring-2 focus-visible:ring-primary"
+              onClick={() => {
+                setIsActionsOpen(false);
+                actionsButtonRef.current?.focus();
+                void onDeleteRecord?.();
+              }}
             >
               <Icon name="delete" size="sm" />
-              {isDeletingRecord ? "削除中..." : "削除"}
-            </Button>
+              削除
+            </button>
           </div>
+          {isDeletingRecord && <span role="status" className="sr-only">削除中...</span>}
         </div>
-        <h1 className="font-headline text-3xl font-extrabold leading-tight text-on-surface">
-          {getRecordTitle(resolvedRecord)}
-        </h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-8 pb-6">
-        <div className="mb-6 flex gap-4">
-          <Avatar name={customer} size="lg" />
-          <div className="flex-1">
-            <div className="mb-2 flex items-baseline gap-2">
-              <span className="text-sm font-bold text-on-surface">{customer}</span>
-              <span className="text-xs text-on-surface-variant">
-                作成: {formatDateTime(resolvedRecord.createdAt)}
-              </span>
-            </div>
-            <div className="rounded-xl bg-surface-container p-4 text-sm leading-relaxed text-on-surface">
-              {description || "説明はありません"}
-            </div>
-          </div>
-        </div>
+      {fieldCodes.size > 0 && (
+        <dl className="grid grid-cols-2 gap-3">
+          {Array.from(fieldCodes, (key) => {
+            const field = fieldsByCode.get(key);
+            const text = getRuntimeFieldText(data[key], field?.fieldType);
+            return (
+              <div key={key} className={cn("min-w-0 rounded-lg border border-outline-variant p-3", spansDetailColumns(text, field?.fieldType) && "col-span-2")}>
+                <dt className="mb-1 wrap-anywhere text-xs font-semibold text-on-surface-variant">{formatFieldKey(key, fieldDefinitions)}</dt>
+                <dd className="wrap-anywhere whitespace-pre-wrap text-sm text-on-surface">
+                  {renderFieldContent(key, text, field)}
+                  {field?.fieldType === "master_ref" && renderLookupDetails(field)}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
 
-        {fields.length > 0 && (
-          <div className="mb-6">
-            <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
-              レコードデータ
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              {fields.map(([key, value]) => (
-                <div key={key} className="rounded-lg border border-outline-variant bg-surface p-3">
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
-                    {formatFieldKey(key, fieldDefinitions)}
-                  </div>
-                  <div className="text-sm text-on-surface">
-                    {renderFieldContent(key, value)}
-                  </div>
-                  {(() => {
-                    const fieldDefinition = fieldDefinitions.find((field) => field.code === key);
-                    return fieldDefinition?.fieldType === "master_ref"
-                      ? renderLookupDetails(fieldDefinition)
-                      : null;
-                  })()}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="mb-6" data-testid="record-approvals" data-guide="runtime-approval-panel">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-muted">
-              Governance approvals
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {onSubmitApproval && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void onSubmitApproval()}
-                  disabled={
-                    isSubmittingApproval ||
-                    approvals.some((approval) => approval.status === "pending")
-                  }
-                >
-                  <Icon name="approval" size="sm" />
-                  {isSubmittingApproval ? "Requesting..." : "Request approval"}
-                </Button>
-              )}
-              {approvals.some((approval) => approval.status === "pending") && (
-                <Link
-                  href="/admin/approvals"
-                  className="inline-flex items-center gap-1 rounded-md bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary"
-                >
-                  Review queue
-                  <Icon name="arrow_outward" size="sm" />
-                </Link>
-              )}
-            </div>
-          </div>
-
-          {isLoadingApprovals ? (
-            <div className="rounded-lg border border-outline-variant bg-surface p-3 text-sm text-on-surface-variant">
-              Loading approvals...
-            </div>
-          ) : approvals.length === 0 ? (
-            <div className="rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
-              No approvals have been requested for this record yet.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {approvals.map((approval) => (
-                <div
-                  key={approval.id}
-                  className="rounded-lg border border-outline-variant bg-surface p-3"
-                >
-                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-bold text-on-surface">
-                        {approval.title}
-                      </div>
-                      <div className="text-xs text-on-surface-variant">
-                        {approval.workflowName ?? "Manual approval"} /{" "}
-                        {approval.assignees?.length
-                          ? approval.assignees
-                              .map(
-                                (assignee) =>
-                                  `${assignee.userName ?? assignee.userId} (${getApprovalStatusLabel(
-                                    assignee.status
-                                  )})`
-                              )
-                              .join(", ")
-                          : approval.approverName ?? approval.approverId}
-                      </div>
-                    </div>
-                    <Badge variant={getApprovalStatusVariant(approval.status)}>
-                      {getApprovalStatusLabel(approval.status)}
-                    </Badge>
-                  </div>
-                  {approval.description && (
-                    <div className="mb-2 text-xs text-on-surface-variant">
-                      {approval.description}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-on-surface-variant">
-                    <span>Requested {formatDateTime(approval.createdAt)}</span>
-                    {approval.actedAt && (
-                      <span>
-                        Decided {formatDateTime(approval.actedAt)} by{" "}
-                        {approval.actorName ?? approval.actedBy}
-                      </span>
-                    )}
-                  </div>
-                  {approval.commentText && (
-                    <div className="mt-2 rounded-md border-l-2 border-outline bg-surface-container-low p-2 text-xs leading-relaxed text-on-surface">
-                      {approval.commentText}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+      <div className="space-y-4 [&_a]:min-h-10 [&_a]:rounded [&_a]:focus-visible:ring-2 [&_a]:focus-visible:ring-primary [&_button]:min-h-10 [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary">
         <RecordActivitySections
           appCode={appCode}
           runtimeBasePath={runtimeBasePath}
@@ -485,54 +364,151 @@ export function RecordDetail({
           isLoadingActivity={isLoadingActivity}
           deletingAttachmentId={deletingAttachmentId}
           onDeleteAttachment={onDeleteAttachment}
+          commentComposer={(
+            <form
+              onSubmit={(event) => void handleSubmit(event)}
+              className="mt-3 rounded-xl border border-outline-variant bg-surface p-3 shadow-card focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15"
+            >
+              <input
+                ref={attachmentInputRef}
+                type="file"
+                className="hidden"
+                onChange={(event) => void handleAttachmentChange(event)}
+              />
+              <textarea
+                rows={3}
+                value={commentText}
+                onChange={(event) => setCommentText(event.target.value)}
+                aria-label="コメントを追加"
+                placeholder="コメントを追加..."
+                className="w-full resize-none bg-transparent text-sm text-on-surface placeholder:text-on-surface-muted focus:outline-none"
+              />
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => attachmentInputRef.current?.click()}
+                    disabled={!onAddAttachment || isUploadingAttachment}
+                    className="flex h-10 w-10 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="添付ファイルを追加"
+                  >
+                    <Icon name="attach_file" size="sm" />
+                  </button>
+                  {isUploadingAttachment && (
+                    <div className="text-xs text-on-surface-variant">
+                      添付ファイルをアップロード中...
+                    </div>
+                  )}
+                </div>
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="focus-visible:ring-2 focus-visible:ring-primary"
+                  disabled={!commentText.trim() || isSubmittingComment || !onAddComment}
+                >
+                  {isSubmittingComment ? "送信中..." : "送信"}
+                </Button>
+              </div>
+            </form>
+          )}
         />
       </div>
 
-      <div className="px-8 py-4">
-        <form
-          onSubmit={(event) => void handleSubmit(event)}
-          className="rounded-xl border border-outline-variant bg-surface p-3 shadow-card focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15"
-        >
-          <input
-            ref={attachmentInputRef}
-            type="file"
-            className="hidden"
-            onChange={(event) => void handleAttachmentChange(event)}
-          />
-          <textarea
-            rows={3}
-            value={commentText}
-            onChange={(event) => setCommentText(event.target.value)}
-            placeholder="コメントを追加..."
-            className="w-full resize-none bg-transparent text-sm text-on-surface placeholder:text-on-surface-muted focus:outline-none"
-          />
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => attachmentInputRef.current?.click()}
-                disabled={!record || !onAddAttachment || isUploadingAttachment}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="添付ファイルを追加"
-              >
-                <Icon name="attach_file" size="sm" />
-              </button>
-              {isUploadingAttachment && (
-                <div className="text-xs text-on-surface-variant">
-                  添付ファイルをアップロード中...
-                </div>
-              )}
-            </div>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!commentText.trim() || isSubmittingComment || !onAddComment}
-            >
-              {isSubmittingComment ? "送信中..." : "送信"}
-            </Button>
+      <div className="space-y-3" data-testid="record-approvals" data-guide="runtime-approval-panel">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
+            Governance approvals
           </div>
-        </form>
+          <div className="flex flex-wrap items-center gap-2">
+            {onSubmitApproval && (
+              <Button
+                variant="secondary"
+                size="lg"
+                className="px-3 focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() => void onSubmitApproval()}
+                disabled={
+                  isSubmittingApproval ||
+                  approvals.some((approval) => approval.status === "pending")
+                }
+              >
+                <Icon name="approval" size="sm" />
+                {isSubmittingApproval ? "Requesting..." : "Request approval"}
+              </Button>
+            )}
+            {approvals.some((approval) => approval.status === "pending") && (
+              <Link
+                href="/admin/approvals"
+                className="inline-flex min-h-10 items-center gap-1 rounded-md bg-primary-container px-3 py-1.5 text-sm font-semibold text-on-primary-container transition-colors hover:bg-primary hover:text-on-primary focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Review queue
+                <Icon name="arrow_outward" size="sm" />
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {isLoadingApprovals ? (
+          <div className="rounded-lg border border-outline-variant bg-surface p-3 text-sm text-on-surface-variant">
+            Loading approvals...
+          </div>
+        ) : approvals.length === 0 ? (
+          <div className="rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
+            No approvals have been requested for this record yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {approvals.map((approval) => (
+              <div
+                key={approval.id}
+                className="rounded-lg border border-outline-variant bg-surface p-3"
+              >
+                <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-bold text-on-surface">
+                      {approval.title}
+                    </div>
+                    <div className="text-xs text-on-surface-variant">
+                      {approval.workflowName ?? "Manual approval"} /{" "}
+                      {approval.assignees?.length
+                        ? approval.assignees
+                            .map(
+                              (assignee) =>
+                                `${assignee.userName ?? assignee.userId} (${getApprovalStatusLabel(
+                                  assignee.status
+                                )})`
+                            )
+                            .join(", ")
+                        : approval.approverName ?? approval.approverId}
+                    </div>
+                  </div>
+                  <Badge variant={getApprovalStatusVariant(approval.status)}>
+                    {getApprovalStatusLabel(approval.status)}
+                  </Badge>
+                </div>
+                {approval.description && (
+                  <div className="mb-2 text-sm text-on-surface-variant">
+                    {approval.description}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-on-surface-variant">
+                  <span>Requested {formatDateTime(approval.createdAt)}</span>
+                  {approval.actedAt && (
+                    <span>
+                      Decided {formatDateTime(approval.actedAt)} by{" "}
+                      {approval.actorName ?? approval.actedBy}
+                    </span>
+                  )}
+                </div>
+                {approval.commentText && (
+                  <div className="mt-2 rounded-md border-l-2 border-outline bg-surface-container-low p-2 text-sm leading-relaxed text-on-surface">
+                    {approval.commentText}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </section>
+    </div>
   );
 }

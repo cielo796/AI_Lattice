@@ -50,7 +50,7 @@ function SectionHeading({
 }) {
   return (
     <div className="mb-2 flex items-center justify-between gap-2">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+      <span className="text-xs font-semibold uppercase tracking-wider text-primary">
         {label}
       </span>
       {children}
@@ -75,7 +75,7 @@ function AIRunButton({
       onClick={onClick}
       disabled={disabled || isLoading}
       className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-full px-2.5 text-[10px] font-bold tracking-wide transition-colors",
+        "inline-flex min-h-10 items-center gap-1 rounded-full px-2.5 text-sm font-semibold tracking-wide transition-colors",
         "bg-tertiary-container text-on-tertiary-container hover:bg-tertiary/20",
         "disabled:cursor-not-allowed disabled:opacity-50"
       )}
@@ -92,9 +92,10 @@ function AIRunButton({
 
 function AIGeneratedBadge({ modelName }: { modelName: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-tertiary-container px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-on-tertiary-container">
+    <span className="inline-flex items-center gap-1 rounded-full bg-tertiary-container px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-on-tertiary-container">
       <Icon name="auto_awesome" size="sm" className="text-[11px]" filled />
-      AI生成 · {modelName}
+      <span>AI提案</span>
+      <span className="min-w-0">· {modelName}</span>
     </span>
   );
 }
@@ -174,7 +175,7 @@ export function RecordAIPanel({
   const replyResult = results.reply_draft;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 wrap-anywhere [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-primary">
       <section>
         <SectionHeading label="AI要約">
           <AIRunButton
@@ -187,7 +188,7 @@ export function RecordAIPanel({
 
         {summaryResult?.summary ? (
           <div className="space-y-2 rounded-lg bg-tertiary-container/40 p-3">
-            <p className="text-xs leading-relaxed text-on-surface">
+            <p className="text-sm leading-relaxed text-on-surface">
               {summaryResult.summary}
             </p>
             {summaryResult.keyPoints && summaryResult.keyPoints.length > 0 && (
@@ -195,7 +196,7 @@ export function RecordAIPanel({
                 {summaryResult.keyPoints.map((point) => (
                   <li
                     key={point}
-                    className="flex items-start gap-1.5 text-[11px] leading-relaxed text-on-surface-variant"
+                    className="flex items-start gap-1.5 text-sm leading-relaxed text-on-surface-variant"
                   >
                     <Icon
                       name="check_circle"
@@ -210,7 +211,7 @@ export function RecordAIPanel({
             <AIGeneratedBadge modelName={summaryResult.modelName} />
           </div>
         ) : (
-          <p className="text-xs leading-relaxed text-on-surface-variant">
+          <p className="text-sm leading-relaxed text-on-surface-variant">
             {fallbackSummary}
           </p>
         )}
@@ -239,19 +240,19 @@ export function RecordAIPanel({
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-on-surface">
+                      <span className="text-sm font-semibold text-on-surface">
                         {action.label}
                       </span>
                       <span
                         className={cn(
-                          "rounded-full px-1.5 py-px text-[9px] font-bold",
+                          "rounded-full px-1.5 py-px text-xs font-semibold",
                           PRIORITY_STYLES[action.priority] ?? PRIORITY_STYLES.medium
                         )}
                       >
                         {PRIORITY_LABELS[action.priority] ?? "中"}
                       </span>
                     </div>
-                    <div className="text-[10px] leading-relaxed text-on-surface-variant">
+                    <div className="text-sm leading-relaxed text-on-surface-variant">
                       {action.description}
                     </div>
                   </div>
@@ -269,17 +270,17 @@ export function RecordAIPanel({
                   <Icon name={action.icon} size="sm" className="text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-on-surface">
+                  <div className="text-sm font-semibold text-on-surface">
                     {action.label}
                   </div>
-                  <div className="text-[10px] text-on-surface-variant">
+                  <div className="text-sm text-on-surface-variant">
                     {action.description}
                   </div>
                 </div>
               </div>
             ))
           ) : (
-            <div className="rounded-lg bg-surface-container p-3 text-xs text-on-surface-variant">
+            <div className="rounded-lg bg-surface-container p-3 text-sm text-on-surface-variant">
               推奨アクションはまだありません。
             </div>
           )}
@@ -298,10 +299,10 @@ export function RecordAIPanel({
 
         {replyResult?.replyDraft ? (
           <div className="space-y-2 rounded-lg bg-tertiary-container/40 p-3">
-            <div className="text-xs font-bold text-on-surface">
+            <div className="text-sm font-semibold text-on-surface">
               {replyResult.replyDraft.subject}
             </div>
-            <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-on-surface">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-on-surface">
               {replyResult.replyDraft.body}
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -312,7 +313,7 @@ export function RecordAIPanel({
                   onClick={() =>
                     void handlePostReply(replyResult.replyDraft?.body ?? "")
                   }
-                  className="inline-flex h-6 items-center gap-1 rounded-full bg-tertiary px-2.5 text-[10px] font-bold text-on-primary transition-colors hover:bg-tertiary/85 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-10 items-center gap-1 rounded-full bg-tertiary px-2.5 text-sm font-semibold text-on-tertiary transition-colors hover:bg-tertiary/85 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Icon name="send" size="sm" className="text-[12px]" />
                   コメントに投稿
@@ -323,7 +324,7 @@ export function RecordAIPanel({
                 onClick={() =>
                   void handleCopyReply(replyResult.replyDraft?.body ?? "")
                 }
-                className="inline-flex h-6 items-center gap-1 rounded-full bg-surface-container-high px-2.5 text-[10px] font-bold text-on-surface-variant transition-colors hover:bg-surface-container-highest"
+                className="inline-flex min-h-10 items-center gap-1 rounded-full bg-surface-container-high px-2.5 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-highest"
               >
                 <Icon name="content_copy" size="sm" className="text-[12px]" />
                 コピー
@@ -332,7 +333,7 @@ export function RecordAIPanel({
             </div>
           </div>
         ) : (
-          <p className="text-xs leading-relaxed text-on-surface-variant">
+          <p className="text-sm leading-relaxed text-on-surface-variant">
             {recordId
               ? "依頼者へ送る返信文をAIが起案します。"
               : "レコードを選択すると返信案を生成できます。"}
